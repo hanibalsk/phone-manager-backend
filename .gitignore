@@ -1,0 +1,211 @@
+# =============================================================================
+# Rust / Cargo
+# =============================================================================
+
+# Build output
+/target/
+**/target/
+
+# Cargo lock - keep for binary projects (comment out for libraries)
+# Cargo.lock
+
+# Incremental compilation cache
+**/*.rs.bk
+
+# =============================================================================
+# Environment & Secrets
+# =============================================================================
+
+# Environment files
+.env
+.env.*
+!.env.example
+*.local
+
+# Secrets and credentials
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# =============================================================================
+# Database
+# =============================================================================
+
+# SQLx offline query data (uncomment to track for CI builds)
+# !sqlx-data.json
+.sqlx/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# PostgreSQL
+*.sql.bak
+
+# =============================================================================
+# IDE & Editors
+# =============================================================================
+
+# JetBrains (IntelliJ, CLion, RustRover)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Vim/Neovim
+*.swp
+*.swo
+*~
+.vim/
+Session.vim
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Zed
+.zed/
+
+# =============================================================================
+# OS Generated
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# =============================================================================
+# Build Artifacts
+# =============================================================================
+
+# Object files
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Debug files
+*.dSYM/
+*.su
+*.pdb
+
+# =============================================================================
+# Testing & Coverage
+# =============================================================================
+
+# Test coverage
+coverage/
+*.profraw
+*.profdata
+lcov.info
+tarpaulin-report.html
+cobertura.xml
+
+# Test artifacts
+test-results/
+junit.xml
+
+# Benchmarks
+criterion/
+
+# =============================================================================
+# Logs & Runtime
+# =============================================================================
+
+# Logs
+*.log
+logs/
+log/
+
+# PID files
+*.pid
+*.seed
+
+# Runtime data
+pids/
+*.pid.lock
+
+# =============================================================================
+# Docker
+# =============================================================================
+
+# Docker override files
+docker-compose.override.yml
+docker-compose.*.yml
+!docker-compose.yml
+!docker-compose.prod.yml
+
+# =============================================================================
+# Documentation
+# =============================================================================
+
+# Generated documentation
+/doc/
+/docs/api/
+target/doc/
+
+# =============================================================================
+# Misc
+# =============================================================================
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Package manager caches
+.cargo/registry/
+.cargo/git/
+
+# Claude Code / AI
+.claude/settings.local.json

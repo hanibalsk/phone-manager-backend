@@ -1,0 +1,30 @@
+# Minimal configuration for Supabase deployment
+# Use this for small-scale deployments (< 100 devices)
+
+[server]
+host = "0.0.0.0"
+port = 8080
+request_timeout_secs = 30
+max_body_size = 1048576
+
+[database]
+# Keep small for Supabase free tier
+max_connections = 5
+min_connections = 1
+connect_timeout_secs = 30
+idle_timeout_secs = 300
+
+[logging]
+level = "info"
+format = "pretty"  # Use pretty for single instance (easier to read)
+
+[security]
+cors_origins = ["*"]
+rate_limit_per_minute = 60  # Lower for minimal setup
+
+[limits]
+max_devices_per_group = 20
+max_batch_size = 50
+location_retention_days = 30
+max_display_name_length = 50
+max_group_id_length = 50
