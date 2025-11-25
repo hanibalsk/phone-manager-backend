@@ -35,3 +35,22 @@ impl From<DeviceEntity> for domain::models::Device {
         }
     }
 }
+
+/// Database row mapping for the devices_with_last_location view.
+#[derive(Debug, Clone, FromRow)]
+pub struct DeviceWithLastLocationEntity {
+    pub id: i64,
+    pub device_id: Uuid,
+    pub display_name: String,
+    pub group_id: String,
+    pub platform: String,
+    pub fcm_token: Option<String>,
+    pub active: bool,
+    pub last_seen_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub last_latitude: Option<f64>,
+    pub last_longitude: Option<f64>,
+    pub last_location_time: Option<DateTime<Utc>>,
+    pub last_accuracy: Option<f32>,
+}

@@ -1,26 +1,64 @@
+# Phone Manager Backend - Default Configuration
+# Override values using environment variables with PM__ prefix
+# Example: PM__SERVER__PORT=9000
+
 [server]
+# Host address to bind to
 host = "0.0.0.0"
+
+# Port to listen on
 port = 8080
+
+# Request timeout in seconds
 request_timeout_secs = 30
+
+# Maximum request body size in bytes (1MB default)
 max_body_size = 1048576
 
 [database]
+# Database connection URL (REQUIRED - must be set via environment)
+# Format: postgres://user:password@host:port/database
+# Set via PM__DATABASE__URL environment variable
+url = ""
+
+# Maximum number of connections in the pool
 max_connections = 20
+
+# Minimum number of connections to maintain
 min_connections = 5
+
+# Connection timeout in seconds
 connect_timeout_secs = 10
+
+# Idle connection timeout in seconds
 idle_timeout_secs = 600
 
 [logging]
+# Log level: trace, debug, info, warn, error
 level = "info"
+
+# Log format: json (production) or pretty (development)
 format = "json"
 
 [security]
-cors_origins = ["*"]
+# CORS allowed origins (empty = allow all, use specific origins in production)
+cors_origins = []
+
+# Rate limit per minute per API key
 rate_limit_per_minute = 100
 
 [limits]
+# Maximum devices per group
 max_devices_per_group = 20
+
+# Maximum locations per batch upload
 max_batch_size = 50
+
+# Location data retention in days
 location_retention_days = 30
+
+# Maximum length of device display name
 max_display_name_length = 50
+
+# Maximum length of group ID
 max_group_id_length = 50
