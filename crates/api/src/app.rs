@@ -18,6 +18,7 @@ use crate::routes::{devices, health, locations};
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
+    #[allow(dead_code)] // Used in future stories for rate limiting, etc.
     pub config: Arc<Config>,
 }
 

@@ -7,6 +7,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+#[allow(dead_code)] // Variants used in future stories
 pub enum ApiError {
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
@@ -113,11 +114,7 @@ impl From<validator::ValidationErrors> for ApiError {
             .flat_map(|(field, errors)| {
                 errors.iter().map(move |e| ValidationDetail {
                     field: field.to_string(),
-                    message: e
-                        .message
-                        .clone()
-                        .map(|m| m.to_string())
-                        .unwrap_or_default(),
+                    message: e.message.clone().map(|m| m.to_string()).unwrap_or_default(),
                 })
             })
             .collect();

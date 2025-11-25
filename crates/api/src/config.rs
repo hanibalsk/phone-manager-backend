@@ -6,7 +6,9 @@ pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub logging: LoggingConfig,
+    #[allow(dead_code)] // Used in future stories for rate limiting and CORS
     pub security: SecurityConfig,
+    #[allow(dead_code)] // Used in future stories for validation limits
     pub limits: LimitsConfig,
 }
 
@@ -22,6 +24,7 @@ pub struct ServerConfig {
     pub request_timeout_secs: u64,
 
     #[serde(default = "default_max_body_size")]
+    #[allow(dead_code)] // Used in future stories for request body size limiting
     pub max_body_size: usize,
 }
 
@@ -52,6 +55,7 @@ pub struct LoggingConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)] // Used in future stories for rate limiting and CORS
 pub struct SecurityConfig {
     #[serde(default)]
     pub cors_origins: Vec<String>,
@@ -61,6 +65,7 @@ pub struct SecurityConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)] // Used in future stories for validation limits
 pub struct LimitsConfig {
     #[serde(default = "default_max_devices_per_group")]
     pub max_devices_per_group: usize,

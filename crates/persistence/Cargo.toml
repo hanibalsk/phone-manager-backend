@@ -1,0 +1,21 @@
+[package]
+name = "persistence"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+domain = { path = "../domain" }
+shared = { path = "../shared" }
+
+tokio.workspace = true
+sqlx.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+fake.workspace = true
+tokio-test.workspace = true

@@ -22,7 +22,14 @@ async fn main() -> Result<()> {
     info!("Starting Phone Manager API v{}", env!("CARGO_PKG_VERSION"));
 
     // Create database pool
-    let pool = persistence::db::create_pool(&config.database).await?;
+    let db_config = persistence::db::DatabaseConfig {
+        url: config.database.url.clone(),
+        max_connections: config.database.max_connections,
+        min_connections: config.database.min_connections,
+        connect_timeout_secs: config.database.connect_timeout_secs,
+        idle_timeout_secs: config.database.idle_timeout_secs,
+    };
+    let pool = persistence::db::create_pool(&db_config).await?;
 
     // Run migrations
     info!("Running database migrations...");

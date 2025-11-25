@@ -9,37 +9,37 @@ members = [
 
 [workspace.package]
 version = "0.1.0"
-edition = "2024"
-rust-version = "1.83"
+edition = "2021"
+rust-version = "1.75"
 authors = ["Phone Manager Team"]
 license = "MIT"
 
 [workspace.dependencies]
 # Async runtime
-tokio = { version = "1.42", features = ["full", "tracing"] }
+tokio = { version = "1.37", features = ["full", "tracing"] }
 
 # Web framework
-axum = { version = "0.8", features = ["macros", "tracing"] }
-axum-extra = { version = "0.10", features = ["typed-header"] }
-tower = { version = "0.5", features = ["full"] }
-tower-http = { version = "0.6", features = ["cors", "trace", "request-id", "timeout", "compression-gzip"] }
-hyper = { version = "1.5", features = ["full"] }
+axum = { version = "0.7", features = ["macros", "tracing"] }
+axum-extra = { version = "0.9", features = ["typed-header"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "request-id", "timeout", "compression-gzip"] }
+hyper = { version = "1.2", features = ["full"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "migrate"] }
+sqlx = { version = "0.7", features = ["runtime-tokio", "postgres", "uuid", "chrono", "migrate"] }
 
 # Validation
-validator = { version = "0.19", features = ["derive"] }
+validator = { version = "0.18", features = ["derive"] }
 
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 
 # UUID
-uuid = { version = "1.11", features = ["v4", "serde"] }
+uuid = { version = "1.8", features = ["v4", "serde"] }
 
 # Configuration
 config = "0.14"
@@ -50,25 +50,27 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Error handling
-thiserror = "2.0"
+thiserror = "1.0"
 anyhow = "1.0"
 
-# Security
-sha2 = "0.10"
+# Security - using pinned versions to avoid base64ct 1.8 which requires Edition 2024
+sha2 = "=0.10.8"
 hex = "0.4"
 rand = "0.8"
-base64 = "0.22"
+base64 = "0.21"
 
 # Metrics
-metrics = "0.24"
-metrics-exporter-prometheus = "0.16"
+metrics = "0.22"
+metrics-exporter-prometheus = "0.14"
 
 # Testing
 tokio-test = "0.4"
-fake = { version = "3.0", features = ["chrono", "uuid"] }
+fake = { version = "2.9", features = ["chrono", "uuid"] }
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+
