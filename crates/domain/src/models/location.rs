@@ -117,3 +117,285 @@ pub struct LastLocation {
     pub timestamp: DateTime<Utc>,
     pub accuracy: f64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use validator::Validate;
+
+    fn create_test_location() -> Location {
+        Location {
+            id: 1,
+            device_id: Uuid::new_v4(),
+            latitude: 37.7749,
+            longitude: -122.4194,
+            accuracy: 10.0,
+            altitude: Some(100.0),
+            bearing: Some(180.0),
+            speed: Some(5.5),
+            provider: Some("gps".to_string()),
+            battery_level: Some(85),
+            network_type: Some("wifi".to_string()),
+            captured_at: Utc::now(),
+            created_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn test_location_struct() {
+        let location = create_test_location();
+        assert_eq!(location.latitude, 37.7749);
+        assert_eq!(location.longitude, -122.4194);
+        assert_eq!(location.accuracy, 10.0);
+    }
+
+    #[test]
+    fn test_location_clone() {
+        let location = create_test_location();
+        let cloned = location.clone();
+        assert_eq!(cloned.latitude, location.latitude);
+        assert_eq!(cloned.device_id, location.device_id);
+    }
+
+    #[test]
+    fn test_location_optional_fields() {
+        let mut location = create_test_location();
+        location.altitude = None;
+        location.bearing = None;
+        location.speed = None;
+        location.provider = None;
+        location.battery_level = None;
+        location.network_type = None;
+        assert!(location.altitude.is_none());
+        assert!(location.provider.is_none());
+    }
+
+    #[test]
+    fn test_upload_location_response() {
+        let response = UploadLocationResponse {
+            success: true,
+            processed_count: 5,
+        };
+        assert!(response.success);
+        assert_eq!(response.processed_count, 5);
+    }
+
+    #[test]
+    fn test_last_location() {
+        let last = LastLocation {
+            latitude: 40.7128,
+            longitude: -74.0060,
+            timestamp: Utc::now(),
+            accuracy: 5.0,
+        };
+        assert_eq!(last.latitude, 40.7128);
+        assert_eq!(last.accuracy, 5.0);
+    }
+
+    #[test]
+    fn test_location_data_valid() {
+        let data = LocationData {
+            timestamp: 1700000000000,
+            latitude: 45.0,
+            longitude: -120.0,
+            accuracy: 10.0,
+            altitude: None,
+            bearing: Some(90.0),
+            speed: Some(10.0),
+            provider: None,
+            battery_level: Some(50),
+            network_type: None,
+        };
+        assert!(data.validate().is_ok());
+    }
+
+    #[test]
+    fn test_location_data_invalid_latitude() {
+        let data = LocationData {
+            timestamp: 1700000000000,
+            latitude: 100.0, // Invalid: > 90
+            longitude: -120.0,
+            accuracy: 10.0,
+            altitude: None,
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn test_location_data_invalid_longitude() {
+        let data = LocationData {
+            timestamp: 1700000000000,
+            latitude: 45.0,
+            longitude: -200.0, // Invalid: < -180
+            accuracy: 10.0,
+            altitude: None,
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn test_location_data_invalid_accuracy() {
+        let data = LocationData {
+            timestamp: 1700000000000,
+            latitude: 45.0,
+            longitude: -120.0,
+            accuracy: -5.0, // Invalid: negative
+            altitude: None,
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn test_location_data_invalid_bearing() {
+        let data = LocationData {
+            timestamp: 1700000000000,
+            latitude: 45.0,
+            longitude: -120.0,
+            accuracy: 10.0,
+            altitude: None,
+            bearing: Some(400.0), // Invalid: > 360
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn test_location_data_invalid_speed() {
+        let data = LocationData {
+            timestamp: 1700000000000,
+            latitude: 45.0,
+            longitude: -120.0,
+            accuracy: 10.0,
+            altitude: None,
+            bearing: None,
+            speed: Some(-10.0), // Invalid: negative
+            provider: None,
+            battery_level: None,
+            network_type: None,
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn test_location_data_invalid_battery() {
+        let data = LocationData {
+            timestamp: 1700000000000,
+            latitude: 45.0,
+            longitude: -120.0,
+            accuracy: 10.0,
+            altitude: None,
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: Some(150), // Invalid: > 100
+            network_type: None,
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn test_batch_upload_request_valid() {
+        let request = BatchUploadRequest {
+            device_id: Uuid::new_v4(),
+            locations: vec![LocationData {
+                timestamp: 1700000000000,
+                latitude: 45.0,
+                longitude: -120.0,
+                accuracy: 10.0,
+                altitude: None,
+                bearing: None,
+                speed: None,
+                provider: None,
+                battery_level: None,
+                network_type: None,
+            }],
+        };
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_batch_upload_request_empty() {
+        let request = BatchUploadRequest {
+            device_id: Uuid::new_v4(),
+            locations: vec![], // Invalid: min 1
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_batch_upload_request_too_many() {
+        let locations: Vec<LocationData> = (0..51)
+            .map(|_| LocationData {
+                timestamp: 1700000000000,
+                latitude: 45.0,
+                longitude: -120.0,
+                accuracy: 10.0,
+                altitude: None,
+                bearing: None,
+                speed: None,
+                provider: None,
+                battery_level: None,
+                network_type: None,
+            })
+            .collect();
+
+        let request = BatchUploadRequest {
+            device_id: Uuid::new_v4(),
+            locations, // Invalid: > 50
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_location_data_boundary_values() {
+        // Test boundary values that should be valid
+        let data = LocationData {
+            timestamp: 1700000000000,
+            latitude: 90.0,    // Max valid
+            longitude: -180.0, // Min valid
+            accuracy: 0.0,     // Min valid
+            altitude: None,
+            bearing: Some(0.0), // Min valid
+            speed: Some(0.0),   // Min valid
+            provider: None,
+            battery_level: Some(0), // Min valid
+            network_type: None,
+        };
+        assert!(data.validate().is_ok());
+    }
+
+    #[test]
+    fn test_location_data_max_boundary_values() {
+        let data = LocationData {
+            timestamp: 1700000000000,
+            latitude: -90.0,  // Min valid
+            longitude: 180.0, // Max valid
+            accuracy: 1000.0, // Any positive is valid
+            altitude: None,
+            bearing: Some(360.0), // Max valid
+            speed: Some(100.0),   // Any positive is valid
+            provider: None,
+            battery_level: Some(100), // Max valid
+            network_type: None,
+        };
+        assert!(data.validate().is_ok());
+    }
+}
