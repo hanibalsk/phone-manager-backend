@@ -59,12 +59,23 @@ pub struct RegisterDeviceResponse {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Last known location for a device (used in device listings).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceLastLocation {
+    pub latitude: f64,
+    pub longitude: f64,
+    pub timestamp: DateTime<Utc>,
+    pub accuracy: f64,
+}
+
 /// Device summary for group listings.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceSummary {
     pub device_id: Uuid,
     pub display_name: String,
+    pub last_location: Option<DeviceLastLocation>,
     pub last_seen_at: Option<DateTime<Utc>>,
 }
 
@@ -104,6 +115,7 @@ impl From<Device> for DeviceSummary {
         Self {
             device_id: device.device_id,
             display_name: device.display_name,
+            last_location: None, // Location not available from basic Device
             last_seen_at: device.last_seen_at,
         }
     }
@@ -161,6 +173,7 @@ mod tests {
         assert_eq!(summary.device_id, device.device_id);
         assert_eq!(summary.display_name, device.display_name);
         assert_eq!(summary.last_seen_at, device.last_seen_at);
+        assert!(summary.last_location.is_none()); // Location not available from basic Device
     }
 
     #[test]
@@ -246,6 +259,73 @@ mod tests {
         device.last_seen_at = None;
         let summary: DeviceSummary = device.into();
         assert!(summary.last_seen_at.is_none());
+        assert!(summary.last_location.is_none());
+    }
+
+    #[test]
+    fn test_device_last_location_struct() {
+        let location = DeviceLastLocation {
+            latitude: 37.7749,
+            longitude: -122.4194,
+            timestamp: Utc::now(),
+            accuracy: 10.0,
+        };
+        assert_eq!(location.latitude, 37.7749);
+        assert_eq!(location.longitude, -122.4194);
+        assert_eq!(location.accuracy, 10.0);
+    }
+
+    #[test]
+    fn test_device_summary_with_location() {
+        let location = DeviceLastLocation {
+            latitude: 40.7128,
+            longitude: -74.0060,
+            timestamp: Utc::now(),
+            accuracy: 5.0,
+        };
+        let summary = DeviceSummary {
+            device_id: Uuid::new_v4(),
+            display_name: "Test Phone".to_string(),
+            last_location: Some(location),
+            last_seen_at: Some(Utc::now()),
+        };
+        assert!(summary.last_location.is_some());
+        let loc = summary.last_location.unwrap();
+        assert_eq!(loc.latitude, 40.7128);
+        assert_eq!(loc.longitude, -74.0060);
+    }
+
+    #[test]
+    fn test_device_summary_serialization_with_location() {
+        let location = DeviceLastLocation {
+            latitude: 37.7749,
+            longitude: -122.4194,
+            timestamp: Utc::now(),
+            accuracy: 10.0,
+        };
+        let summary = DeviceSummary {
+            device_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
+            display_name: "Test Device".to_string(),
+            last_location: Some(location),
+            last_seen_at: None,
+        };
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(json.contains("\"lastLocation\""));
+        assert!(json.contains("\"latitude\":37.7749"));
+        assert!(json.contains("\"longitude\":-122.4194"));
+        assert!(json.contains("\"accuracy\":10"));
+    }
+
+    #[test]
+    fn test_device_summary_serialization_without_location() {
+        let summary = DeviceSummary {
+            device_id: Uuid::new_v4(),
+            display_name: "Test Device".to_string(),
+            last_location: None,
+            last_seen_at: None,
+        };
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(json.contains("\"lastLocation\":null"));
     }
 
     #[test]

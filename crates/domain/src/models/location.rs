@@ -31,6 +31,7 @@ pub struct UploadLocationRequest {
     pub device_id: Uuid,
 
     /// Timestamp in milliseconds since epoch
+    #[validate(custom(function = "shared::validation::validate_timestamp"))]
     pub timestamp: i64,
 
     #[validate(custom(function = "shared::validation::validate_latitude"))]
@@ -44,12 +45,15 @@ pub struct UploadLocationRequest {
 
     pub altitude: Option<f64>,
 
+    #[validate(custom(function = "shared::validation::validate_bearing"))]
     pub bearing: Option<f64>,
 
+    #[validate(custom(function = "shared::validation::validate_speed"))]
     pub speed: Option<f64>,
 
     pub provider: Option<String>,
 
+    #[validate(custom(function = "shared::validation::validate_battery_level"))]
     pub battery_level: Option<i32>,
 
     pub network_type: Option<String>,
@@ -69,39 +73,36 @@ pub struct BatchUploadRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct LocationData {
+    #[validate(custom(function = "shared::validation::validate_timestamp"))]
     pub timestamp: i64,
 
-    #[validate(range(min = -90.0, max = 90.0, message = "Latitude must be between -90 and 90"))]
+    #[validate(custom(function = "shared::validation::validate_latitude"))]
     pub latitude: f64,
 
-    #[validate(range(min = -180.0, max = 180.0, message = "Longitude must be between -180 and 180"))]
+    #[validate(custom(function = "shared::validation::validate_longitude"))]
     pub longitude: f64,
 
-    #[validate(range(min = 0.0, message = "Accuracy must be non-negative"))]
+    #[validate(custom(function = "shared::validation::validate_accuracy"))]
     pub accuracy: f64,
 
     pub altitude: Option<f64>,
 
-    #[validate(range(min = 0.0, max = 360.0, message = "Bearing must be between 0 and 360"))]
+    #[validate(custom(function = "shared::validation::validate_bearing"))]
     pub bearing: Option<f64>,
 
-    #[validate(range(min = 0.0, message = "Speed must be non-negative"))]
+    #[validate(custom(function = "shared::validation::validate_speed"))]
     pub speed: Option<f64>,
 
     pub provider: Option<String>,
 
-    #[validate(range(
-        min = 0,
-        max = 100,
-        message = "Battery level must be between 0 and 100"
-    ))]
+    #[validate(custom(function = "shared::validation::validate_battery_level"))]
     pub battery_level: Option<i32>,
 
     pub network_type: Option<String>,
 }
 
 /// Response payload for location upload.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadLocationResponse {
     pub success: bool,
@@ -122,6 +123,11 @@ pub struct LastLocation {
 mod tests {
     use super::*;
     use validator::Validate;
+
+    /// Returns current timestamp in milliseconds for testing
+    fn current_timestamp_millis() -> i64 {
+        Utc::now().timestamp_millis()
+    }
 
     fn create_test_location() -> Location {
         Location {
@@ -195,7 +201,7 @@ mod tests {
     #[test]
     fn test_location_data_valid() {
         let data = LocationData {
-            timestamp: 1700000000000,
+            timestamp: current_timestamp_millis(),
             latitude: 45.0,
             longitude: -120.0,
             accuracy: 10.0,
@@ -212,7 +218,7 @@ mod tests {
     #[test]
     fn test_location_data_invalid_latitude() {
         let data = LocationData {
-            timestamp: 1700000000000,
+            timestamp: current_timestamp_millis(),
             latitude: 100.0, // Invalid: > 90
             longitude: -120.0,
             accuracy: 10.0,
@@ -229,7 +235,7 @@ mod tests {
     #[test]
     fn test_location_data_invalid_longitude() {
         let data = LocationData {
-            timestamp: 1700000000000,
+            timestamp: current_timestamp_millis(),
             latitude: 45.0,
             longitude: -200.0, // Invalid: < -180
             accuracy: 10.0,
@@ -246,7 +252,7 @@ mod tests {
     #[test]
     fn test_location_data_invalid_accuracy() {
         let data = LocationData {
-            timestamp: 1700000000000,
+            timestamp: current_timestamp_millis(),
             latitude: 45.0,
             longitude: -120.0,
             accuracy: -5.0, // Invalid: negative
@@ -263,7 +269,7 @@ mod tests {
     #[test]
     fn test_location_data_invalid_bearing() {
         let data = LocationData {
-            timestamp: 1700000000000,
+            timestamp: current_timestamp_millis(),
             latitude: 45.0,
             longitude: -120.0,
             accuracy: 10.0,
@@ -280,7 +286,7 @@ mod tests {
     #[test]
     fn test_location_data_invalid_speed() {
         let data = LocationData {
-            timestamp: 1700000000000,
+            timestamp: current_timestamp_millis(),
             latitude: 45.0,
             longitude: -120.0,
             accuracy: 10.0,
@@ -297,7 +303,7 @@ mod tests {
     #[test]
     fn test_location_data_invalid_battery() {
         let data = LocationData {
-            timestamp: 1700000000000,
+            timestamp: current_timestamp_millis(),
             latitude: 45.0,
             longitude: -120.0,
             accuracy: 10.0,
@@ -316,7 +322,7 @@ mod tests {
         let request = BatchUploadRequest {
             device_id: Uuid::new_v4(),
             locations: vec![LocationData {
-                timestamp: 1700000000000,
+                timestamp: current_timestamp_millis(),
                 latitude: 45.0,
                 longitude: -120.0,
                 accuracy: 10.0,
@@ -342,9 +348,10 @@ mod tests {
 
     #[test]
     fn test_batch_upload_request_too_many() {
+        let ts = current_timestamp_millis();
         let locations: Vec<LocationData> = (0..51)
             .map(|_| LocationData {
-                timestamp: 1700000000000,
+                timestamp: ts,
                 latitude: 45.0,
                 longitude: -120.0,
                 accuracy: 10.0,
@@ -368,7 +375,7 @@ mod tests {
     fn test_location_data_boundary_values() {
         // Test boundary values that should be valid
         let data = LocationData {
-            timestamp: 1700000000000,
+            timestamp: current_timestamp_millis(),
             latitude: 90.0,    // Max valid
             longitude: -180.0, // Min valid
             accuracy: 0.0,     // Min valid
@@ -385,7 +392,7 @@ mod tests {
     #[test]
     fn test_location_data_max_boundary_values() {
         let data = LocationData {
-            timestamp: 1700000000000,
+            timestamp: current_timestamp_millis(),
             latitude: -90.0,  // Min valid
             longitude: 180.0, // Max valid
             accuracy: 1000.0, // Any positive is valid
@@ -397,5 +404,43 @@ mod tests {
             network_type: None,
         };
         assert!(data.validate().is_ok());
+    }
+
+    #[test]
+    fn test_location_data_invalid_timestamp_future() {
+        // Timestamp 1 hour in the future should fail
+        let future_ts = Utc::now().timestamp_millis() + 3600000;
+        let data = LocationData {
+            timestamp: future_ts,
+            latitude: 45.0,
+            longitude: -120.0,
+            accuracy: 10.0,
+            altitude: None,
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+        };
+        assert!(data.validate().is_err());
+    }
+
+    #[test]
+    fn test_location_data_invalid_timestamp_old() {
+        // Timestamp 10 days ago should fail
+        let old_ts = (Utc::now() - chrono::Duration::days(10)).timestamp_millis();
+        let data = LocationData {
+            timestamp: old_ts,
+            latitude: 45.0,
+            longitude: -120.0,
+            accuracy: 10.0,
+            altitude: None,
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+        };
+        assert!(data.validate().is_err());
     }
 }

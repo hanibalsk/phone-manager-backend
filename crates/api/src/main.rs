@@ -1,10 +1,12 @@
 use anyhow::Result;
+use std::time::Duration;
 use tracing::info;
 
 mod app;
 mod config;
 mod error;
 mod extractors;
+mod jobs;
 mod middleware;
 mod routes;
 
@@ -38,6 +40,15 @@ async fn main() -> Result<()> {
         .await?;
     info!("Migrations completed");
 
+    // Start job scheduler
+    let mut scheduler = jobs::JobScheduler::new();
+    scheduler.register(jobs::CleanupLocationsJob::new(
+        pool.clone(),
+        config.limits.location_retention_days,
+    ));
+    scheduler.register(jobs::RefreshViewsJob::new(pool.clone()));
+    scheduler.start();
+
     // Build application
     let app = app::create_app(config.clone(), pool);
 
@@ -46,7 +57,23 @@ async fn main() -> Result<()> {
     info!("Server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
 
+    // Handle shutdown gracefully
+    let shutdown_signal = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install CTRL+C signal handler");
+        info!("Received shutdown signal");
+    };
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal)
+        .await?;
+
+    // Shutdown job scheduler
+    scheduler.shutdown();
+    scheduler.wait_for_shutdown(Duration::from_secs(30)).await;
+
+    info!("Server shutdown complete");
     Ok(())
 }

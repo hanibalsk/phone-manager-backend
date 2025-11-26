@@ -1,31 +1,266 @@
 //! Location endpoint handlers.
 
 use axum::{extract::State, Json};
+use chrono::{TimeZone, Utc};
+use persistence::repositories::{DeviceRepository, IdempotencyKeyRepository, LocationInput, LocationRepository};
+use tracing::info;
+use uuid::Uuid;
+use validator::Validate;
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::extractors::idempotency_key::OptionalIdempotencyKey;
 use domain::models::location::{BatchUploadRequest, UploadLocationRequest, UploadLocationResponse};
 
 /// Upload a single location.
 ///
-/// POST /api/locations
+/// POST /api/v1/locations
 pub async fn upload_location(
-    State(_state): State<AppState>,
-    Json(_request): Json<UploadLocationRequest>,
+    State(state): State<AppState>,
+    OptionalIdempotencyKey(idempotency_key): OptionalIdempotencyKey,
+    Json(request): Json<UploadLocationRequest>,
 ) -> Result<Json<UploadLocationResponse>, ApiError> {
-    // Implementation will be completed in Story 3.1
-    Err(ApiError::Internal("Not implemented yet".to_string()))
+    // Check idempotency key if present
+    let idempotency_repo = IdempotencyKeyRepository::new(state.pool.clone());
+    if let Some(ref key) = idempotency_key {
+        if let Some(existing) = idempotency_repo.find_by_hash(&key.hash).await? {
+            info!(
+                idempotency_key = %key.original,
+                "Returning cached response for idempotent request"
+            );
+            // Return cached response
+            let response: UploadLocationResponse = serde_json::from_value(existing.response_body)
+                .map_err(|_| ApiError::Internal("Failed to parse cached response".to_string()))?;
+            return Ok(Json(response));
+        }
+    }
+
+    // Validate the request
+    request.validate().map_err(|e| {
+        let errors: Vec<String> = e
+            .field_errors()
+            .iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |err| {
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
+                })
+            })
+            .collect();
+        ApiError::Validation(errors.join(", "))
+    })?;
+
+    // Verify device exists
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let device = device_repo
+        .find_by_device_id(request.device_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound("Device not found. Please register first.".to_string())
+        })?;
+
+    // Check device is active
+    if !device.active {
+        return Err(ApiError::NotFound(
+            "Device not found. Please register first.".to_string(),
+        ));
+    }
+
+    // Convert millisecond timestamp to DateTime
+    let captured_at = Utc
+        .timestamp_millis_opt(request.timestamp)
+        .single()
+        .ok_or_else(|| ApiError::Validation("Invalid timestamp".to_string()))?;
+
+    // Insert location
+    let location_repo = LocationRepository::new(state.pool.clone());
+    let input = LocationInput {
+        device_id: request.device_id,
+        latitude: request.latitude,
+        longitude: request.longitude,
+        accuracy: request.accuracy,
+        altitude: request.altitude,
+        bearing: request.bearing,
+        speed: request.speed,
+        provider: request.provider.clone(),
+        battery_level: request.battery_level,
+        network_type: request.network_type.clone(),
+        captured_at,
+    };
+    location_repo.insert_location(input).await?;
+
+    // Update device last_seen_at (fire-and-forget)
+    let pool_clone = state.pool.clone();
+    let device_id = request.device_id;
+    tokio::spawn(async move {
+        let repo = DeviceRepository::new(pool_clone);
+        if let Err(e) = repo.update_last_seen_at(device_id, Utc::now()).await {
+            tracing::warn!("Failed to update device last_seen_at: {}", e);
+        }
+    });
+
+    let response = UploadLocationResponse {
+        success: true,
+        processed_count: 1,
+    };
+
+    // Store idempotency key with response if present
+    if let Some(ref key) = idempotency_key {
+        store_idempotency_key(&idempotency_repo, &key.hash, request.device_id, &response).await;
+    }
+
+    info!(
+        device_id = %request.device_id,
+        latitude = request.latitude,
+        longitude = request.longitude,
+        "Location uploaded"
+    );
+
+    Ok(Json(response))
 }
 
 /// Upload multiple locations in a batch.
 ///
-/// POST /api/locations/batch
+/// POST /api/v1/locations/batch
 pub async fn upload_batch(
-    State(_state): State<AppState>,
-    Json(_request): Json<BatchUploadRequest>,
+    State(state): State<AppState>,
+    OptionalIdempotencyKey(idempotency_key): OptionalIdempotencyKey,
+    Json(request): Json<BatchUploadRequest>,
 ) -> Result<Json<UploadLocationResponse>, ApiError> {
-    // Implementation will be completed in Story 3.2
-    Err(ApiError::Internal("Not implemented yet".to_string()))
+    // Check idempotency key if present
+    let idempotency_repo = IdempotencyKeyRepository::new(state.pool.clone());
+    if let Some(ref key) = idempotency_key {
+        if let Some(existing) = idempotency_repo.find_by_hash(&key.hash).await? {
+            info!(
+                idempotency_key = %key.original,
+                "Returning cached response for idempotent batch request"
+            );
+            // Return cached response
+            let response: UploadLocationResponse = serde_json::from_value(existing.response_body)
+                .map_err(|_| ApiError::Internal("Failed to parse cached response".to_string()))?;
+            return Ok(Json(response));
+        }
+    }
+
+    // Validate the request (batch size)
+    request.validate().map_err(|e| {
+        let errors: Vec<String> = e
+            .field_errors()
+            .iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |err| {
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
+                })
+            })
+            .collect();
+        ApiError::Validation(errors.join(", "))
+    })?;
+
+    // Validate each location in the batch
+    for (i, loc) in request.locations.iter().enumerate() {
+        loc.validate().map_err(|e| {
+            let errors: Vec<String> = e
+                .field_errors()
+                .iter()
+                .flat_map(|(field, errors)| {
+                    errors.iter().map(move |err| {
+                        format!(
+                            "locations[{}].{}: {}",
+                            i,
+                            field,
+                            err.message.as_ref().unwrap_or(&"".into())
+                        )
+                    })
+                })
+                .collect();
+            ApiError::Validation(errors.join(", "))
+        })?;
+    }
+
+    // Verify device exists
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let device = device_repo
+        .find_by_device_id(request.device_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound("Device not found. Please register first.".to_string())
+        })?;
+
+    // Check device is active
+    if !device.active {
+        return Err(ApiError::NotFound(
+            "Device not found. Please register first.".to_string(),
+        ));
+    }
+
+    // Convert locations to repository format
+    let mut locations_data = Vec::with_capacity(request.locations.len());
+    for loc in &request.locations {
+        let captured_at = Utc
+            .timestamp_millis_opt(loc.timestamp)
+            .single()
+            .ok_or_else(|| ApiError::Validation("Invalid timestamp".to_string()))?;
+
+        locations_data.push(LocationInput {
+            device_id: request.device_id,
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            accuracy: loc.accuracy,
+            altitude: loc.altitude,
+            bearing: loc.bearing,
+            speed: loc.speed,
+            provider: loc.provider.clone(),
+            battery_level: loc.battery_level,
+            network_type: loc.network_type.clone(),
+            captured_at,
+        });
+    }
+
+    // Insert all locations in a transaction
+    let location_repo = LocationRepository::new(state.pool.clone());
+    let processed_count = location_repo
+        .insert_locations_batch(request.device_id, locations_data)
+        .await?;
+
+    // Update device last_seen_at (fire-and-forget)
+    let pool_clone = state.pool.clone();
+    let device_id = request.device_id;
+    tokio::spawn(async move {
+        let repo = DeviceRepository::new(pool_clone);
+        if let Err(e) = repo.update_last_seen_at(device_id, Utc::now()).await {
+            tracing::warn!("Failed to update device last_seen_at: {}", e);
+        }
+    });
+
+    let response = UploadLocationResponse {
+        success: true,
+        processed_count,
+    };
+
+    // Store idempotency key with response if present
+    if let Some(ref key) = idempotency_key {
+        store_idempotency_key(&idempotency_repo, &key.hash, request.device_id, &response).await;
+    }
+
+    info!(
+        device_id = %request.device_id,
+        count = processed_count,
+        "Batch locations uploaded"
+    );
+
+    Ok(Json(response))
+}
+
+/// Helper function to store idempotency key (fire-and-forget).
+async fn store_idempotency_key(
+    repo: &IdempotencyKeyRepository,
+    key_hash: &str,
+    device_id: Uuid,
+    response: &UploadLocationResponse,
+) {
+    let response_json = serde_json::to_value(response).unwrap_or_default();
+    if let Err(e) = repo.store(key_hash, device_id, response_json, 200).await {
+        tracing::warn!("Failed to store idempotency key: {}", e);
+    }
 }
 
 #[cfg(test)]

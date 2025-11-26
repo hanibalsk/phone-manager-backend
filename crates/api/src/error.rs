@@ -1,5 +1,5 @@
 use axum::{
-    http::StatusCode,
+    http::{header, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -27,6 +27,9 @@ pub enum ApiError {
     #[error("Rate limited")]
     RateLimited,
 
+    #[error("Payload too large: {0}")]
+    PayloadTooLarge(String),
+
     #[error("Internal error: {0}")]
     Internal(String),
 
@@ -50,16 +53,33 @@ pub struct ValidationDetail {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status, error_code, message) = match &self {
-            ApiError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "unauthorized", msg.clone()),
-            ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, "forbidden", msg.clone()),
-            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, "not_found", msg.clone()),
-            ApiError::Conflict(msg) => (StatusCode::CONFLICT, "conflict", msg.clone()),
-            ApiError::Validation(msg) => (StatusCode::BAD_REQUEST, "validation_error", msg.clone()),
+        let (status, error_code, message, headers) = match &self {
+            ApiError::Unauthorized(msg) => {
+                (StatusCode::UNAUTHORIZED, "unauthorized", msg.clone(), None)
+            }
+            ApiError::Forbidden(msg) => {
+                (StatusCode::FORBIDDEN, "forbidden", msg.clone(), None)
+            }
+            ApiError::NotFound(msg) => {
+                (StatusCode::NOT_FOUND, "not_found", msg.clone(), None)
+            }
+            ApiError::Conflict(msg) => {
+                (StatusCode::CONFLICT, "conflict", msg.clone(), None)
+            }
+            ApiError::Validation(msg) => {
+                (StatusCode::BAD_REQUEST, "validation_error", msg.clone(), None)
+            }
             ApiError::RateLimited => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "rate_limited",
                 "Too many requests. Please try again later.".into(),
+                Some((header::RETRY_AFTER, "60")), // Retry after 60 seconds
+            ),
+            ApiError::PayloadTooLarge(msg) => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "payload_too_large",
+                msg.clone(),
+                None,
             ),
             ApiError::Internal(msg) => {
                 tracing::error!("Internal error: {}", msg);
@@ -67,12 +87,14 @@ impl IntoResponse for ApiError {
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "internal_error",
                     "An internal error occurred".into(),
+                    None,
                 )
             }
             ApiError::ServiceUnavailable(msg) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "service_unavailable",
                 msg.clone(),
+                None,
             ),
         };
 
@@ -82,26 +104,54 @@ impl IntoResponse for ApiError {
             details: None,
         };
 
-        (status, Json(body)).into_response()
+        let mut response = (status, Json(body)).into_response();
+
+        // Add extra headers if present
+        if let Some((header_name, header_value)) = headers {
+            response
+                .headers_mut()
+                .insert(header_name, header_value.parse().unwrap());
+        }
+
+        response
     }
 }
 
 impl From<sqlx::Error> for ApiError {
     fn from(err: sqlx::Error) -> Self {
-        match err {
+        match &err {
             sqlx::Error::RowNotFound => ApiError::NotFound("Resource not found".into()),
             sqlx::Error::Database(db_err) => {
                 if let Some(code) = db_err.code() {
                     match code.as_ref() {
                         "23505" => ApiError::Conflict("Resource already exists".into()),
                         "23503" => ApiError::NotFound("Referenced resource not found".into()),
-                        _ => ApiError::Internal(format!("Database error: {}", db_err)),
+                        _ => {
+                            tracing::error!("Database error (code: {}): {}", code, db_err);
+                            ApiError::Internal(format!("Database error: {}", db_err))
+                        }
                     }
                 } else {
+                    tracing::error!("Database error: {}", db_err);
                     ApiError::Internal(format!("Database error: {}", db_err))
                 }
             }
-            _ => ApiError::Internal(format!("Database error: {}", err)),
+            sqlx::Error::PoolTimedOut => {
+                tracing::error!("Database connection pool timeout");
+                ApiError::ServiceUnavailable("Database temporarily unavailable".into())
+            }
+            sqlx::Error::PoolClosed => {
+                tracing::error!("Database connection pool closed");
+                ApiError::ServiceUnavailable("Database temporarily unavailable".into())
+            }
+            sqlx::Error::Io(io_err) => {
+                tracing::error!("Database I/O error: {}", io_err);
+                ApiError::ServiceUnavailable("Database temporarily unavailable".into())
+            }
+            _ => {
+                tracing::error!("Database error: {}", err);
+                ApiError::Internal(format!("Database error: {}", err))
+            }
         }
     }
 }
@@ -191,6 +241,21 @@ mod tests {
     }
 
     #[test]
+    fn test_api_error_payload_too_large() {
+        let error = ApiError::PayloadTooLarge("Request exceeds maximum size".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    #[test]
+    fn test_api_error_rate_limited_has_retry_after() {
+        let error = ApiError::RateLimited;
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(response.headers().contains_key(header::RETRY_AFTER));
+    }
+
+    #[test]
     fn test_api_error_display() {
         assert_eq!(
             format!("{}", ApiError::Unauthorized("test".to_string())),
@@ -213,6 +278,10 @@ mod tests {
             "Validation error: test"
         );
         assert_eq!(format!("{}", ApiError::RateLimited), "Rate limited");
+        assert_eq!(
+            format!("{}", ApiError::PayloadTooLarge("test".to_string())),
+            "Payload too large: test"
+        );
         assert_eq!(
             format!("{}", ApiError::Internal("test".to_string())),
             "Internal error: test"

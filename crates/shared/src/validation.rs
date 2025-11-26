@@ -1,6 +1,13 @@
 //! Common validation utilities.
 
+use chrono::{TimeZone, Utc};
 use validator::ValidationError;
+
+/// Maximum age of a timestamp in days (7 days).
+const MAX_TIMESTAMP_AGE_DAYS: i64 = 7;
+
+/// Maximum allowed future timestamp tolerance in seconds (5 minutes for clock skew).
+const MAX_FUTURE_TOLERANCE_SECS: i64 = 300;
 
 /// Validates that a latitude value is within valid range (-90 to 90).
 pub fn validate_latitude(lat: f64) -> Result<(), ValidationError> {
@@ -66,6 +73,41 @@ pub fn validate_battery_level(level: i32) -> Result<(), ValidationError> {
         err.message = Some("Battery level must be between 0 and 100".into());
         Err(err)
     }
+}
+
+/// Validates that a timestamp (in milliseconds since epoch) is within acceptable range.
+/// - Must not be more than 5 minutes in the future (allows for clock skew)
+/// - Must not be older than 7 days
+pub fn validate_timestamp(timestamp_millis: i64) -> Result<(), ValidationError> {
+    let now = Utc::now();
+
+    // Convert millisecond timestamp to DateTime
+    let timestamp = match Utc.timestamp_millis_opt(timestamp_millis).single() {
+        Some(ts) => ts,
+        None => {
+            let mut err = ValidationError::new("timestamp_invalid");
+            err.message = Some("Invalid timestamp format".into());
+            return Err(err);
+        }
+    };
+
+    // Check if timestamp is too far in the future
+    let future_limit = now + chrono::Duration::seconds(MAX_FUTURE_TOLERANCE_SECS);
+    if timestamp > future_limit {
+        let mut err = ValidationError::new("timestamp_future");
+        err.message = Some("Timestamp cannot be in the future".into());
+        return Err(err);
+    }
+
+    // Check if timestamp is too old
+    let past_limit = now - chrono::Duration::days(MAX_TIMESTAMP_AGE_DAYS);
+    if timestamp < past_limit {
+        let mut err = ValidationError::new("timestamp_old");
+        err.message = Some("Timestamp cannot be older than 7 days".into());
+        return Err(err);
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -223,5 +265,87 @@ mod tests {
             err.message.unwrap().to_string(),
             "Battery level must be between 0 and 100"
         );
+    }
+
+    // Timestamp tests
+    #[test]
+    fn test_validate_timestamp_current() {
+        let now_millis = Utc::now().timestamp_millis();
+        assert!(validate_timestamp(now_millis).is_ok());
+    }
+
+    #[test]
+    fn test_validate_timestamp_recent_past() {
+        // 1 hour ago should be valid
+        let one_hour_ago = Utc::now() - chrono::Duration::hours(1);
+        assert!(validate_timestamp(one_hour_ago.timestamp_millis()).is_ok());
+
+        // 1 day ago should be valid
+        let one_day_ago = Utc::now() - chrono::Duration::days(1);
+        assert!(validate_timestamp(one_day_ago.timestamp_millis()).is_ok());
+
+        // 6 days ago should be valid
+        let six_days_ago = Utc::now() - chrono::Duration::days(6);
+        assert!(validate_timestamp(six_days_ago.timestamp_millis()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_timestamp_too_old() {
+        // 8 days ago should be invalid
+        let eight_days_ago = Utc::now() - chrono::Duration::days(8);
+        assert!(validate_timestamp(eight_days_ago.timestamp_millis()).is_err());
+
+        // 30 days ago should be invalid
+        let thirty_days_ago = Utc::now() - chrono::Duration::days(30);
+        assert!(validate_timestamp(thirty_days_ago.timestamp_millis()).is_err());
+    }
+
+    #[test]
+    fn test_validate_timestamp_slight_future() {
+        // 1 minute in the future should be valid (clock skew tolerance)
+        let one_min_future = Utc::now() + chrono::Duration::minutes(1);
+        assert!(validate_timestamp(one_min_future.timestamp_millis()).is_ok());
+
+        // 4 minutes in the future should be valid
+        let four_min_future = Utc::now() + chrono::Duration::minutes(4);
+        assert!(validate_timestamp(four_min_future.timestamp_millis()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_timestamp_too_far_future() {
+        // 10 minutes in the future should be invalid
+        let ten_min_future = Utc::now() + chrono::Duration::minutes(10);
+        assert!(validate_timestamp(ten_min_future.timestamp_millis()).is_err());
+
+        // 1 hour in the future should be invalid
+        let one_hour_future = Utc::now() + chrono::Duration::hours(1);
+        assert!(validate_timestamp(one_hour_future.timestamp_millis()).is_err());
+    }
+
+    #[test]
+    fn test_validate_timestamp_future_error_message() {
+        let far_future = Utc::now() + chrono::Duration::hours(1);
+        let err = validate_timestamp(far_future.timestamp_millis()).unwrap_err();
+        assert_eq!(
+            err.message.unwrap().to_string(),
+            "Timestamp cannot be in the future"
+        );
+    }
+
+    #[test]
+    fn test_validate_timestamp_old_error_message() {
+        let old_timestamp = Utc::now() - chrono::Duration::days(10);
+        let err = validate_timestamp(old_timestamp.timestamp_millis()).unwrap_err();
+        assert_eq!(
+            err.message.unwrap().to_string(),
+            "Timestamp cannot be older than 7 days"
+        );
+    }
+
+    #[test]
+    fn test_validate_timestamp_boundary_7_days() {
+        // Just under 7 days should be valid
+        let just_under_7_days = Utc::now() - chrono::Duration::days(7) + chrono::Duration::hours(1);
+        assert!(validate_timestamp(just_under_7_days.timestamp_millis()).is_ok());
     }
 }

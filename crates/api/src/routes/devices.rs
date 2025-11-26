@@ -13,7 +13,9 @@ use validator::Validate;
 
 use crate::app::AppState;
 use crate::error::ApiError;
-use domain::models::device::{DeviceSummary, RegisterDeviceRequest, RegisterDeviceResponse};
+use domain::models::device::{
+    DeviceLastLocation, DeviceSummary, RegisterDeviceRequest, RegisterDeviceResponse,
+};
 
 /// Query parameters for device listing.
 #[derive(Debug, Deserialize)]
@@ -101,7 +103,7 @@ pub async fn register_device(
     }))
 }
 
-/// Get all active devices in a group.
+/// Get all active devices in a group with last location.
 ///
 /// GET /api/v1/devices?groupId=<id>
 pub async fn get_group_devices(
@@ -113,14 +115,33 @@ pub async fn get_group_devices(
         .ok_or_else(|| ApiError::Validation("groupId query parameter is required".to_string()))?;
 
     let repo = DeviceRepository::new(state.pool.clone());
-    let devices = repo.find_active_devices_by_group(&group_id).await?;
+    let devices = repo.find_devices_with_last_location(&group_id).await?;
 
     let summaries: Vec<DeviceSummary> = devices
         .into_iter()
-        .map(|d| DeviceSummary {
-            device_id: d.device_id,
-            display_name: d.display_name,
-            last_seen_at: d.last_seen_at,
+        .map(|d| {
+            // Build last_location if all location fields are present
+            let last_location = match (
+                d.last_latitude,
+                d.last_longitude,
+                d.last_location_time,
+                d.last_accuracy,
+            ) {
+                (Some(lat), Some(lon), Some(time), Some(acc)) => Some(DeviceLastLocation {
+                    latitude: lat,
+                    longitude: lon,
+                    timestamp: time,
+                    accuracy: acc as f64,
+                }),
+                _ => None,
+            };
+
+            DeviceSummary {
+                device_id: d.device_id,
+                display_name: d.display_name,
+                last_location,
+                last_seen_at: d.last_seen_at,
+            }
         })
         .collect();
 
@@ -186,11 +207,18 @@ mod tests {
         let device1 = DeviceSummary {
             device_id: Uuid::new_v4(),
             display_name: "Phone 1".to_string(),
+            last_location: Some(DeviceLastLocation {
+                latitude: 37.7749,
+                longitude: -122.4194,
+                timestamp: Utc::now(),
+                accuracy: 10.0,
+            }),
             last_seen_at: Some(Utc::now()),
         };
         let device2 = DeviceSummary {
             device_id: Uuid::new_v4(),
             display_name: "Phone 2".to_string(),
+            last_location: None,
             last_seen_at: None,
         };
         let response = GetDevicesResponse {
@@ -198,7 +226,9 @@ mod tests {
         };
         assert_eq!(response.devices.len(), 2);
         assert_eq!(response.devices[0].display_name, "Phone 1");
+        assert!(response.devices[0].last_location.is_some());
         assert_eq!(response.devices[1].display_name, "Phone 2");
+        assert!(response.devices[1].last_location.is_none());
     }
 
     #[test]
@@ -213,6 +243,7 @@ mod tests {
         let device = DeviceSummary {
             device_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
             display_name: "Test Device".to_string(),
+            last_location: None,
             last_seen_at: None,
         };
         let response = GetDevicesResponse {
@@ -221,6 +252,29 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"devices\""));
         assert!(json.contains("Test Device"));
+        assert!(json.contains("\"lastLocation\":null"));
+    }
+
+    #[test]
+    fn test_get_devices_response_serialization_with_location() {
+        let device = DeviceSummary {
+            device_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
+            display_name: "Test Device".to_string(),
+            last_location: Some(DeviceLastLocation {
+                latitude: 37.7749,
+                longitude: -122.4194,
+                timestamp: Utc::now(),
+                accuracy: 10.0,
+            }),
+            last_seen_at: Some(Utc::now()),
+        };
+        let response = GetDevicesResponse {
+            devices: vec![device],
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"lastLocation\""));
+        assert!(json.contains("\"latitude\":37.7749"));
+        assert!(json.contains("\"longitude\":-122.4194"));
     }
 
     #[test]

@@ -1648,6 +1648,7 @@ dependencies = [
  "chrono",
  "domain",
  "fake",
+ "serde_json",
  "shared",
  "sqlx",
  "thiserror",
@@ -1705,6 +1706,7 @@ name = "phone-manager-api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "axum-extra",
  "chrono",
