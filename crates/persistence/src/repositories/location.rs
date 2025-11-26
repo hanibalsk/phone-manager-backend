@@ -165,6 +165,120 @@ impl LocationRepository {
 
         Ok(result.rows_affected())
     }
+
+    /// Get location history for a device with cursor-based pagination.
+    ///
+    /// Returns `(locations, has_more)` tuple. The `has_more` flag indicates
+    /// if there are more results available after the current page.
+    ///
+    /// # Arguments
+    /// * `query` - Query parameters including cursor, limit, filters, and sort order
+    ///
+    /// # Returns
+    /// * Vector of location entities and a boolean indicating if more results exist
+    pub async fn get_location_history(
+        &self,
+        query: LocationHistoryQuery,
+    ) -> Result<(Vec<LocationEntity>, bool), sqlx::Error> {
+        let timer = QueryTimer::new("get_location_history");
+
+        // Fetch limit + 1 to determine if more results exist
+        let fetch_limit = (query.limit + 1) as i64;
+
+        let locations = if query.ascending {
+            self.get_location_history_asc(&query, fetch_limit).await?
+        } else {
+            self.get_location_history_desc(&query, fetch_limit).await?
+        };
+
+        timer.record();
+
+        // Check if there are more results
+        let has_more = locations.len() > query.limit as usize;
+        let mut result = locations;
+        if has_more {
+            result.pop(); // Remove the extra record
+        }
+
+        Ok((result, has_more))
+    }
+
+    /// Get location history in descending order (newest first).
+    async fn get_location_history_desc(
+        &self,
+        query: &LocationHistoryQuery,
+        fetch_limit: i64,
+    ) -> Result<Vec<LocationEntity>, sqlx::Error> {
+        sqlx::query_as::<_, LocationEntity>(
+            r#"
+            SELECT id, device_id, latitude, longitude, accuracy, altitude, bearing,
+                   speed, provider, battery_level, network_type, captured_at, created_at
+            FROM locations
+            WHERE device_id = $1
+              AND ($2::timestamptz IS NULL OR captured_at >= $2)
+              AND ($3::timestamptz IS NULL OR captured_at <= $3)
+              AND ($4::timestamptz IS NULL OR (captured_at, id) < ($4, $5))
+            ORDER BY captured_at DESC, id DESC
+            LIMIT $6
+            "#,
+        )
+        .bind(query.device_id)
+        .bind(query.from_timestamp) // lower bound (filter: show records >= from)
+        .bind(query.to_timestamp) // upper bound (filter: show records <= to)
+        .bind(query.cursor_timestamp)
+        .bind(query.cursor_id.unwrap_or(i64::MAX))
+        .bind(fetch_limit)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    /// Get location history in ascending order (oldest first).
+    async fn get_location_history_asc(
+        &self,
+        query: &LocationHistoryQuery,
+        fetch_limit: i64,
+    ) -> Result<Vec<LocationEntity>, sqlx::Error> {
+        sqlx::query_as::<_, LocationEntity>(
+            r#"
+            SELECT id, device_id, latitude, longitude, accuracy, altitude, bearing,
+                   speed, provider, battery_level, network_type, captured_at, created_at
+            FROM locations
+            WHERE device_id = $1
+              AND ($2::timestamptz IS NULL OR captured_at >= $2)
+              AND ($3::timestamptz IS NULL OR captured_at <= $3)
+              AND ($4::timestamptz IS NULL OR (captured_at, id) > ($4, $5))
+            ORDER BY captured_at ASC, id ASC
+            LIMIT $6
+            "#,
+        )
+        .bind(query.device_id)
+        .bind(query.from_timestamp) // lower bound for ASC (filter: show records >= from)
+        .bind(query.to_timestamp) // upper bound for ASC (filter: show records <= to)
+        .bind(query.cursor_timestamp)
+        .bind(query.cursor_id.unwrap_or(i64::MIN))
+        .bind(fetch_limit)
+        .fetch_all(&self.pool)
+        .await
+    }
+}
+
+/// Query parameters for location history with cursor-based pagination.
+#[derive(Debug, Clone)]
+pub struct LocationHistoryQuery {
+    /// Device ID to fetch locations for.
+    pub device_id: Uuid,
+    /// Cursor timestamp (from decoded cursor).
+    pub cursor_timestamp: Option<DateTime<Utc>>,
+    /// Cursor ID (from decoded cursor).
+    pub cursor_id: Option<i64>,
+    /// Start timestamp filter.
+    pub from_timestamp: Option<DateTime<Utc>>,
+    /// End timestamp filter.
+    pub to_timestamp: Option<DateTime<Utc>>,
+    /// Number of results to return.
+    pub limit: i32,
+    /// Whether to sort in ascending order.
+    pub ascending: bool,
 }
 
 #[cfg(test)]

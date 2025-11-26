@@ -6,4 +6,5 @@
 //! - Shared error types
 
 pub mod crypto;
+pub mod pagination;
 pub mod validation;

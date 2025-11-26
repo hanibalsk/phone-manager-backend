@@ -2,8 +2,10 @@
 
 pub mod admin;
 pub mod devices;
+pub mod geofences;
 pub mod health;
 pub mod locations;
 pub mod openapi;
 pub mod privacy;
+pub mod proximity_alerts;
 pub mod versioning;

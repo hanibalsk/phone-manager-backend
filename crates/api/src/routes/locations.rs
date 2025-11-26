@@ -1,8 +1,14 @@
 //! Location endpoint handlers.
 
-use axum::{extract::State, Json};
+use axum::{
+    extract::{Path, Query, State},
+    Json,
+};
 use chrono::{TimeZone, Utc};
-use persistence::repositories::{DeviceRepository, IdempotencyKeyRepository, LocationInput, LocationRepository};
+use persistence::repositories::{
+    DeviceRepository, IdempotencyKeyRepository, LocationHistoryQuery, LocationInput,
+    LocationRepository,
+};
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
@@ -10,7 +16,10 @@ use validator::Validate;
 use crate::app::AppState;
 use crate::error::ApiError;
 use crate::extractors::idempotency_key::OptionalIdempotencyKey;
-use domain::models::location::{BatchUploadRequest, UploadLocationRequest, UploadLocationResponse};
+use domain::models::location::{
+    BatchUploadRequest, GetLocationHistoryQuery, LocationHistoryItem, LocationHistoryResponse,
+    PaginationInfo, SortOrder, UploadLocationRequest, UploadLocationResponse,
+};
 
 /// Upload a single location.
 ///
@@ -261,6 +270,103 @@ async fn store_idempotency_key(
     if let Err(e) = repo.store(key_hash, device_id, response_json, 200).await {
         tracing::warn!("Failed to store idempotency key: {}", e);
     }
+}
+
+/// Get location history for a device with cursor-based pagination.
+///
+/// GET /api/v1/devices/:device_id/locations
+pub async fn get_location_history(
+    State(state): State<AppState>,
+    Path(device_id): Path<Uuid>,
+    Query(query): Query<GetLocationHistoryQuery>,
+) -> Result<Json<LocationHistoryResponse>, ApiError> {
+    // Verify device exists and is active
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    if !device.active {
+        return Err(ApiError::NotFound("Device not found".to_string()));
+    }
+
+    // Decode cursor if present
+    let (cursor_timestamp, cursor_id) = match &query.cursor {
+        Some(cursor) => {
+            let (ts, id) = shared::pagination::decode_cursor(cursor)
+                .map_err(|_| ApiError::Validation("Invalid cursor format".to_string()))?;
+            (Some(ts), Some(id))
+        }
+        None => (None, None),
+    };
+
+    // Convert timestamp filters from milliseconds to DateTime
+    // Return 400 if timestamps are provided but invalid (e.g., overflow)
+    let from_timestamp = match query.from {
+        Some(ts) => {
+            let dt = Utc.timestamp_millis_opt(ts).single()
+                .ok_or_else(|| ApiError::Validation(format!("Invalid 'from' timestamp: {}", ts)))?;
+            Some(dt)
+        }
+        None => None,
+    };
+    let to_timestamp = match query.to {
+        Some(ts) => {
+            let dt = Utc.timestamp_millis_opt(ts).single()
+                .ok_or_else(|| ApiError::Validation(format!("Invalid 'to' timestamp: {}", ts)))?;
+            Some(dt)
+        }
+        None => None,
+    };
+
+    // Get effective limit (clamped to valid range)
+    let limit = query.effective_limit();
+
+    // Build repository query
+    let repo_query = LocationHistoryQuery {
+        device_id,
+        cursor_timestamp,
+        cursor_id,
+        from_timestamp,
+        to_timestamp,
+        limit,
+        ascending: query.order == SortOrder::Asc,
+    };
+
+    // Execute query
+    let location_repo = LocationRepository::new(state.pool.clone());
+    let (entities, has_more) = location_repo.get_location_history(repo_query).await?;
+
+    // Build response with next cursor
+    let next_cursor = if has_more {
+        entities.last().map(|loc| {
+            shared::pagination::encode_cursor(loc.captured_at, loc.id)
+        })
+    } else {
+        None
+    };
+
+    // Convert entities to response items
+    let locations: Vec<LocationHistoryItem> = entities
+        .into_iter()
+        .map(|e| {
+            let loc: domain::models::Location = e.into();
+            loc.into()
+        })
+        .collect();
+
+    info!(
+        device_id = %device_id,
+        count = locations.len(),
+        has_more = has_more,
+        "Location history retrieved"
+    );
+
+    Ok(Json(LocationHistoryResponse {
+        locations,
+        pagination: PaginationInfo { next_cursor, has_more },
+    }))
 }
 
 #[cfg(test)]

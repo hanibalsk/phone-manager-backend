@@ -1,6 +1,6 @@
 use axum::{
     middleware,
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 use sqlx::PgPool;
@@ -18,7 +18,7 @@ use crate::middleware::{
     metrics_handler, metrics_middleware, rate_limit_middleware, require_admin, require_auth,
     security_headers_middleware, trace_id, RateLimiterState,
 };
-use crate::routes::{admin, devices, health, locations, openapi, privacy, versioning};
+use crate::routes::{admin, devices, geofences, health, locations, openapi, privacy, proximity_alerts, versioning};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -78,6 +78,47 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         // Location routes (v1)
         .route("/api/v1/locations", post(locations::upload_location))
         .route("/api/v1/locations/batch", post(locations::upload_batch))
+        // Device location history (v1)
+        .route(
+            "/api/v1/devices/:device_id/locations",
+            get(locations::get_location_history),
+        )
+        // Geofence routes (v1)
+        .route("/api/v1/geofences", post(geofences::create_geofence))
+        .route("/api/v1/geofences", get(geofences::list_geofences))
+        .route(
+            "/api/v1/geofences/:geofence_id",
+            get(geofences::get_geofence),
+        )
+        .route(
+            "/api/v1/geofences/:geofence_id",
+            patch(geofences::update_geofence),
+        )
+        .route(
+            "/api/v1/geofences/:geofence_id",
+            delete(geofences::delete_geofence),
+        )
+        // Proximity alert routes (v1)
+        .route(
+            "/api/v1/proximity-alerts",
+            post(proximity_alerts::create_proximity_alert),
+        )
+        .route(
+            "/api/v1/proximity-alerts",
+            get(proximity_alerts::list_proximity_alerts),
+        )
+        .route(
+            "/api/v1/proximity-alerts/:alert_id",
+            get(proximity_alerts::get_proximity_alert),
+        )
+        .route(
+            "/api/v1/proximity-alerts/:alert_id",
+            patch(proximity_alerts::update_proximity_alert),
+        )
+        .route(
+            "/api/v1/proximity-alerts/:alert_id",
+            delete(proximity_alerts::delete_proximity_alert),
+        )
         // Privacy routes (v1) - GDPR compliance
         .route(
             "/api/v1/devices/:device_id/data-export",

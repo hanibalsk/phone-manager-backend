@@ -87,6 +87,20 @@ PM__LIMITS__MAX_BATCH_SIZE=50
 - Coordinate validation (-90/90 lat, -180/180 lon)
 - 30-day retention with automated cleanup
 - Last location aggregation per device
+- Location history with cursor-based pagination
+
+### Geofences
+- Per-device circular geofences (max 50/device)
+- Event types: enter, exit, dwell
+- Radius: 20-50000 meters
+- Optional metadata for client customization
+
+### Proximity Alerts
+- Device-to-device proximity monitoring
+- Same-group constraint enforced
+- Radius: 50-100000 meters
+- Max 20 alerts per source device
+- Haversine distance calculation (PostgreSQL function)
 
 ### Authentication
 - API key-based (SHA-256 hashed storage)
@@ -95,15 +109,64 @@ PM__LIMITS__MAX_BATCH_SIZE=50
 
 ## API Endpoints
 
+### Devices
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/devices/register` | Register/update device |
-| GET | `/api/devices?groupId=` | List group devices with last location |
-| POST | `/api/locations` | Upload single location |
-| POST | `/api/locations/batch` | Upload batch locations |
+| POST | `/api/v1/devices/register` | Register/update device |
+| GET | `/api/v1/devices?groupId=` | List group devices with last location |
+| DELETE | `/api/v1/devices/:device_id` | Deactivate device (soft delete) |
+
+### Locations
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/locations` | Upload single location |
+| POST | `/api/v1/locations/batch` | Upload batch locations (max 50) |
+| GET | `/api/v1/devices/:device_id/locations` | Get location history (cursor pagination) |
+
+### Geofences
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/geofences` | Create geofence |
+| GET | `/api/v1/geofences?deviceId=` | List device geofences |
+| GET | `/api/v1/geofences/:geofence_id` | Get geofence |
+| PATCH | `/api/v1/geofences/:geofence_id` | Update geofence |
+| DELETE | `/api/v1/geofences/:geofence_id` | Delete geofence |
+
+### Proximity Alerts
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/proximity-alerts` | Create proximity alert |
+| GET | `/api/v1/proximity-alerts?sourceDeviceId=` | List alerts |
+| GET | `/api/v1/proximity-alerts/:alert_id` | Get alert |
+| PATCH | `/api/v1/proximity-alerts/:alert_id` | Update alert |
+| DELETE | `/api/v1/proximity-alerts/:alert_id` | Delete alert |
+
+### Privacy (GDPR)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/devices/:device_id/data-export` | Export device data |
+| DELETE | `/api/v1/devices/:device_id/data` | Delete all device data |
+
+### Admin
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/admin/stats` | Get system statistics |
+| DELETE | `/api/v1/admin/devices/inactive` | Delete inactive devices |
+| POST | `/api/v1/admin/devices/:device_id/reactivate` | Reactivate device |
+
+### Health
+| Method | Path | Description |
+|--------|------|-------------|
 | GET | `/api/health` | Health check |
 | GET | `/api/health/live` | Liveness probe |
 | GET | `/api/health/ready` | Readiness probe |
+| GET | `/metrics` | Prometheus metrics |
+
+### Documentation
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/docs/` | Swagger UI |
+| GET | `/api/docs/openapi.yaml` | OpenAPI spec |
 
 ## Development Commands
 

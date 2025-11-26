@@ -119,6 +119,130 @@ pub struct LastLocation {
     pub accuracy: f64,
 }
 
+// ============================================================================
+// Location History (GET /api/v1/devices/{device_id}/locations)
+// ============================================================================
+
+/// Sort order for location history queries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SortOrder {
+    Asc,
+    #[default]
+    Desc,
+}
+
+impl<'de> serde::Deserialize<'de> for SortOrder {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.to_lowercase().as_str() {
+            "asc" => Ok(SortOrder::Asc),
+            "desc" => Ok(SortOrder::Desc),
+            _ => Err(serde::de::Error::custom("order must be 'asc' or 'desc'")),
+        }
+    }
+}
+
+/// Query parameters for location history endpoint.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetLocationHistoryQuery {
+    /// Opaque cursor for pagination (base64-encoded timestamp:id).
+    pub cursor: Option<String>,
+
+    /// Number of results per page (1-100, default 50).
+    pub limit: Option<i32>,
+
+    /// Start timestamp filter (milliseconds since epoch).
+    pub from: Option<i64>,
+
+    /// End timestamp filter (milliseconds since epoch).
+    pub to: Option<i64>,
+
+    /// Sort order: "asc" or "desc" (default "desc").
+    #[serde(default)]
+    pub order: SortOrder,
+}
+
+impl GetLocationHistoryQuery {
+    /// Default limit for location history queries.
+    pub const DEFAULT_LIMIT: i32 = 50;
+    /// Maximum limit for location history queries.
+    pub const MAX_LIMIT: i32 = 100;
+    /// Minimum limit for location history queries.
+    pub const MIN_LIMIT: i32 = 1;
+
+    /// Returns the effective limit, clamped to valid range.
+    pub fn effective_limit(&self) -> i32 {
+        self.limit
+            .unwrap_or(Self::DEFAULT_LIMIT)
+            .clamp(Self::MIN_LIMIT, Self::MAX_LIMIT)
+    }
+}
+
+/// Single location item in history response.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocationHistoryItem {
+    pub id: i64,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub accuracy: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub altitude: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bearing: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speed: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub battery_level: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network_type: Option<String>,
+    pub captured_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<Location> for LocationHistoryItem {
+    fn from(loc: Location) -> Self {
+        Self {
+            id: loc.id,
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            accuracy: loc.accuracy,
+            altitude: loc.altitude,
+            bearing: loc.bearing,
+            speed: loc.speed,
+            provider: loc.provider,
+            battery_level: loc.battery_level,
+            network_type: loc.network_type,
+            captured_at: loc.captured_at,
+            created_at: loc.created_at,
+        }
+    }
+}
+
+/// Pagination info for cursor-based pagination.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaginationInfo {
+    /// Cursor for fetching the next page.
+    pub next_cursor: Option<String>,
+    /// Whether there are more results available.
+    pub has_more: bool,
+}
+
+/// Response payload for location history endpoint.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocationHistoryResponse {
+    pub locations: Vec<LocationHistoryItem>,
+    pub pagination: PaginationInfo,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
