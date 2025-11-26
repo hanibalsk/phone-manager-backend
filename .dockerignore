@@ -1,0 +1,51 @@
+# Phone Manager Backend - Docker Ignore
+# Exclude files from Docker build context
+
+# Build artifacts
+target/
+*.rs.bk
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Environment files (should not be in image)
+.env
+.env.local
+.env.*.local
+
+# Documentation (not needed for runtime)
+docs/
+*.md
+!README.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Kubernetes manifests
+k8s/
+
+# Tests (not needed for production image)
+tests/
+
+# Docker files (prevent recursive copies)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# BMAD workflow files
+bmad/
+
+# Misc
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

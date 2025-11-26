@@ -128,3 +128,117 @@ impl From<validator::ValidationErrors> for ApiError {
         ApiError::Validation(message)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::StatusCode;
+
+    #[test]
+    fn test_api_error_unauthorized() {
+        let error = ApiError::Unauthorized("test message".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[test]
+    fn test_api_error_forbidden() {
+        let error = ApiError::Forbidden("access denied".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[test]
+    fn test_api_error_not_found() {
+        let error = ApiError::NotFound("resource not found".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_api_error_conflict() {
+        let error = ApiError::Conflict("already exists".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+    }
+
+    #[test]
+    fn test_api_error_validation() {
+        let error = ApiError::Validation("invalid input".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_api_error_rate_limited() {
+        let error = ApiError::RateLimited;
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[test]
+    fn test_api_error_internal() {
+        let error = ApiError::Internal("database connection failed".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_api_error_service_unavailable() {
+        let error = ApiError::ServiceUnavailable("maintenance".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[test]
+    fn test_api_error_display() {
+        assert_eq!(
+            format!("{}", ApiError::Unauthorized("test".to_string())),
+            "Unauthorized: test"
+        );
+        assert_eq!(
+            format!("{}", ApiError::Forbidden("test".to_string())),
+            "Forbidden: test"
+        );
+        assert_eq!(
+            format!("{}", ApiError::NotFound("test".to_string())),
+            "Not found: test"
+        );
+        assert_eq!(
+            format!("{}", ApiError::Conflict("test".to_string())),
+            "Conflict: test"
+        );
+        assert_eq!(
+            format!("{}", ApiError::Validation("test".to_string())),
+            "Validation error: test"
+        );
+        assert_eq!(format!("{}", ApiError::RateLimited), "Rate limited");
+        assert_eq!(
+            format!("{}", ApiError::Internal("test".to_string())),
+            "Internal error: test"
+        );
+        assert_eq!(
+            format!("{}", ApiError::ServiceUnavailable("test".to_string())),
+            "Service unavailable: test"
+        );
+    }
+
+    #[test]
+    fn test_validation_detail() {
+        let detail = ValidationDetail {
+            field: "email".to_string(),
+            message: "Invalid email format".to_string(),
+        };
+        assert_eq!(detail.field, "email");
+        assert_eq!(detail.message, "Invalid email format");
+    }
+
+    #[test]
+    fn test_from_sqlx_row_not_found() {
+        let error: ApiError = sqlx::Error::RowNotFound.into();
+        match error {
+            ApiError::NotFound(msg) => assert_eq!(msg, "Resource not found"),
+            _ => panic!("Expected NotFound error"),
+        }
+    }
+}

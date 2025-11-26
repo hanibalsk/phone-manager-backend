@@ -77,3 +77,75 @@ pub async fn ready(State(state): State<AppState>) -> Result<Json<StatusResponse>
         Err(StatusCode::SERVICE_UNAVAILABLE)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_health_response_healthy() {
+        let response = HealthResponse {
+            status: "healthy".to_string(),
+            version: "0.1.0".to_string(),
+            database: DatabaseHealth {
+                connected: true,
+                latency_ms: Some(5),
+            },
+        };
+        assert_eq!(response.status, "healthy");
+        assert_eq!(response.version, "0.1.0");
+        assert!(response.database.connected);
+        assert_eq!(response.database.latency_ms, Some(5));
+    }
+
+    #[test]
+    fn test_health_response_unhealthy() {
+        let response = HealthResponse {
+            status: "unhealthy".to_string(),
+            version: "0.1.0".to_string(),
+            database: DatabaseHealth {
+                connected: false,
+                latency_ms: None,
+            },
+        };
+        assert_eq!(response.status, "unhealthy");
+        assert!(!response.database.connected);
+        assert_eq!(response.database.latency_ms, None);
+    }
+
+    #[test]
+    fn test_database_health_connected() {
+        let health = DatabaseHealth {
+            connected: true,
+            latency_ms: Some(10),
+        };
+        assert!(health.connected);
+        assert_eq!(health.latency_ms, Some(10));
+    }
+
+    #[test]
+    fn test_database_health_disconnected() {
+        let health = DatabaseHealth {
+            connected: false,
+            latency_ms: None,
+        };
+        assert!(!health.connected);
+        assert!(health.latency_ms.is_none());
+    }
+
+    #[test]
+    fn test_status_response() {
+        let response = StatusResponse {
+            status: "alive".to_string(),
+        };
+        assert_eq!(response.status, "alive");
+    }
+
+    #[test]
+    fn test_status_response_ready() {
+        let response = StatusResponse {
+            status: "ready".to_string(),
+        };
+        assert_eq!(response.status, "ready");
+    }
+}

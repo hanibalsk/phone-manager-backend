@@ -1,0 +1,63 @@
+# Phone Manager Backend - Docker Compose Configuration
+# Usage: docker-compose up -d
+
+services:
+  # PostgreSQL 16 Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: phone-manager-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-phone_manager}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-phone_manager_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-phone_manager}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-phone_manager} -d ${POSTGRES_DB:-phone_manager}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - phone-manager-network
+
+  # Phone Manager API (Production build)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: phone-manager-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      PM__DATABASE__URL: postgres://${POSTGRES_USER:-phone_manager}:${POSTGRES_PASSWORD:-phone_manager_dev}@postgres:5432/${POSTGRES_DB:-phone_manager}
+      PM__SERVER__HOST: 0.0.0.0
+      PM__SERVER__PORT: 8080
+      PM__LOGGING__LEVEL: ${LOG_LEVEL:-info}
+      PM__LOGGING__FORMAT: ${LOG_FORMAT:-json}
+      RUST_BACKTRACE: ${RUST_BACKTRACE:-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - phone-manager-network
+
+volumes:
+  postgres_data:
+    name: phone-manager-postgres-data
+
+networks:
+  phone-manager-network:
+    name: phone-manager-network
+    driver: bridge

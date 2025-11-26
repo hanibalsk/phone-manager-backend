@@ -1,4 +1,5 @@
 use axum::{
+    middleware,
     routing::{get, post},
     Router,
 };
@@ -13,12 +14,13 @@ use tower_http::{
 };
 
 use crate::config::Config;
+use crate::middleware::{require_auth, trace_id};
 use crate::routes::{devices, health, locations};
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
-    #[allow(dead_code)] // Used in future stories for rate limiting, etc.
+    #[allow(dead_code)] // Used in future stories for rate limiting, CORS config, etc.
     pub config: Arc<Config>,
 }
 
@@ -36,24 +38,33 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build router
-    Router::new()
-        // Health routes (no auth required)
-        .route("/api/health", get(health::health_check))
-        .route("/api/health/ready", get(health::ready))
-        .route("/api/health/live", get(health::live))
+    // Protected routes (require API key authentication)
+    let protected_routes = Router::new()
         // Device routes
         .route("/api/devices/register", post(devices::register_device))
         .route("/api/devices", get(devices::get_group_devices))
         // Location routes
         .route("/api/locations", post(locations::upload_location))
         .route("/api/locations/batch", post(locations::upload_batch))
-        // Middleware
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    // Public routes (no authentication required)
+    let public_routes = Router::new()
+        .route("/api/health", get(health::health_check))
+        .route("/api/health/ready", get(health::ready))
+        .route("/api/health/live", get(health::live));
+
+    // Merge all routes
+    Router::new()
+        .merge(public_routes)
+        .merge(protected_routes)
+        // Global middleware (order matters: bottom layers run first)
         .layer(CompressionLayer::new())
         .layer(TimeoutLayer::new(Duration::from_secs(
             config.server.request_timeout_secs,
         )))
         .layer(TraceLayer::new_for_http())
+        .layer(middleware::from_fn(trace_id)) // Request ID and logging
         .layer(cors)
         .with_state(state)
 }
