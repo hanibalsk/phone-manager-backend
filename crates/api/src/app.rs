@@ -18,7 +18,7 @@ use crate::middleware::{
     metrics_handler, metrics_middleware, rate_limit_middleware, require_admin, require_auth,
     security_headers_middleware, trace_id, RateLimiterState,
 };
-use crate::routes::{admin, devices, health, locations, privacy, versioning};
+use crate::routes::{admin, devices, health, locations, openapi, privacy, versioning};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -135,9 +135,17 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route("/api/health/live", get(health::live))
         .route("/metrics", get(metrics_handler));
 
+    // OpenAPI documentation routes (public, no auth)
+    let openapi_routes = Router::new()
+        .route("/api/docs", get(openapi::swagger_ui_redirect))
+        .route("/api/docs/", get(openapi::swagger_ui))
+        .route("/api/docs/*path", get(openapi::swagger_ui))
+        .route("/api/docs/openapi.yaml", get(openapi::openapi_spec));
+
     // Merge all routes
     Router::new()
         .merge(public_routes)
+        .merge(openapi_routes)
         .merge(protected_routes)
         .merge(admin_routes)
         .merge(legacy_routes)

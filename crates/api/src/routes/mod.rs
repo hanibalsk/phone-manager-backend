@@ -4,5 +4,6 @@ pub mod admin;
 pub mod devices;
 pub mod health;
 pub mod locations;
+pub mod openapi;
 pub mod privacy;
 pub mod versioning;

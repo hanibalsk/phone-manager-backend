@@ -35,6 +35,10 @@ metrics-exporter-prometheus.workspace = true
 async-trait.workspace = true
 governor.workspace = true
 
+# OpenAPI / Swagger UI
+rust-embed = "8.5"
+mime_guess = "2.0"
+
 [dev-dependencies]
 tokio-test.workspace = true
 fake.workspace = true
