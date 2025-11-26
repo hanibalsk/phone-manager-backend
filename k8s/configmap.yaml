@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: phone-manager-config
+  labels:
+    app: phone-manager-api
+data:
+  # Database settings (non-sensitive)
+  database.max_connections: "20"
+  database.min_connections: "5"
+  database.connect_timeout_secs: "10"
+  database.idle_timeout_secs: "600"
+
+  # Server settings
+  server.request_timeout_secs: "30"
+  server.max_body_size: "1048576"
+
+  # Security settings
+  security.rate_limit_per_minute: "100"
+
+  # Limits
+  limits.max_devices_per_group: "20"
+  limits.max_batch_size: "50"
+  limits.location_retention_days: "30"

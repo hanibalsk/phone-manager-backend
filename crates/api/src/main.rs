@@ -21,6 +21,10 @@ async fn main() -> Result<()> {
     // Initialize logging
     middleware::logging::init_logging(&config.logging);
 
+    // Initialize Prometheus metrics
+    middleware::metrics::init_metrics();
+    info!("Prometheus metrics initialized");
+
     info!("Starting Phone Manager API v{}", env!("CARGO_PKG_VERSION"));
 
     // Create database pool

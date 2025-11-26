@@ -1,0 +1,462 @@
+# Phone Manager Backend
+
+A high-performance Rust backend API for the Phone Manager mobile application. Handles device registration, real-time location tracking, and group management for family/friends location sharing.
+
+[![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+## Features
+
+- **Device Management** - Register devices with UUID identifiers, manage display names, and organize into groups
+- **Location Tracking** - Real-time single and batch location uploads with 30-day retention
+- **Group Coordination** - Share locations within family/friend groups (up to 20 devices per group)
+- **API Key Authentication** - Secure SHA-256 hashed API key authentication with admin roles
+- **Rate Limiting** - Per-API-key rate limiting using sliding window algorithm
+- **Prometheus Metrics** - Production-ready observability with request counters and latency histograms
+- **GDPR Compliance** - Data export and hard deletion for privacy compliance
+- **Kubernetes Ready** - Complete deployment manifests with HPA auto-scaling
+
+## Tech Stack
+
+| Component | Technology | Version |
+|-----------|------------|---------|
+| Language | Rust | 1.75+ |
+| Web Framework | Axum | 0.7 |
+| Async Runtime | Tokio | 1.37 |
+| Database | PostgreSQL + SQLx | 0.7 |
+| Rate Limiting | Governor | 0.7 |
+| Metrics | Prometheus | 0.14 |
+
+## Quick Start
+
+### Prerequisites
+
+- Rust 1.75+ (`rustup update stable`)
+- PostgreSQL 14+
+- SQLx CLI (`cargo install sqlx-cli --no-default-features --features postgres`)
+
+### Setup
+
+1. **Clone and configure:**
+   ```bash
+   git clone <repository-url>
+   cd phone-manager-backend
+   cp .env.example .env
+   ```
+
+2. **Set database URL:**
+   ```bash
+   # In .env file
+   PM__DATABASE__URL=postgres://user:password@localhost:5432/phone_manager
+   ```
+
+3. **Create database and run migrations:**
+   ```bash
+   sqlx database create
+   sqlx migrate run --source crates/persistence/src/migrations
+   ```
+
+4. **Generate an API key:**
+   ```bash
+   ./scripts/manage-api-key.sh create --name "Development Key"
+   # Save the generated key - it won't be shown again!
+   ```
+
+5. **Run the server:**
+   ```bash
+   cargo run --bin phone-manager
+   ```
+
+The API will be available at `http://localhost:8080`.
+
+## API Reference
+
+All protected endpoints require the `X-API-Key` header.
+
+### Health & Metrics
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/health` | GET | No | Basic health check |
+| `/api/health/live` | GET | No | Kubernetes liveness probe |
+| `/api/health/ready` | GET | No | Kubernetes readiness probe |
+| `/metrics` | GET | No | Prometheus metrics |
+
+### Device Management
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/v1/devices/register` | POST | Yes | Register or update a device |
+| `/api/v1/devices?groupId={id}` | GET | Yes | List devices in a group with last location |
+| `/api/v1/devices/:device_id` | DELETE | Yes | Soft delete (deactivate) a device |
+
+**Register Device Request:**
+```json
+{
+  "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+  "displayName": "John's Phone",
+  "groupId": "family-smith",
+  "platform": "android",
+  "fcmToken": "optional-firebase-token"
+}
+```
+
+### Location Tracking
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/v1/locations` | POST | Yes | Upload single location |
+| `/api/v1/locations/batch` | POST | Yes | Upload batch locations (max 50) |
+
+**Single Location Request:**
+```json
+{
+  "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+  "latitude": 37.7749,
+  "longitude": -122.4194,
+  "accuracy": 10.0,
+  "altitude": 15.5,
+  "bearing": 180.0,
+  "speed": 5.5,
+  "provider": "gps",
+  "batteryLevel": 85,
+  "networkType": "wifi",
+  "capturedAt": "2024-01-15T10:30:00Z"
+}
+```
+
+**Batch Location Request:**
+```json
+{
+  "locations": [
+    { "deviceId": "...", "latitude": 37.7749, "longitude": -122.4194, ... },
+    { "deviceId": "...", "latitude": 37.7750, "longitude": -122.4195, ... }
+  ]
+}
+```
+
+### Privacy (GDPR)
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/v1/devices/:device_id/data-export` | GET | Yes | Export all device data (Article 20) |
+| `/api/v1/devices/:device_id/data` | DELETE | Yes | Hard delete device and all data (Article 17) |
+
+### Admin Operations
+
+Admin endpoints require an API key with `is_admin = true`.
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/v1/admin/devices/inactive?older_than_days=30` | DELETE | Admin | Delete inactive devices |
+| `/api/v1/admin/devices/:device_id/reactivate` | POST | Admin | Reactivate soft-deleted device |
+| `/api/v1/admin/stats` | GET | Admin | Get system statistics |
+
+### Legacy Routes
+
+Legacy routes (without `/v1/`) return `301 Moved Permanently` redirects to v1 endpoints.
+
+## Configuration
+
+Configuration uses TOML files with environment variable overrides.
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PM__DATABASE__URL` | Yes | - | PostgreSQL connection string |
+| `PM__SERVER__HOST` | No | `0.0.0.0` | Server bind address |
+| `PM__SERVER__PORT` | No | `8080` | Server port |
+| `PM__LOGGING__LEVEL` | No | `info` | Log level (trace/debug/info/warn/error) |
+| `PM__LOGGING__FORMAT` | No | `json` | Log format (json/pretty) |
+| `PM__SECURITY__CORS_ORIGINS` | No | `[]` | Allowed CORS origins |
+| `PM__SECURITY__RATE_LIMIT_PER_MINUTE` | No | `100` | Rate limit per API key |
+| `PM__LIMITS__MAX_DEVICES_PER_GROUP` | No | `20` | Max devices per group |
+| `PM__LIMITS__MAX_BATCH_SIZE` | No | `50` | Max locations per batch |
+| `PM__LIMITS__LOCATION_RETENTION_DAYS` | No | `30` | Days to retain location data |
+| `PM__DATABASE__MAX_CONNECTIONS` | No | `20` | DB connection pool max |
+| `PM__DATABASE__MIN_CONNECTIONS` | No | `5` | DB connection pool min |
+
+### Configuration Files
+
+- `config/default.toml` - Default configuration
+- `config/minimal.toml` - Minimal configuration for testing
+
+## API Key Management
+
+Use the CLI tool to manage API keys:
+
+```bash
+# Create a standard API key
+./scripts/manage-api-key.sh create --name "Production App"
+
+# Create an admin API key
+./scripts/manage-api-key.sh create --name "Admin Key" --admin
+
+# Create a key with expiration
+./scripts/manage-api-key.sh create --name "Temp Key" --expires 30
+
+# List all keys (requires DATABASE_URL)
+DATABASE_URL=postgres://... ./scripts/manage-api-key.sh list
+
+# Rotate a key
+DATABASE_URL=postgres://... ./scripts/manage-api-key.sh rotate --prefix pm_aBcDeFgH
+
+# Deactivate a key
+DATABASE_URL=postgres://... ./scripts/manage-api-key.sh deactivate --prefix pm_aBcDeFgH
+
+# Get key info
+DATABASE_URL=postgres://... ./scripts/manage-api-key.sh info --prefix pm_aBcDeFgH
+```
+
+## Development
+
+### Build
+
+```bash
+# Debug build
+cargo build --workspace
+
+# Release build
+cargo build --release --bin phone-manager
+```
+
+### Test
+
+```bash
+# Run all tests
+cargo test --workspace
+
+# Run with output
+cargo test --workspace -- --nocapture
+
+# Run specific test
+cargo test test_name
+```
+
+### Lint & Format
+
+```bash
+# Format code
+cargo fmt --all
+
+# Lint with clippy
+cargo clippy --workspace -- -D warnings
+
+# Check SQLx queries (requires DATABASE_URL)
+cargo sqlx prepare --workspace --check
+```
+
+### Database Migrations
+
+```bash
+# Create new migration
+sqlx migrate add -r <migration_name> --source crates/persistence/src/migrations
+
+# Run migrations
+sqlx migrate run --source crates/persistence/src/migrations
+
+# Revert last migration
+sqlx migrate revert --source crates/persistence/src/migrations
+
+# Generate offline query data
+cargo sqlx prepare --workspace
+```
+
+## Kubernetes Deployment
+
+Complete Kubernetes manifests are provided in the `k8s/` directory.
+
+### Quick Deploy
+
+```bash
+# Create namespace
+kubectl create namespace phone-manager
+
+# Create secret (copy and edit first)
+cp k8s/secret.yaml.example k8s/secret.yaml
+# Edit k8s/secret.yaml with your base64-encoded values
+kubectl apply -f k8s/secret.yaml -n phone-manager
+
+# Deploy all resources
+kubectl apply -f k8s/configmap.yaml -n phone-manager
+kubectl apply -f k8s/deployment.yaml -n phone-manager
+kubectl apply -f k8s/service.yaml -n phone-manager
+kubectl apply -f k8s/ingress.yaml -n phone-manager
+kubectl apply -f k8s/hpa.yaml -n phone-manager
+```
+
+### Resources
+
+| File | Description |
+|------|-------------|
+| `deployment.yaml` | Main deployment with 3 replicas, health checks, resource limits |
+| `service.yaml` | ClusterIP service exposing port 80 → 8080 |
+| `configmap.yaml` | Non-sensitive configuration |
+| `secret.yaml.example` | Template for secrets (DATABASE_URL, API keys) |
+| `ingress.yaml` | Ingress with TLS termination |
+| `hpa.yaml` | Horizontal Pod Autoscaler (3-10 replicas, 70% CPU target) |
+
+### Health Checks
+
+The deployment includes:
+- **Liveness Probe**: `/api/health/live` - Restarts unhealthy pods
+- **Readiness Probe**: `/api/health/ready` - Removes from load balancer if not ready
+- **Startup Probe**: `/api/health/ready` - Allows 30s for initial startup
+
+## Load Testing
+
+Load tests use [k6](https://k6.io/) and are located in `tests/load/`.
+
+### Run Load Tests
+
+```bash
+# Install k6
+brew install k6  # macOS
+# or download from https://k6.io/
+
+# Set environment variables
+export BASE_URL=http://localhost:8080
+export API_KEY=your-api-key
+
+# Run load test
+k6 run tests/load/k6-load-test.js
+
+# Run with custom parameters
+k6 run --vus 100 --duration 5m tests/load/k6-load-test.js
+```
+
+### Test Scenarios
+
+| Scenario | Description | Target |
+|----------|-------------|--------|
+| Sustained Load | 1000 req/s for 5 minutes | p95 < 200ms |
+| Spike Test | Ramp to 2000 req/s | No errors |
+| Soak Test | 500 req/s for 30 minutes | Memory stable |
+
+See `docs/load-test-results.md` for test result templates.
+
+## Monitoring
+
+### Prometheus Metrics
+
+Available at `/metrics`:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `http_requests_total` | Counter | Total HTTP requests by method, path, status |
+| `http_request_duration_seconds` | Histogram | Request latency distribution |
+
+### Grafana Dashboard
+
+Import the dashboard from `docs/grafana-dashboard.json` (if available) or create panels for:
+
+- Request rate by endpoint
+- Error rate (4xx, 5xx)
+- p50, p95, p99 latency
+- Active connections
+
+### Logging
+
+Structured JSON logs include:
+- `request_id` - Unique request identifier
+- `method`, `path`, `status` - HTTP details
+- `latency_ms` - Request duration
+- `api_key_prefix` - Authenticated key prefix (for debugging)
+
+## Project Structure
+
+```
+phone-manager-backend/
+├── crates/
+│   ├── api/              # HTTP handlers, middleware, app configuration
+│   │   └── src/
+│   │       ├── main.rs           # Entry point
+│   │       ├── app.rs            # Router and middleware setup
+│   │       ├── config.rs         # Configuration loading
+│   │       ├── error.rs          # Error types and responses
+│   │       ├── middleware/       # Auth, rate limit, metrics, security
+│   │       └── routes/           # HTTP route handlers
+│   ├── domain/           # Business logic and domain models
+│   ├── persistence/      # Database layer, repositories, migrations
+│   │   └── src/
+│   │       ├── entities/         # Database entity structs
+│   │       ├── repositories/     # Data access layer
+│   │       └── migrations/       # SQL migration files
+│   └── shared/           # Common utilities
+├── config/               # TOML configuration files
+├── k8s/                  # Kubernetes manifests
+├── scripts/              # CLI tools and utilities
+├── tests/
+│   ├── api/              # API integration tests
+│   └── load/             # k6 load test scripts
+└── docs/                 # Documentation and specifications
+```
+
+## Security
+
+### Authentication
+
+- API keys are hashed with SHA-256 before storage
+- Key prefix (first 8 chars) used for identification
+- Admin keys have elevated privileges for management operations
+
+### Security Headers
+
+All responses include:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `X-XSS-Protection: 1; mode=block`
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` (HTTPS only)
+
+### Rate Limiting
+
+- Per-API-key sliding window rate limiting
+- Default: 100 requests/minute
+- Configurable via `PM__SECURITY__RATE_LIMIT_PER_MINUTE`
+- Returns `429 Too Many Requests` when exceeded
+
+### Best Practices
+
+- Never log full API keys (only prefix)
+- Use TLS in production
+- Set specific CORS origins in production
+- Rotate API keys regularly
+- Use read-only database replicas for queries where possible
+
+## Performance
+
+### Targets
+
+| Metric | Target |
+|--------|--------|
+| API Response Time (p95) | < 200ms |
+| Uptime | 99.9% |
+| Concurrent Connections | 10,000+ |
+| Batch Upload | 50 locations/request |
+
+### Optimizations
+
+- Connection pooling with configurable min/max connections
+- Batch inserts for location uploads
+- Database indexes on frequently queried columns
+- Response compression (gzip)
+- Efficient JSON serialization with serde
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Run tests and lints (`cargo test && cargo clippy`)
+4. Commit your changes (`git commit -m 'Add amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
+
+## Support
+
+- **Issues**: Open an issue on GitHub
+- **Security**: Report security vulnerabilities privately via email

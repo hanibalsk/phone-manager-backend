@@ -119,6 +119,45 @@ impl LocationRepository {
 
         Ok(result.rows_affected())
     }
+
+    /// Get all locations for a device (for data export).
+    /// Returns locations sorted by captured_at in descending order.
+    pub async fn get_all_locations_for_device(
+        &self,
+        device_id: Uuid,
+    ) -> Result<Vec<LocationEntity>, sqlx::Error> {
+        sqlx::query_as::<_, LocationEntity>(
+            r#"
+            SELECT id, device_id, latitude, longitude, accuracy, altitude, bearing,
+                   speed, provider, battery_level, network_type, captured_at, created_at
+            FROM locations
+            WHERE device_id = $1
+            ORDER BY captured_at DESC
+            "#,
+        )
+        .bind(device_id)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    /// Delete all locations for a device (hard delete for GDPR).
+    /// Returns the number of deleted records.
+    pub async fn delete_all_locations_for_device(
+        &self,
+        device_id: Uuid,
+    ) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            DELETE FROM locations
+            WHERE device_id = $1
+            "#,
+        )
+        .bind(device_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected())
+    }
 }
 
 #[cfg(test)]

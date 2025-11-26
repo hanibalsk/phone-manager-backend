@@ -168,6 +168,105 @@ impl DeviceRepository {
         .await?;
         Ok(())
     }
+
+    /// Delete inactive devices older than the specified number of days.
+    /// Only devices with active=false will be deleted.
+    /// Returns the number of rows deleted.
+    pub async fn delete_inactive_devices(&self, older_than_days: i32) -> Result<i64, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            DELETE FROM devices
+            WHERE active = false
+            AND updated_at < NOW() - ($1 || ' days')::INTERVAL
+            "#,
+        )
+        .bind(older_than_days)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() as i64)
+    }
+
+    /// Reactivate a soft-deleted device.
+    /// Returns the number of rows affected (0 if device not found or already active).
+    pub async fn reactivate_device(&self, device_id: Uuid) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            UPDATE devices
+            SET active = true, updated_at = $2
+            WHERE device_id = $1 AND active = false
+            "#,
+        )
+        .bind(device_id)
+        .bind(Utc::now())
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
+    /// Hard delete a device (for GDPR compliance).
+    /// Note: This relies on ON DELETE CASCADE for associated locations.
+    /// Returns the number of rows deleted (0 or 1).
+    pub async fn hard_delete_device(&self, device_id: Uuid) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            DELETE FROM devices
+            WHERE device_id = $1
+            "#,
+        )
+        .bind(device_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
+    /// Get admin statistics about devices and locations.
+    pub async fn get_admin_stats(&self) -> Result<AdminStats, sqlx::Error> {
+        let device_stats: (i64, i64) = sqlx::query_as(
+            r#"
+            SELECT
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE active = true) as active
+            FROM devices
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let location_count: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) as count FROM locations
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let group_count: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(DISTINCT group_id) as count FROM devices
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(AdminStats {
+            total_devices: device_stats.0,
+            active_devices: device_stats.1,
+            inactive_devices: device_stats.0 - device_stats.1,
+            total_locations: location_count.0,
+            total_groups: group_count.0,
+        })
+    }
+}
+
+/// Admin statistics about the system.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminStats {
+    pub total_devices: i64,
+    pub active_devices: i64,
+    pub inactive_devices: i64,
+    pub total_locations: i64,
+    pub total_groups: i64,
 }
 
 #[cfg(test)]

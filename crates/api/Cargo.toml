@@ -33,6 +33,7 @@ sqlx.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
 async-trait.workspace = true
+governor.workspace = true
 
 [dev-dependencies]
 tokio-test.workspace = true

@@ -6,6 +6,6 @@ pub mod idempotency_key;
 pub mod location;
 
 pub use api_key::ApiKeyRepository;
-pub use device::DeviceRepository;
+pub use device::{AdminStats, DeviceRepository};
 pub use idempotency_key::IdempotencyKeyRepository;
 pub use location::{LocationInput, LocationRepository};

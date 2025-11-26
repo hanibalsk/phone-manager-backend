@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phone-manager-api
+  labels:
+    app: phone-manager-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: phone-manager-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: phone-manager-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: api
+          image: phone-manager-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          env:
+            - name: PM__SERVER__HOST
+              value: "0.0.0.0"
+            - name: PM__SERVER__PORT
+              value: "8080"
+            - name: PM__LOGGING__LEVEL
+              value: "info"
+            - name: PM__LOGGING__FORMAT
+              value: "json"
+            - name: PM__DATABASE__URL
+              valueFrom:
+                secretKeyRef:
+                  name: phone-manager-secrets
+                  key: database-url
+            - name: PM__DATABASE__MAX_CONNECTIONS
+              valueFrom:
+                configMapKeyRef:
+                  name: phone-manager-config
+                  key: database.max_connections
+            - name: PM__SECURITY__RATE_LIMIT_PER_MINUTE
+              valueFrom:
+                configMapKeyRef:
+                  name: phone-manager-config
+                  key: security.rate_limit_per_minute
+            - name: PM__SECURITY__HSTS_ENABLED
+              value: "true"
+          livenessProbe:
+            httpGet:
+              path: /api/health/live
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health/ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+      terminationGracePeriodSeconds: 30
