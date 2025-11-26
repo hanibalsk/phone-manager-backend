@@ -51,6 +51,7 @@ async fn main() -> Result<()> {
         config.limits.location_retention_days,
     ));
     scheduler.register(jobs::RefreshViewsJob::new(pool.clone()));
+    scheduler.register(jobs::PoolMetricsJob::new(pool.clone()));
     scheduler.start();
 
     // Build application

@@ -1701,6 +1701,7 @@ dependencies = [
  "chrono",
  "domain",
  "fake",
+ "metrics",
  "serde",
  "serde_json",
  "shared",

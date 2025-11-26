@@ -5,6 +5,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::entities::LocationEntity;
+use crate::metrics::QueryTimer;
 
 /// Input data for inserting a location record.
 #[derive(Debug, Clone)]
@@ -41,7 +42,8 @@ impl LocationRepository {
 
     /// Insert a single location record.
     pub async fn insert_location(&self, input: LocationInput) -> Result<LocationEntity, sqlx::Error> {
-        sqlx::query_as::<_, LocationEntity>(
+        let timer = QueryTimer::new("insert_location");
+        let result = sqlx::query_as::<_, LocationEntity>(
             r#"
             INSERT INTO locations (
                 device_id, latitude, longitude, accuracy, altitude, bearing,
@@ -64,7 +66,9 @@ impl LocationRepository {
         .bind(&input.network_type)
         .bind(input.captured_at)
         .fetch_one(&self.pool)
-        .await
+        .await;
+        timer.record();
+        result
     }
 
     /// Insert multiple locations in a batch (within a transaction).
@@ -73,7 +77,9 @@ impl LocationRepository {
         device_id: Uuid,
         locations: Vec<LocationInput>,
     ) -> Result<usize, sqlx::Error> {
+        let timer = QueryTimer::new("insert_locations_batch");
         let mut tx = self.pool.begin().await?;
+        let count = locations.len();
 
         for loc in &locations {
             sqlx::query(
@@ -101,7 +107,8 @@ impl LocationRepository {
         }
 
         tx.commit().await?;
-        Ok(locations.len())
+        timer.record();
+        Ok(count)
     }
 
     /// Delete locations older than specified retention days.

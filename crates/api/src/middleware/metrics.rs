@@ -67,34 +67,19 @@ fn method_to_str(method: &Method) -> &'static str {
 }
 
 /// Record a custom business metric for locations uploaded.
+///
+/// Note: For database-level metrics, use `persistence::metrics` module instead.
 #[allow(dead_code)] // Available for use in route handlers
 pub fn record_locations_uploaded(count: usize) {
     counter!("locations_uploaded_total").increment(count as u64);
 }
 
 /// Record a custom business metric for devices registered.
+///
+/// Note: For database-level metrics, use `persistence::metrics` module instead.
 #[allow(dead_code)] // Available for use in route handlers
 pub fn record_device_registered() {
     counter!("devices_registered_total").increment(1);
-}
-
-/// Record database query duration.
-#[allow(dead_code)] // Available for use in repositories
-pub fn record_database_query_duration(query_name: &str, duration_secs: f64) {
-    histogram!(
-        "database_query_duration_seconds",
-        "query" => query_name.to_string()
-    )
-    .record(duration_secs);
-}
-
-/// Record database connection pool metrics.
-#[allow(dead_code)] // Available for use in background jobs
-pub fn record_connection_pool_metrics(active: u32, idle: u32) {
-    // Using gauge-style recording via counter with known value
-    // In metrics 0.22+, we use gauge! macro
-    metrics::gauge!("database_connections_active").set(active as f64);
-    metrics::gauge!("database_connections_idle").set(idle as f64);
 }
 
 /// Handler for /metrics endpoint that returns Prometheus text format.

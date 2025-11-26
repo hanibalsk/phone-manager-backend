@@ -5,6 +5,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::entities::{DeviceEntity, DeviceWithLastLocationEntity};
+use crate::metrics::QueryTimer;
 
 /// Repository for device-related database operations.
 #[derive(Clone)]
@@ -28,7 +29,8 @@ impl DeviceRepository {
         &self,
         device_id: Uuid,
     ) -> Result<Option<DeviceEntity>, sqlx::Error> {
-        sqlx::query_as::<_, DeviceEntity>(
+        let timer = QueryTimer::new("find_device_by_id");
+        let result = sqlx::query_as::<_, DeviceEntity>(
             r#"
             SELECT id, device_id, display_name, group_id, platform, fcm_token,
                    active, created_at, updated_at, last_seen_at
@@ -38,11 +40,14 @@ impl DeviceRepository {
         )
         .bind(device_id)
         .fetch_optional(&self.pool)
-        .await
+        .await;
+        timer.record();
+        result
     }
 
     /// Count active devices in a group.
     pub async fn count_active_devices_in_group(&self, group_id: &str) -> Result<i64, sqlx::Error> {
+        let timer = QueryTimer::new("count_active_devices_in_group");
         let count: (i64,) = sqlx::query_as(
             r#"
             SELECT COUNT(*) as count
@@ -53,6 +58,7 @@ impl DeviceRepository {
         .bind(group_id)
         .fetch_one(&self.pool)
         .await?;
+        timer.record();
         Ok(count.0)
     }
 
@@ -67,8 +73,9 @@ impl DeviceRepository {
         fcm_token: Option<&str>,
     ) -> Result<DeviceEntity, sqlx::Error> {
         let now = Utc::now();
+        let timer = QueryTimer::new("upsert_device");
 
-        sqlx::query_as::<_, DeviceEntity>(
+        let result = sqlx::query_as::<_, DeviceEntity>(
             r#"
             INSERT INTO devices (device_id, display_name, group_id, platform, fcm_token, active, created_at, updated_at, last_seen_at)
             VALUES ($1, $2, $3, $4, $5, true, $6, $6, $6)
@@ -90,12 +97,15 @@ impl DeviceRepository {
         .bind(fcm_token)
         .bind(now)
         .fetch_one(&self.pool)
-        .await
+        .await;
+        timer.record();
+        result
     }
 
     /// Deactivate a device (soft delete).
     /// Returns the number of rows affected (0 if device not found).
     pub async fn deactivate_device(&self, device_id: Uuid) -> Result<u64, sqlx::Error> {
+        let timer = QueryTimer::new("deactivate_device");
         let result = sqlx::query(
             r#"
             UPDATE devices
@@ -107,6 +117,7 @@ impl DeviceRepository {
         .bind(Utc::now())
         .execute(&self.pool)
         .await?;
+        timer.record();
         Ok(result.rows_affected())
     }
 
@@ -115,7 +126,8 @@ impl DeviceRepository {
         &self,
         group_id: &str,
     ) -> Result<Vec<DeviceEntity>, sqlx::Error> {
-        sqlx::query_as::<_, DeviceEntity>(
+        let timer = QueryTimer::new("find_active_devices_by_group");
+        let result = sqlx::query_as::<_, DeviceEntity>(
             r#"
             SELECT id, device_id, display_name, group_id, platform, fcm_token,
                    active, created_at, updated_at, last_seen_at
@@ -126,7 +138,9 @@ impl DeviceRepository {
         )
         .bind(group_id)
         .fetch_all(&self.pool)
-        .await
+        .await;
+        timer.record();
+        result
     }
 
     /// Find all active devices in a group with their last location (from view).
@@ -134,7 +148,8 @@ impl DeviceRepository {
         &self,
         group_id: &str,
     ) -> Result<Vec<DeviceWithLastLocationEntity>, sqlx::Error> {
-        sqlx::query_as::<_, DeviceWithLastLocationEntity>(
+        let timer = QueryTimer::new("find_devices_with_last_location");
+        let result = sqlx::query_as::<_, DeviceWithLastLocationEntity>(
             r#"
             SELECT id, device_id, display_name, group_id, platform, fcm_token,
                    active, last_seen_at, created_at, updated_at,
@@ -146,7 +161,9 @@ impl DeviceRepository {
         )
         .bind(group_id)
         .fetch_all(&self.pool)
-        .await
+        .await;
+        timer.record();
+        result
     }
 
     /// Update last_seen_at timestamp for a device.

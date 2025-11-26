@@ -57,11 +57,17 @@ Prometheus metrics fully functional with HTTP and database metrics. Endpoint byp
 
 - `crates/api/src/app.rs` - metrics layer integration
 - `crates/api/Cargo.toml` - metrics dependencies
+- `crates/api/src/main.rs` - pool metrics job registration
+- `crates/persistence/Cargo.toml` - metrics dependency
+- `crates/persistence/src/lib.rs` - metrics module export
+- `crates/persistence/src/repositories/device.rs` - query timing instrumentation
+- `crates/persistence/src/repositories/location.rs` - query timing instrumentation
 
 ### New Files
 
-- `crates/api/src/middleware/metrics.rs` - metrics middleware
-- `crates/api/src/routes/metrics.rs` - /metrics endpoint
+- `crates/api/src/middleware/metrics.rs` - HTTP metrics middleware and /metrics endpoint handler
+- `crates/api/src/jobs/pool_metrics.rs` - background job for connection pool metrics
+- `crates/persistence/src/metrics.rs` - database query and pool metrics collection
 
 ### Deleted Files
 
@@ -90,38 +96,51 @@ Prometheus metrics fully functional with HTTP and database metrics. Endpoint byp
 ### Outcome: ✅ Approve
 
 ### Summary
-Prometheus metrics properly implemented with HTTP request tracking, database metrics, and configurable histogram buckets.
+Prometheus metrics implementation is complete and well-architected. HTTP request metrics are captured via Tower middleware, database query timing is instrumented via `QueryTimer` helper in repositories, and connection pool gauges are recorded by a background job every 10 seconds. All acceptance criteria are met.
 
 ### Key Findings
-- **[Info]** `metrics` crate provides efficient metric collection
-- **[Info]** Prometheus text format for scraping compatibility
-- **[Info]** Endpoint bypasses authentication for monitoring access
+- **[Info]** Clean separation: HTTP metrics in `api/middleware/metrics.rs`, DB metrics in `persistence/metrics.rs`
+- **[Info]** `QueryTimer` helper provides ergonomic query instrumentation pattern
+- **[Info]** Pool metrics job runs every 10 seconds for real-time monitoring
+- **[Low]** Business metrics (`record_locations_uploaded`, `record_device_registered`) defined but not wired into handlers - consider adding for operational insights
 
 ### Acceptance Criteria Coverage
 | AC | Status | Evidence |
 |----|--------|----------|
-| AC1 - GET /metrics endpoint | ✅ | PrometheusHandle renderer |
-| AC2 - Required metrics | ✅ | http_requests_total, duration histograms |
-| AC3 - Bypasses auth | ✅ | Route outside auth layer |
-| AC4 - Real-time updates | ✅ | Middleware instrumentation |
-| AC5 - Histogram buckets | ✅ | Configurable bucket boundaries |
+| AC1 - GET /metrics endpoint | ✅ | `metrics_handler()` at `metrics.rs:86-103`, returns Prometheus text format |
+| AC2 - Required metrics | ✅ | `http_requests_total`, `http_request_duration_seconds`, `database_query_duration_seconds`, `database_connections_active/idle/total` |
+| AC3 - Bypasses auth | ✅ | Route in `public_routes` at `app.rs:136` |
+| AC4 - Real-time updates | ✅ | Middleware layer + QueryTimer + PoolMetricsJob (10s interval) |
+| AC5 - Histogram buckets | ✅ | `[0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0]` at `metrics.rs:121-123` |
 
 ### Test Coverage and Gaps
-- Metrics endpoint tested
-- Counter increments verified
-- No gaps identified
+- ✅ Unit tests for `method_to_str()` function
+- ✅ Unit tests for `QueryTimer` creation
+- ✅ Unit tests for job frequency
+- ⚠️ No integration test verifying actual metric output format
+- ⚠️ No test for `metrics_handler()` response
 
 ### Architectural Alignment
-- ✅ Tower middleware pattern
-- ✅ Standard Prometheus format
+- ✅ Follows layered architecture: API layer for HTTP metrics, persistence layer for DB metrics
+- ✅ Tower middleware pattern for request instrumentation
+- ✅ Background job pattern for periodic gauge updates
+- ✅ Standard Prometheus exposition format
 
 ### Security Notes
-- /metrics should be protected at infrastructure level (internal network only)
+- `/metrics` endpoint bypasses authentication as intended for Prometheus scraping
+- **Recommendation**: Protect at infrastructure level (internal network, Kubernetes service mesh, or IP allowlist)
+
+### Best-Practices and References
+- [Prometheus Exposition Formats](https://prometheus.io/docs/instrumenting/exposition_formats/)
+- [metrics-rs Documentation](https://docs.rs/metrics/latest/metrics/)
+- [Axum Middleware Patterns](https://docs.rs/axum/latest/axum/middleware/index.html)
 
 ### Action Items
-None - story approved for completion.
+1. **[Low]** Wire `record_locations_uploaded()` and `record_device_registered()` into route handlers for business metrics (optional enhancement)
+2. **[Low]** Add integration test for `/metrics` endpoint response format
 
 ### Change Log
 | Date | Change | Author |
 |------|--------|--------|
 | 2025-11-26 | Senior Developer Review notes appended | AI Reviewer |
+| 2025-11-26 | Review updated after DB metrics implementation verification | AI Reviewer |
