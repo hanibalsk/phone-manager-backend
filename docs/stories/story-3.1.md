@@ -1,6 +1,6 @@
 # Story 3.1: Single Location Upload API
 
-**Status**: Not Started
+**Status**: Complete ✅
 
 ## Story
 
@@ -12,14 +12,14 @@
 
 ## Acceptance Criteria
 
-1. [ ] `POST /api/v1/locations` accepts JSON: `{"deviceId": "<uuid>", "timestamp": <ms-epoch>, "latitude": <float>, "longitude": <float>, "accuracy": <float>, "altitude": <optional>, "bearing": <optional>, "speed": <optional>, "provider": <optional>, "batteryLevel": <optional>, "networkType": <optional>}`
-2. [ ] Validates: latitude (-90 to 90), longitude (-180 to 180), accuracy (>= 0), bearing (0-360 if present), speed (>= 0 if present), batteryLevel (0-100 if present)
-3. [ ] Returns 400 for validation errors with field-level details
-4. [ ] Returns 404 if device not registered
-5. [ ] Returns 200 with: `{"success": true, "processedCount": 1}`
-6. [ ] Stores location with `captured_at` from timestamp, `created_at` from server time
-7. [ ] Converts timestamp from milliseconds to proper DateTime
-8. [ ] Updates device's last_seen_at timestamp
+1. [x] `POST /api/v1/locations` accepts JSON: `{"deviceId": "<uuid>", "timestamp": <ms-epoch>, "latitude": <float>, "longitude": <float>, "accuracy": <float>, "altitude": <optional>, "bearing": <optional>, "speed": <optional>, "provider": <optional>, "batteryLevel": <optional>, "networkType": <optional>}`
+2. [x] Validates: latitude (-90 to 90), longitude (-180 to 180), accuracy (>= 0), bearing (0-360 if present), speed (>= 0 if present), batteryLevel (0-100 if present)
+3. [x] Returns 400 for validation errors with field-level details
+4. [x] Returns 404 if device not registered
+5. [x] Returns 200 with: `{"success": true, "processedCount": 1}`
+6. [x] Stores location with `captured_at` from timestamp, `created_at` from server time
+7. [x] Converts timestamp from milliseconds to proper DateTime
+8. [x] Updates device's last_seen_at timestamp
 
 ## Technical Notes
 
@@ -29,20 +29,20 @@
 
 ## Tasks/Subtasks
 
-- [ ] 1. Create location repository
-  - [ ] 1.1 Create `crates/persistence/src/repositories/location.rs`
-  - [ ] 1.2 Implement `insert_location` method
-  - [ ] 1.3 Export from mod.rs
-- [ ] 2. Implement upload_location handler
-  - [ ] 2.1 Update handler to use repository
-  - [ ] 2.2 Convert millisecond timestamp to DateTime
-  - [ ] 2.3 Verify device exists before insert
-  - [ ] 2.4 Update device last_seen_at
-- [ ] 3. Write tests
-  - [ ] 3.1 Unit tests for validation
-  - [ ] 3.2 Unit tests for timestamp conversion
-  - [ ] 3.3 Test error responses
-- [ ] 4. Run linting and formatting checks
+- [x] 1. Create location repository
+  - [x] 1.1 Create `crates/persistence/src/repositories/location.rs`
+  - [x] 1.2 Implement `insert_location` method
+  - [x] 1.3 Export from mod.rs
+- [x] 2. Implement upload_location handler
+  - [x] 2.1 Update handler to use repository
+  - [x] 2.2 Convert millisecond timestamp to DateTime
+  - [x] 2.3 Verify device exists before insert
+  - [x] 2.4 Update device last_seen_at
+- [x] 3. Write tests
+  - [x] 3.1 Unit tests for validation
+  - [x] 3.2 Unit tests for timestamp conversion
+  - [x] 3.3 Test error responses
+- [x] 4. Run linting and formatting checks
 
 ## Dev Notes
 
@@ -54,36 +54,89 @@
 
 ### Debug Log
 
-(Implementation notes will be added here)
+- Implemented location repository with insert_location method
+- Handler validates device existence before insert
+- Millisecond timestamp converted to DateTime<Utc>
+- Device last_seen_at updated after successful upload
 
 ### Completion Notes
 
-(To be filled upon completion)
+Single location upload fully functional with validation, device verification, and timestamp handling.
 
 ## File List
 
 ### Modified Files
 
-(To be filled)
+- `crates/api/src/routes/locations.rs` - upload_location handler
+- `crates/persistence/src/repositories/mod.rs` - export location repository
 
 ### New Files
 
-(To be filled)
+- `crates/persistence/src/repositories/location.rs` - location repository
 
 ### Deleted Files
 
-(None expected)
+(None)
 
 ## Change Log
 
 | Date | Change | Author |
 |------|--------|--------|
 | 2025-11-26 | Story created from epic breakdown | Dev Agent |
+| 2025-11-26 | Implementation complete | Dev Agent |
 
 ## Definition of Done
 
-- [ ] All acceptance criteria met
-- [ ] All tests pass
-- [ ] Code compiles without warnings
-- [ ] Code formatted with rustfmt
-- [ ] Story file updated with completion notes
+- [x] All acceptance criteria met
+- [x] All tests pass
+- [x] Code compiles without warnings
+- [x] Code formatted with rustfmt
+- [x] Story file updated with completion notes
+
+---
+
+## Senior Developer Review (AI)
+
+### Reviewer: Martin Janci
+### Date: 2025-11-26
+### Outcome: ✅ Approve
+
+### Summary
+Single location upload API properly implemented with comprehensive validation, device verification, and timestamp conversion from milliseconds.
+
+### Key Findings
+- **[Info]** Validator crate provides declarative validation
+- **[Info]** Device existence check prevents orphaned locations
+- **[Info]** Millisecond to DateTime conversion handles client timestamps
+
+### Acceptance Criteria Coverage
+| AC | Status | Evidence |
+|----|--------|----------|
+| AC1 - POST endpoint accepts JSON | ✅ | UploadLocationRequest struct |
+| AC2 - Validation rules | ✅ | Validator annotations |
+| AC3 - 400 for validation errors | ✅ | ApiError::Validation |
+| AC4 - 404 for unregistered device | ✅ | Device existence check |
+| AC5 - 200 with processedCount | ✅ | UploadResponse struct |
+| AC6 - captured_at from timestamp | ✅ | Timestamp conversion |
+| AC7 - Millisecond conversion | ✅ | DateTime::from_timestamp_millis |
+| AC8 - Updates last_seen_at | ✅ | Device update call |
+
+### Test Coverage and Gaps
+- Validation tests comprehensive
+- Integration tests cover happy path and errors
+- No gaps identified
+
+### Architectural Alignment
+- ✅ Follows layered architecture pattern
+- ✅ Repository pattern for data access
+
+### Security Notes
+- Device verification prevents unauthorized location uploads
+
+### Action Items
+None - story approved for completion.
+
+### Change Log
+| Date | Change | Author |
+|------|--------|--------|
+| 2025-11-26 | Senior Developer Review notes appended | AI Reviewer |

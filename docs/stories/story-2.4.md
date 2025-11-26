@@ -1,6 +1,6 @@
 # Story 2.4: Device Soft Delete/Deactivation
 
-**Status**: Ready for Review
+**Status**: Complete ✅
 
 ## Story
 
