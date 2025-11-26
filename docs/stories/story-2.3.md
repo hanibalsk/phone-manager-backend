@@ -85,3 +85,49 @@ Group membership validation fully integrated into registration flow. Capacity is
 - [x] Code compiles without warnings
 - [x] Code formatted with rustfmt
 - [x] Story file updated with completion notes
+
+---
+
+## Senior Developer Review (AI)
+
+### Reviewer: Martin Janci
+### Date: 2025-11-26
+### Outcome: ✅ Approve
+
+### Summary
+Group membership validation properly implemented with efficient COUNT query. Business rules consistently enforced across registration and update flows.
+
+### Key Findings
+- **[Info]** COUNT(*) with active=true filter is efficient
+- **[Info]** Same-group updates bypass capacity check (correct behavior)
+- **[Low]** Index on (group_id, active) supports query performance
+
+### Acceptance Criteria Coverage
+| AC | Status | Evidence |
+|----|--------|----------|
+| AC1 - Count before registration | ✅ | count_active_devices_in_group call |
+| AC2 - Reject at 20 devices | ✅ | Comparison against config limit |
+| AC3 - Allow <20 or same group | ✅ | is_changing_group flag logic |
+| AC4 - <50ms query | ✅ | Simple COUNT with index |
+| AC5 - 409 Conflict message | ✅ | "Group has reached maximum device limit" |
+| AC6 - Inactive excluded | ✅ | WHERE active=true |
+
+### Test Coverage and Gaps
+- Unit tests for count query
+- Integration with registration flow
+- No gaps identified
+
+### Architectural Alignment
+- ✅ Configurable via PM__LIMITS__MAX_DEVICES_PER_GROUP
+- ✅ Database index supports performance target
+
+### Security Notes
+- Prevents resource exhaustion via group limits
+
+### Action Items
+None - story approved for completion.
+
+### Change Log
+| Date | Change | Author |
+|------|--------|--------|
+| 2025-11-26 | Senior Developer Review notes appended | AI Reviewer |

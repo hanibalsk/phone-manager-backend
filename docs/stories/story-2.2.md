@@ -85,3 +85,48 @@ Implemented via the same upsert_device repository method and register_device han
 - [x] Code compiles without warnings
 - [x] Code formatted with rustfmt
 - [x] Story file updated with completion notes
+
+---
+
+## Senior Developer Review (AI)
+
+### Reviewer: Martin Janci
+### Date: 2025-11-26
+### Outcome: ✅ Approve
+
+### Summary
+Device update via re-registration properly extends Story 2.1 upsert pattern. Group change validation ensures capacity constraints are respected.
+
+### Key Findings
+- **[Info]** Same endpoint handles both create and update (DRY)
+- **[Info]** created_at preserved via EXCLUDED pattern exclusion
+
+### Acceptance Criteria Coverage
+| AC | Status | Evidence |
+|----|--------|----------|
+| AC1 - Same deviceId updates | ✅ | ON CONFLICT DO UPDATE |
+| AC2 - Updates fields | ✅ | display_name, fcm_token, updated_at, last_seen_at |
+| AC3 - Preserves fields | ✅ | id, device_id, created_at unchanged |
+| AC4 - Group change with capacity | ✅ | is_changing_group check |
+| AC5 - New group validation | ✅ | count_active_devices_in_group |
+| AC6 - Returns 200 | ✅ | Same response as create |
+| AC7 - 409 on full group | ✅ | ApiError::Conflict |
+
+### Test Coverage and Gaps
+- Shared with Story 2.1 upsert tests
+- No additional gaps
+
+### Architectural Alignment
+- ✅ Reuses Story 2.1 implementation
+- ✅ Atomic group change validation
+
+### Security Notes
+- No additional concerns
+
+### Action Items
+None - story approved for completion.
+
+### Change Log
+| Date | Change | Author |
+|------|--------|--------|
+| 2025-11-26 | Senior Developer Review notes appended | AI Reviewer |
