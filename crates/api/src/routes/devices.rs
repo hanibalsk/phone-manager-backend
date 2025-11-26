@@ -1,7 +1,15 @@
 //! Device endpoint handlers.
 
-use axum::{extract::State, Json};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Json,
+};
+use persistence::repositories::DeviceRepository;
 use serde::Deserialize;
+use tracing::info;
+use uuid::Uuid;
+use validator::Validate;
 
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -22,28 +30,119 @@ pub struct GetDevicesResponse {
 
 /// Register or update a device.
 ///
-/// POST /api/devices/register
+/// POST /api/v1/devices/register
 pub async fn register_device(
-    State(_state): State<AppState>,
-    Json(_request): Json<RegisterDeviceRequest>,
+    State(state): State<AppState>,
+    Json(request): Json<RegisterDeviceRequest>,
 ) -> Result<Json<RegisterDeviceResponse>, ApiError> {
-    // Implementation will be completed in Story 2.1
-    Err(ApiError::Internal("Not implemented yet".to_string()))
+    // Validate the request
+    request.validate().map_err(|e| {
+        let errors: Vec<String> = e
+            .field_errors()
+            .iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |err| {
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
+                })
+            })
+            .collect();
+        ApiError::Validation(errors.join(", "))
+    })?;
+
+    let repo = DeviceRepository::new(state.pool.clone());
+
+    // Check if this is a new device or an update
+    let existing_device = repo.find_by_device_id(request.device_id).await?;
+    let is_new_device = existing_device.is_none();
+    let is_changing_group = existing_device
+        .as_ref()
+        .map(|d| d.group_id != request.group_id)
+        .unwrap_or(false);
+
+    // Check group capacity if this is a new device or changing groups
+    if is_new_device || is_changing_group {
+        let group_count = repo
+            .count_active_devices_in_group(&request.group_id)
+            .await?;
+        let max_devices = state.config.limits.max_devices_per_group as i64;
+
+        if group_count >= max_devices {
+            return Err(ApiError::Conflict(format!(
+                "Group has reached maximum device limit ({})",
+                max_devices
+            )));
+        }
+    }
+
+    // Perform upsert
+    let device = repo
+        .upsert_device(
+            request.device_id,
+            &request.display_name,
+            &request.group_id,
+            &request.platform,
+            request.fcm_token.as_deref(),
+        )
+        .await?;
+
+    info!(
+        device_id = %device.device_id,
+        group_id = %device.group_id,
+        is_new = is_new_device,
+        "Device registered"
+    );
+
+    Ok(Json(RegisterDeviceResponse {
+        device_id: device.device_id,
+        display_name: device.display_name,
+        group_id: device.group_id,
+        created_at: device.created_at,
+        updated_at: device.updated_at,
+    }))
 }
 
 /// Get all active devices in a group.
 ///
-/// GET /api/devices?groupId=<id>
+/// GET /api/v1/devices?groupId=<id>
 pub async fn get_group_devices(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     axum::extract::Query(query): axum::extract::Query<GetDevicesQuery>,
 ) -> Result<Json<GetDevicesResponse>, ApiError> {
-    let _group_id = query
+    let group_id = query
         .group_id
         .ok_or_else(|| ApiError::Validation("groupId query parameter is required".to_string()))?;
 
-    // Implementation will be completed in Story 2.5
-    Ok(Json(GetDevicesResponse { devices: vec![] }))
+    let repo = DeviceRepository::new(state.pool.clone());
+    let devices = repo.find_active_devices_by_group(&group_id).await?;
+
+    let summaries: Vec<DeviceSummary> = devices
+        .into_iter()
+        .map(|d| DeviceSummary {
+            device_id: d.device_id,
+            display_name: d.display_name,
+            last_seen_at: d.last_seen_at,
+        })
+        .collect();
+
+    Ok(Json(GetDevicesResponse { devices: summaries }))
+}
+
+/// Deactivate a device (soft delete).
+///
+/// DELETE /api/v1/devices/:device_id
+pub async fn delete_device(
+    State(state): State<AppState>,
+    Path(device_id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    let repo = DeviceRepository::new(state.pool.clone());
+    let rows_affected = repo.deactivate_device(device_id).await?;
+
+    if rows_affected == 0 {
+        return Err(ApiError::NotFound("Device not found".to_string()));
+    }
+
+    info!(device_id = %device_id, "Device deactivated");
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[cfg(test)]

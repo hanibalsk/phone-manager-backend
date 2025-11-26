@@ -1,6 +1,6 @@
 use axum::{
     middleware,
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use sqlx::PgPool;
@@ -20,7 +20,6 @@ use crate::routes::{devices, health, locations};
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
-    #[allow(dead_code)] // Used in future stories for rate limiting, CORS config, etc.
     pub config: Arc<Config>,
 }
 
@@ -39,11 +38,18 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .allow_headers(Any);
 
     // Protected routes (require API key authentication)
+    // Using /api/v1 prefix for versioned API
     let protected_routes = Router::new()
         // Device routes
+        .route("/api/v1/devices/register", post(devices::register_device))
+        .route("/api/v1/devices", get(devices::get_group_devices))
+        .route("/api/v1/devices/:device_id", delete(devices::delete_device))
+        // Location routes
+        .route("/api/v1/locations", post(locations::upload_location))
+        .route("/api/v1/locations/batch", post(locations::upload_batch))
+        // Legacy routes (redirect to v1 in future, for now just alias)
         .route("/api/devices/register", post(devices::register_device))
         .route("/api/devices", get(devices::get_group_devices))
-        // Location routes
         .route("/api/locations", post(locations::upload_location))
         .route("/api/locations/batch", post(locations::upload_batch))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
