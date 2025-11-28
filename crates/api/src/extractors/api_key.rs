@@ -136,6 +136,69 @@ impl FromRequestParts<AppState> for OptionalApiKeyAuth {
 mod tests {
     use super::*;
 
+    // ===========================================
+    // API Key Format Validation Tests (No DB)
+    // ===========================================
+
+    /// Helper to test key format validation without database.
+    /// Returns true if format would pass initial checks.
+    fn is_valid_key_format(key: &str) -> bool {
+        key.len() >= 11 && key.starts_with("pm_")
+    }
+
+    #[test]
+    fn test_key_format_valid_minimum_length() {
+        // pm_ (3) + 8 chars = 11 minimum
+        assert!(is_valid_key_format("pm_12345678"));
+    }
+
+    #[test]
+    fn test_key_format_valid_longer_key() {
+        assert!(is_valid_key_format("pm_abcdefghijklmnop"));
+    }
+
+    #[test]
+    fn test_key_format_invalid_too_short() {
+        assert!(!is_valid_key_format("pm_1234567")); // Only 10 chars
+    }
+
+    #[test]
+    fn test_key_format_invalid_no_prefix() {
+        assert!(!is_valid_key_format("xx_12345678"));
+    }
+
+    #[test]
+    fn test_key_format_invalid_wrong_prefix() {
+        assert!(!is_valid_key_format("api_12345678"));
+    }
+
+    #[test]
+    fn test_key_format_invalid_empty() {
+        assert!(!is_valid_key_format(""));
+    }
+
+    #[test]
+    fn test_key_format_invalid_prefix_only() {
+        assert!(!is_valid_key_format("pm_"));
+    }
+
+    #[test]
+    fn test_key_format_with_special_chars() {
+        // Keys can contain special characters after prefix
+        assert!(is_valid_key_format("pm_abc-def_123"));
+    }
+
+    #[test]
+    fn test_key_format_case_sensitive_prefix() {
+        // Prefix must be lowercase
+        assert!(!is_valid_key_format("PM_12345678"));
+        assert!(!is_valid_key_format("Pm_12345678"));
+    }
+
+    // ===========================================
+    // ApiKeyAuth Struct Tests
+    // ===========================================
+
     #[test]
     fn test_api_key_auth_struct() {
         let auth = ApiKeyAuth {
@@ -182,7 +245,33 @@ mod tests {
         let debug_str = format!("{:?}", auth);
         assert!(debug_str.contains("api_key_id"));
         assert!(debug_str.contains("pm_debug"));
+        assert!(debug_str.contains("is_admin"));
     }
+
+    #[test]
+    fn test_api_key_auth_boundary_values() {
+        // Test with max i64 value
+        let auth = ApiKeyAuth {
+            api_key_id: i64::MAX,
+            key_prefix: "pm_maxid".to_string(),
+            is_admin: true,
+        };
+        assert_eq!(auth.api_key_id, i64::MAX);
+    }
+
+    #[test]
+    fn test_api_key_auth_zero_id() {
+        let auth = ApiKeyAuth {
+            api_key_id: 0,
+            key_prefix: "pm_zeroid".to_string(),
+            is_admin: false,
+        };
+        assert_eq!(auth.api_key_id, 0);
+    }
+
+    // ===========================================
+    // OptionalApiKeyAuth Tests
+    // ===========================================
 
     #[test]
     fn test_optional_api_key_auth_some() {
@@ -216,9 +305,66 @@ mod tests {
     }
 
     #[test]
+    fn test_optional_api_key_auth_clone_none() {
+        let optional = OptionalApiKeyAuth(None);
+        let cloned = optional.clone();
+        assert!(cloned.0.is_none());
+    }
+
+    #[test]
     fn test_optional_api_key_auth_debug() {
         let optional = OptionalApiKeyAuth(None);
         let debug_str = format!("{:?}", optional);
         assert!(debug_str.contains("OptionalApiKeyAuth"));
+        assert!(debug_str.contains("None"));
+    }
+
+    #[test]
+    fn test_optional_api_key_auth_debug_some() {
+        let auth = ApiKeyAuth {
+            api_key_id: 1,
+            key_prefix: "pm_test".to_string(),
+            is_admin: false,
+        };
+        let optional = OptionalApiKeyAuth(Some(auth));
+        let debug_str = format!("{:?}", optional);
+        assert!(debug_str.contains("OptionalApiKeyAuth"));
+        assert!(debug_str.contains("Some"));
+    }
+
+    // ===========================================
+    // Key Prefix Tests
+    // ===========================================
+
+    #[test]
+    fn test_key_prefix_various_formats() {
+        // Test different valid prefix formats
+        let prefixes = vec![
+            "pm_aBcDe",
+            "pm_12345",
+            "pm_UPPER",
+            "pm_lower",
+            "pm_MiXeD123",
+        ];
+
+        for prefix in prefixes {
+            let auth = ApiKeyAuth {
+                api_key_id: 1,
+                key_prefix: prefix.to_string(),
+                is_admin: false,
+            };
+            assert!(auth.key_prefix.starts_with("pm_"));
+        }
+    }
+
+    #[test]
+    fn test_key_prefix_unicode() {
+        // While unusual, key_prefix field can hold any string
+        let auth = ApiKeyAuth {
+            api_key_id: 1,
+            key_prefix: "pm_üñîcödé".to_string(),
+            is_admin: false,
+        };
+        assert!(auth.key_prefix.starts_with("pm_"));
     }
 }

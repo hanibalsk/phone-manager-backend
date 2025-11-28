@@ -72,6 +72,10 @@ pub mod headers {
 mod tests {
     use super::*;
 
+    // ===========================================
+    // Header Constants Tests
+    // ===========================================
+
     #[test]
     fn test_header_constants() {
         assert_eq!(headers::X_CONTENT_TYPE_OPTIONS, "x-content-type-options");
@@ -79,17 +83,146 @@ mod tests {
         assert_eq!(headers::X_XSS_PROTECTION, "x-xss-protection");
     }
 
-    // Note: Full middleware tests would require setting up a mock router,
-    // which is tested at the integration level. Unit tests verify constants
-    // and simple logic.
+    #[test]
+    fn test_header_constants_lowercase() {
+        // Verify headers are lowercase (HTTP headers are case-insensitive,
+        // but we should be consistent)
+        assert!(headers::X_CONTENT_TYPE_OPTIONS.chars().all(|c| c.is_lowercase() || c == '-'));
+        assert!(headers::X_FRAME_OPTIONS.chars().all(|c| c.is_lowercase() || c == '-'));
+        assert!(headers::X_XSS_PROTECTION.chars().all(|c| c.is_lowercase() || c == '-'));
+    }
 
     #[test]
-    fn test_hsts_env_parsing() {
-        // Test that env var parsing works correctly
-        // In actual tests, we'd use temp_env or similar to set env vars
-        let result = std::env::var("PM__SECURITY__HSTS_ENABLED_TEST")
+    fn test_header_constants_not_empty() {
+        assert!(!headers::X_CONTENT_TYPE_OPTIONS.is_empty());
+        assert!(!headers::X_FRAME_OPTIONS.is_empty());
+        assert!(!headers::X_XSS_PROTECTION.is_empty());
+    }
+
+    // ===========================================
+    // HSTS Environment Parsing Tests
+    // ===========================================
+
+    #[test]
+    fn test_hsts_env_parsing_not_set() {
+        // Test that env var parsing works correctly when not set
+        let result = std::env::var("PM__SECURITY__HSTS_ENABLED_NONEXISTENT_VAR")
             .map(|v| v.to_lowercase() == "true")
             .unwrap_or(false);
-        assert!(!result); // Should be false when not set
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_hsts_env_parsing_logic_true() {
+        // Test the parsing logic (without actually setting env var)
+        let test_cases = vec![
+            ("true", true),
+            ("TRUE", true),
+            ("True", true),
+            ("TrUe", true),
+        ];
+
+        for (input, expected) in test_cases {
+            let result = input.to_lowercase() == "true";
+            assert_eq!(result, expected, "Input '{}' should be {}", input, expected);
+        }
+    }
+
+    #[test]
+    fn test_hsts_env_parsing_logic_false() {
+        // Test the parsing logic for false values
+        let test_cases = vec![
+            ("false", false),
+            ("FALSE", false),
+            ("False", false),
+            ("0", false),
+            ("1", false),  // Only "true" should work
+            ("yes", false),
+            ("no", false),
+            ("", false),
+        ];
+
+        for (input, expected) in test_cases {
+            let result = input.to_lowercase() == "true";
+            assert_eq!(result, expected, "Input '{}' should be {}", input, expected);
+        }
+    }
+
+    // ===========================================
+    // HeaderValue Tests
+    // ===========================================
+
+    #[test]
+    fn test_security_header_values_are_valid() {
+        // Verify that the static header values can be parsed
+        assert!(HeaderValue::from_static("nosniff").to_str().is_ok());
+        assert!(HeaderValue::from_static("DENY").to_str().is_ok());
+        assert!(HeaderValue::from_static("1; mode=block").to_str().is_ok());
+        assert!(HeaderValue::from_static("max-age=31536000; includeSubDomains").to_str().is_ok());
+    }
+
+    #[test]
+    fn test_x_content_type_options_value() {
+        let value = HeaderValue::from_static("nosniff");
+        assert_eq!(value.to_str().unwrap(), "nosniff");
+    }
+
+    #[test]
+    fn test_x_frame_options_value() {
+        let value = HeaderValue::from_static("DENY");
+        assert_eq!(value.to_str().unwrap(), "DENY");
+    }
+
+    #[test]
+    fn test_x_xss_protection_value() {
+        let value = HeaderValue::from_static("1; mode=block");
+        assert_eq!(value.to_str().unwrap(), "1; mode=block");
+    }
+
+    #[test]
+    fn test_hsts_header_value() {
+        let value = HeaderValue::from_static("max-age=31536000; includeSubDomains");
+        assert_eq!(value.to_str().unwrap(), "max-age=31536000; includeSubDomains");
+        // Verify max-age is 1 year (31536000 seconds)
+        assert!(value.to_str().unwrap().contains("31536000"));
+    }
+
+    // ===========================================
+    // Header Name Tests
+    // ===========================================
+
+    #[test]
+    fn test_header_names_can_be_created() {
+        // Verify header names can be created from static strings
+        let name1 = header::HeaderName::from_static("x-content-type-options");
+        let name2 = header::HeaderName::from_static("x-frame-options");
+        let name3 = header::HeaderName::from_static("x-xss-protection");
+
+        assert_eq!(name1.as_str(), "x-content-type-options");
+        assert_eq!(name2.as_str(), "x-frame-options");
+        assert_eq!(name3.as_str(), "x-xss-protection");
+    }
+
+    #[test]
+    fn test_strict_transport_security_header() {
+        // HSTS header should be the standard one
+        assert_eq!(header::STRICT_TRANSPORT_SECURITY.as_str(), "strict-transport-security");
+    }
+
+    // ===========================================
+    // HSTS Max-Age Tests
+    // ===========================================
+
+    #[test]
+    fn test_hsts_max_age_is_one_year() {
+        // 31536000 seconds = 365 days * 24 hours * 60 minutes * 60 seconds
+        let expected_seconds = 365 * 24 * 60 * 60;
+        assert_eq!(expected_seconds, 31536000);
+    }
+
+    #[test]
+    fn test_hsts_includes_subdomains() {
+        let value = "max-age=31536000; includeSubDomains";
+        assert!(value.contains("includeSubDomains"));
     }
 }

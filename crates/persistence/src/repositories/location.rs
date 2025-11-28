@@ -325,10 +325,468 @@ pub struct LocationHistoryQuery {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    // ===========================================
+    // LocationInput Tests
+    // ===========================================
+
     #[test]
-    fn test_repository_creation() {
-        // This test verifies the LocationRepository can be created
-        // Actual database tests are integration tests
-        assert!(true);
+    fn test_location_input_creation() {
+        let input = LocationInput {
+            device_id: Uuid::new_v4(),
+            latitude: 45.0,
+            longitude: -122.0,
+            accuracy: 10.0,
+            altitude: Some(100.0),
+            bearing: Some(90.0),
+            speed: Some(5.5),
+            provider: Some("gps".to_string()),
+            battery_level: Some(85),
+            network_type: Some("wifi".to_string()),
+            captured_at: Utc::now(),
+        };
+
+        assert!(input.latitude > 0.0);
+        assert!(input.longitude < 0.0);
+        assert_eq!(input.accuracy, 10.0);
+    }
+
+    #[test]
+    fn test_location_input_minimal() {
+        // Minimum required fields
+        let input = LocationInput {
+            device_id: Uuid::new_v4(),
+            latitude: 0.0,
+            longitude: 0.0,
+            accuracy: 1.0,
+            altitude: None,
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+            captured_at: Utc::now(),
+        };
+
+        assert!(input.altitude.is_none());
+        assert!(input.bearing.is_none());
+        assert!(input.speed.is_none());
+    }
+
+    #[test]
+    fn test_location_input_boundary_coordinates() {
+        // Test with boundary coordinate values
+        let input = LocationInput {
+            device_id: Uuid::new_v4(),
+            latitude: 90.0,  // Max latitude
+            longitude: 180.0,  // Max longitude
+            accuracy: 0.0,
+            altitude: None,
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+            captured_at: Utc::now(),
+        };
+
+        assert_eq!(input.latitude, 90.0);
+        assert_eq!(input.longitude, 180.0);
+    }
+
+    #[test]
+    fn test_location_input_negative_coordinates() {
+        let input = LocationInput {
+            device_id: Uuid::new_v4(),
+            latitude: -90.0,  // Min latitude
+            longitude: -180.0,  // Min longitude
+            accuracy: 5.0,
+            altitude: Some(-100.0),  // Below sea level
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+            captured_at: Utc::now(),
+        };
+
+        assert_eq!(input.latitude, -90.0);
+        assert_eq!(input.longitude, -180.0);
+        assert_eq!(input.altitude, Some(-100.0));
+    }
+
+    #[test]
+    fn test_location_input_clone() {
+        let input = LocationInput {
+            device_id: Uuid::new_v4(),
+            latitude: 45.0,
+            longitude: -122.0,
+            accuracy: 10.0,
+            altitude: Some(100.0),
+            bearing: Some(90.0),
+            speed: Some(5.5),
+            provider: Some("gps".to_string()),
+            battery_level: Some(85),
+            network_type: Some("wifi".to_string()),
+            captured_at: Utc::now(),
+        };
+
+        let cloned = input.clone();
+        assert_eq!(cloned.latitude, input.latitude);
+        assert_eq!(cloned.longitude, input.longitude);
+        assert_eq!(cloned.device_id, input.device_id);
+    }
+
+    #[test]
+    fn test_location_input_debug() {
+        let input = LocationInput {
+            device_id: Uuid::new_v4(),
+            latitude: 45.0,
+            longitude: -122.0,
+            accuracy: 10.0,
+            altitude: None,
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+            captured_at: Utc::now(),
+        };
+
+        let debug = format!("{:?}", input);
+        assert!(debug.contains("LocationInput"));
+        assert!(debug.contains("latitude"));
+        assert!(debug.contains("longitude"));
+    }
+
+    #[test]
+    fn test_location_input_battery_boundaries() {
+        // Battery can be 0-100
+        let input_low = LocationInput {
+            device_id: Uuid::new_v4(),
+            latitude: 0.0,
+            longitude: 0.0,
+            accuracy: 1.0,
+            altitude: None,
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: Some(0),
+            network_type: None,
+            captured_at: Utc::now(),
+        };
+        assert_eq!(input_low.battery_level, Some(0));
+
+        let input_high = LocationInput {
+            device_id: Uuid::new_v4(),
+            latitude: 0.0,
+            longitude: 0.0,
+            accuracy: 1.0,
+            altitude: None,
+            bearing: None,
+            speed: None,
+            provider: None,
+            battery_level: Some(100),
+            network_type: None,
+            captured_at: Utc::now(),
+        };
+        assert_eq!(input_high.battery_level, Some(100));
+    }
+
+    #[test]
+    fn test_location_input_bearing_boundaries() {
+        // Bearing is 0-360 degrees
+        let input_zero = LocationInput {
+            device_id: Uuid::new_v4(),
+            latitude: 0.0,
+            longitude: 0.0,
+            accuracy: 1.0,
+            altitude: None,
+            bearing: Some(0.0),
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+            captured_at: Utc::now(),
+        };
+        assert_eq!(input_zero.bearing, Some(0.0));
+
+        let input_max = LocationInput {
+            device_id: Uuid::new_v4(),
+            latitude: 0.0,
+            longitude: 0.0,
+            accuracy: 1.0,
+            altitude: None,
+            bearing: Some(359.99),
+            speed: None,
+            provider: None,
+            battery_level: None,
+            network_type: None,
+            captured_at: Utc::now(),
+        };
+        assert!(input_max.bearing.unwrap() < 360.0);
+    }
+
+    // ===========================================
+    // LocationHistoryQuery Tests
+    // ===========================================
+
+    #[test]
+    fn test_location_history_query_minimal() {
+        let query = LocationHistoryQuery {
+            device_id: Uuid::new_v4(),
+            cursor_timestamp: None,
+            cursor_id: None,
+            from_timestamp: None,
+            to_timestamp: None,
+            limit: 50,
+            ascending: false,
+        };
+
+        assert_eq!(query.limit, 50);
+        assert!(!query.ascending);
+        assert!(query.cursor_timestamp.is_none());
+    }
+
+    #[test]
+    fn test_location_history_query_with_filters() {
+        let from = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        let to = Utc.with_ymd_and_hms(2024, 12, 31, 23, 59, 59).unwrap();
+
+        let query = LocationHistoryQuery {
+            device_id: Uuid::new_v4(),
+            cursor_timestamp: None,
+            cursor_id: None,
+            from_timestamp: Some(from),
+            to_timestamp: Some(to),
+            limit: 100,
+            ascending: true,
+        };
+
+        assert!(query.from_timestamp.is_some());
+        assert!(query.to_timestamp.is_some());
+        assert!(query.ascending);
+    }
+
+    #[test]
+    fn test_location_history_query_with_cursor() {
+        let cursor_time = Utc::now();
+
+        let query = LocationHistoryQuery {
+            device_id: Uuid::new_v4(),
+            cursor_timestamp: Some(cursor_time),
+            cursor_id: Some(12345),
+            from_timestamp: None,
+            to_timestamp: None,
+            limit: 25,
+            ascending: false,
+        };
+
+        assert_eq!(query.cursor_id, Some(12345));
+        assert!(query.cursor_timestamp.is_some());
+    }
+
+    #[test]
+    fn test_location_history_query_clone() {
+        let query = LocationHistoryQuery {
+            device_id: Uuid::new_v4(),
+            cursor_timestamp: Some(Utc::now()),
+            cursor_id: Some(100),
+            from_timestamp: None,
+            to_timestamp: None,
+            limit: 50,
+            ascending: true,
+        };
+
+        let cloned = query.clone();
+        assert_eq!(cloned.limit, query.limit);
+        assert_eq!(cloned.ascending, query.ascending);
+        assert_eq!(cloned.cursor_id, query.cursor_id);
+    }
+
+    #[test]
+    fn test_location_history_query_debug() {
+        let query = LocationHistoryQuery {
+            device_id: Uuid::new_v4(),
+            cursor_timestamp: None,
+            cursor_id: None,
+            from_timestamp: None,
+            to_timestamp: None,
+            limit: 50,
+            ascending: false,
+        };
+
+        let debug = format!("{:?}", query);
+        assert!(debug.contains("LocationHistoryQuery"));
+        assert!(debug.contains("limit"));
+        assert!(debug.contains("ascending"));
+    }
+
+    #[test]
+    fn test_location_history_query_limit_boundaries() {
+        // Test different limit values
+        let limits = vec![1, 10, 50, 100];
+        for limit in limits {
+            let query = LocationHistoryQuery {
+                device_id: Uuid::new_v4(),
+                cursor_timestamp: None,
+                cursor_id: None,
+                from_timestamp: None,
+                to_timestamp: None,
+                limit,
+                ascending: false,
+            };
+            assert_eq!(query.limit, limit);
+        }
+    }
+
+    #[test]
+    fn test_location_history_query_ascending_vs_descending() {
+        let device_id = Uuid::new_v4();
+
+        let asc_query = LocationHistoryQuery {
+            device_id,
+            cursor_timestamp: None,
+            cursor_id: None,
+            from_timestamp: None,
+            to_timestamp: None,
+            limit: 50,
+            ascending: true,
+        };
+
+        let desc_query = LocationHistoryQuery {
+            device_id,
+            cursor_timestamp: None,
+            cursor_id: None,
+            from_timestamp: None,
+            to_timestamp: None,
+            limit: 50,
+            ascending: false,
+        };
+
+        assert!(asc_query.ascending);
+        assert!(!desc_query.ascending);
+    }
+
+    // ===========================================
+    // LocationRepository Struct Tests
+    // ===========================================
+
+    // Note: Actual database operations are tested in integration tests.
+    // These tests verify struct creation and basic properties.
+
+    #[test]
+    fn test_location_input_various_providers() {
+        let providers = vec!["gps", "network", "fused", "passive", "unknown"];
+
+        for provider in providers {
+            let input = LocationInput {
+                device_id: Uuid::new_v4(),
+                latitude: 0.0,
+                longitude: 0.0,
+                accuracy: 1.0,
+                altitude: None,
+                bearing: None,
+                speed: None,
+                provider: Some(provider.to_string()),
+                battery_level: None,
+                network_type: None,
+                captured_at: Utc::now(),
+            };
+            assert_eq!(input.provider, Some(provider.to_string()));
+        }
+    }
+
+    #[test]
+    fn test_location_input_various_network_types() {
+        let network_types = vec!["wifi", "4g", "5g", "3g", "2g", "ethernet", "unknown"];
+
+        for network_type in network_types {
+            let input = LocationInput {
+                device_id: Uuid::new_v4(),
+                latitude: 0.0,
+                longitude: 0.0,
+                accuracy: 1.0,
+                altitude: None,
+                bearing: None,
+                speed: None,
+                provider: None,
+                battery_level: None,
+                network_type: Some(network_type.to_string()),
+                captured_at: Utc::now(),
+            };
+            assert_eq!(input.network_type, Some(network_type.to_string()));
+        }
+    }
+
+    #[test]
+    fn test_location_input_speed_values() {
+        // Speed in m/s
+        let speeds = vec![0.0, 1.5, 10.0, 30.0, 100.0];  // Walking to driving speeds
+
+        for speed in speeds {
+            let input = LocationInput {
+                device_id: Uuid::new_v4(),
+                latitude: 0.0,
+                longitude: 0.0,
+                accuracy: 1.0,
+                altitude: None,
+                bearing: None,
+                speed: Some(speed),
+                provider: None,
+                battery_level: None,
+                network_type: None,
+                captured_at: Utc::now(),
+            };
+            assert_eq!(input.speed, Some(speed));
+        }
+    }
+
+    #[test]
+    fn test_location_input_accuracy_values() {
+        // Accuracy in meters
+        let accuracies = vec![1.0, 5.0, 10.0, 50.0, 100.0, 1000.0];
+
+        for accuracy in accuracies {
+            let input = LocationInput {
+                device_id: Uuid::new_v4(),
+                latitude: 0.0,
+                longitude: 0.0,
+                accuracy,
+                altitude: None,
+                bearing: None,
+                speed: None,
+                provider: None,
+                battery_level: None,
+                network_type: None,
+                captured_at: Utc::now(),
+            };
+            assert_eq!(input.accuracy, accuracy);
+        }
+    }
+
+    #[test]
+    fn test_location_input_altitude_values() {
+        // Altitude in meters - can be negative (below sea level)
+        let altitudes = vec![-400.0, 0.0, 100.0, 1000.0, 8848.0];  // Dead Sea to Everest
+
+        for altitude in altitudes {
+            let input = LocationInput {
+                device_id: Uuid::new_v4(),
+                latitude: 0.0,
+                longitude: 0.0,
+                accuracy: 1.0,
+                altitude: Some(altitude),
+                bearing: None,
+                speed: None,
+                provider: None,
+                battery_level: None,
+                network_type: None,
+                captured_at: Utc::now(),
+            };
+            assert_eq!(input.altitude, Some(altitude));
+        }
     }
 }

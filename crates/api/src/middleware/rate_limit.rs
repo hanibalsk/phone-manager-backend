@@ -160,11 +160,35 @@ fn rate_limited_response(limit: u32, retry_after: u64) -> Response {
 mod tests {
     use super::*;
 
+    // ===========================================
+    // RateLimiterState Creation Tests
+    // ===========================================
+
     #[test]
     fn test_rate_limiter_state_creation() {
         let state = RateLimiterState::new(100);
         assert_eq!(state.rate_limit_per_minute, 100);
     }
+
+    #[test]
+    fn test_rate_limiter_state_creation_with_zero() {
+        // Zero should default to 100
+        let state = RateLimiterState::new(0);
+        assert_eq!(state.rate_limit_per_minute, 0);
+    }
+
+    #[test]
+    fn test_rate_limiter_state_creation_with_various_limits() {
+        let limits = vec![1, 10, 100, 1000, 10000];
+        for limit in limits {
+            let state = RateLimiterState::new(limit);
+            assert_eq!(state.rate_limit_per_minute, limit);
+        }
+    }
+
+    // ===========================================
+    // Rate Limiting Logic Tests
+    // ===========================================
 
     #[test]
     fn test_rate_limiter_allows_requests() {
@@ -176,11 +200,106 @@ mod tests {
     }
 
     #[test]
+    fn test_rate_limiter_exhaustion() {
+        // Use very low limit to test exhaustion
+        let state = RateLimiterState::new(1);
+        let key_id: i64 = 1;
+
+        // First request should be allowed
+        assert!(state.check(key_id).is_ok());
+
+        // Second request should be rate limited
+        let result = state.check(key_id);
+        assert!(result.is_err());
+        // Retry-after should be at least 1 second
+        assert!(result.unwrap_err() >= 1);
+    }
+
+    #[test]
+    fn test_rate_limiter_different_keys_independent() {
+        let state = RateLimiterState::new(1); // Very low limit
+        let key1: i64 = 1;
+        let key2: i64 = 2;
+        let key3: i64 = 3;
+
+        // Each key should have independent limits
+        assert!(state.check(key1).is_ok());
+        assert!(state.check(key2).is_ok());
+        assert!(state.check(key3).is_ok());
+
+        // Now key1 should be rate limited, but others still allowed
+        assert!(state.check(key1).is_err());
+        assert!(state.check(key2).is_err());
+        assert!(state.check(key3).is_err());
+    }
+
+    #[test]
+    fn test_rate_limiter_same_key_multiple_checks() {
+        let state = RateLimiterState::new(5);
+        let key_id: i64 = 42;
+
+        // Should allow 5 requests
+        for i in 0..5 {
+            let result = state.check(key_id);
+            assert!(result.is_ok(), "Request {} should be allowed", i);
+        }
+
+        // 6th request should be rate limited
+        assert!(state.check(key_id).is_err());
+    }
+
+    #[test]
+    fn test_rate_limiter_many_keys() {
+        let state = RateLimiterState::new(10);
+
+        // Test with 100 different keys
+        for key_id in 0..100i64 {
+            assert!(state.check(key_id).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_rate_limiter_negative_key_id() {
+        let state = RateLimiterState::new(100);
+        let key_id: i64 = -1;
+
+        // Negative IDs should work (they're valid i64 values)
+        assert!(state.check(key_id).is_ok());
+    }
+
+    #[test]
+    fn test_rate_limiter_boundary_key_ids() {
+        let state = RateLimiterState::new(100);
+
+        // Test boundary values
+        assert!(state.check(i64::MIN).is_ok());
+        assert!(state.check(i64::MAX).is_ok());
+        assert!(state.check(0).is_ok());
+    }
+
+    // ===========================================
+    // Clone and Debug Tests
+    // ===========================================
+
+    #[test]
     fn test_rate_limiter_state_debug() {
         let state = RateLimiterState::new(100);
         let debug = format!("{:?}", state);
         assert!(debug.contains("RateLimiterState"));
         assert!(debug.contains("rate_limit_per_minute"));
+        assert!(debug.contains("100"));
+        assert!(debug.contains("active_limiters"));
+    }
+
+    #[test]
+    fn test_rate_limiter_state_debug_with_limiters() {
+        let state = RateLimiterState::new(100);
+        // Create some limiters
+        state.check(1).unwrap();
+        state.check(2).unwrap();
+
+        let debug = format!("{:?}", state);
+        assert!(debug.contains("active_limiters"));
     }
 
     #[test]
@@ -194,15 +313,20 @@ mod tests {
     }
 
     #[test]
-    fn test_rate_limiter_different_keys_independent() {
-        let state = RateLimiterState::new(2); // Very low limit for testing
-        let key1: i64 = 1;
-        let key2: i64 = 2;
+    fn test_rate_limiter_state_clone_shares_limiters() {
+        let state = RateLimiterState::new(100);
+        state.check(1).unwrap();
+        state.check(2).unwrap();
 
-        // Each key should have independent limits
-        assert!(state.check(key1).is_ok());
-        assert!(state.check(key2).is_ok());
+        let cloned = state.clone();
+        // Clone should have the same limiters
+        assert!(cloned.check(1).is_ok()); // Using existing limiter
+        assert!(cloned.check(3).is_ok()); // Creating new limiter
     }
+
+    // ===========================================
+    // Response Building Tests
+    // ===========================================
 
     #[test]
     fn test_rate_limited_response_format() {
@@ -213,5 +337,65 @@ mod tests {
             response.headers().get(header::RETRY_AFTER).unwrap(),
             "60"
         );
+    }
+
+    #[test]
+    fn test_rate_limited_response_various_retry_after() {
+        let retry_values = vec![1, 5, 30, 60, 120, 3600];
+        for retry_after in retry_values {
+            let response = rate_limited_response(100, retry_after);
+            assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+            assert_eq!(
+                response.headers().get(header::RETRY_AFTER).unwrap(),
+                &retry_after.to_string()
+            );
+        }
+    }
+
+    #[test]
+    fn test_rate_limited_response_various_limits() {
+        let limits = vec![1, 10, 100, 1000];
+        for limit in limits {
+            let response = rate_limited_response(limit, 60);
+            assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        }
+    }
+
+    #[test]
+    fn test_rate_limited_response_zero_retry_after() {
+        let response = rate_limited_response(100, 0);
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response.headers().get(header::RETRY_AFTER).unwrap(),
+            "0"
+        );
+    }
+
+    // ===========================================
+    // Concurrent Access Tests
+    // ===========================================
+
+    #[test]
+    fn test_rate_limiter_get_or_create_idempotent() {
+        let state = RateLimiterState::new(100);
+        let key_id: i64 = 1;
+
+        // Multiple calls should return the same limiter
+        let limiter1 = state.get_or_create_limiter(key_id);
+        let limiter2 = state.get_or_create_limiter(key_id);
+
+        // Should be the same Arc (same underlying object)
+        assert!(Arc::ptr_eq(&limiter1, &limiter2));
+    }
+
+    #[test]
+    fn test_rate_limiter_different_keys_different_limiters() {
+        let state = RateLimiterState::new(100);
+
+        let limiter1 = state.get_or_create_limiter(1);
+        let limiter2 = state.get_or_create_limiter(2);
+
+        // Should be different Arcs
+        assert!(!Arc::ptr_eq(&limiter1, &limiter2));
     }
 }

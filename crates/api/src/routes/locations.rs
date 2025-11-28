@@ -449,9 +449,11 @@ async fn get_simplified_locations(
             })
             .collect();
 
+        let simplified_count = locations.len();
+
         info!(
             device_id = %device_id,
-            count = locations.len(),
+            count = simplified_count,
             simplified = false,
             "Location history retrieved (too few points to simplify)"
         );
@@ -462,7 +464,7 @@ async fn get_simplified_locations(
                 next_cursor: None,
                 has_more: false,
             },
-            simplification: Some(SimplificationInfo::new(tolerance, original_count, locations.len())),
+            simplification: Some(SimplificationInfo::new(tolerance, original_count, simplified_count)),
         }));
     }
 

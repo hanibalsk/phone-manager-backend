@@ -288,14 +288,232 @@ pub struct AdminStats {
 
 #[cfg(test)]
 mod tests {
-    // Note: Integration tests requiring database are in tests/ directory
-    // Unit tests here cover logic that doesn't require database connection
+    use super::*;
+
+    // ===========================================
+    // AdminStats Tests
+    // ===========================================
 
     #[test]
-    fn test_repository_creation() {
-        // This test verifies the DeviceRepository can be created
-        // Actual database tests are integration tests
-        // Here we just ensure the struct definition is correct
-        assert!(true);
+    fn test_admin_stats_creation() {
+        let stats = AdminStats {
+            total_devices: 100,
+            active_devices: 75,
+            inactive_devices: 25,
+            total_locations: 10000,
+            total_groups: 10,
+        };
+
+        assert_eq!(stats.total_devices, 100);
+        assert_eq!(stats.active_devices, 75);
+        assert_eq!(stats.inactive_devices, 25);
+        assert_eq!(stats.total_locations, 10000);
+        assert_eq!(stats.total_groups, 10);
+    }
+
+    #[test]
+    fn test_admin_stats_consistency() {
+        // Inactive = Total - Active
+        let stats = AdminStats {
+            total_devices: 100,
+            active_devices: 75,
+            inactive_devices: 25,
+            total_locations: 10000,
+            total_groups: 10,
+        };
+
+        assert_eq!(stats.total_devices, stats.active_devices + stats.inactive_devices);
+    }
+
+    #[test]
+    fn test_admin_stats_zero_values() {
+        let stats = AdminStats {
+            total_devices: 0,
+            active_devices: 0,
+            inactive_devices: 0,
+            total_locations: 0,
+            total_groups: 0,
+        };
+
+        assert_eq!(stats.total_devices, 0);
+        assert_eq!(stats.active_devices, 0);
+        assert_eq!(stats.inactive_devices, 0);
+        assert_eq!(stats.total_locations, 0);
+        assert_eq!(stats.total_groups, 0);
+    }
+
+    #[test]
+    fn test_admin_stats_large_values() {
+        let stats = AdminStats {
+            total_devices: i64::MAX,
+            active_devices: i64::MAX - 1,
+            inactive_devices: 1,
+            total_locations: i64::MAX,
+            total_groups: 1000000,
+        };
+
+        assert_eq!(stats.total_devices, i64::MAX);
+        assert_eq!(stats.total_locations, i64::MAX);
+    }
+
+    #[test]
+    fn test_admin_stats_debug() {
+        let stats = AdminStats {
+            total_devices: 100,
+            active_devices: 75,
+            inactive_devices: 25,
+            total_locations: 10000,
+            total_groups: 10,
+        };
+
+        let debug = format!("{:?}", stats);
+        assert!(debug.contains("AdminStats"));
+        assert!(debug.contains("total_devices"));
+        assert!(debug.contains("active_devices"));
+        assert!(debug.contains("inactive_devices"));
+        assert!(debug.contains("total_locations"));
+        assert!(debug.contains("total_groups"));
+    }
+
+    #[test]
+    fn test_admin_stats_clone() {
+        let stats = AdminStats {
+            total_devices: 100,
+            active_devices: 75,
+            inactive_devices: 25,
+            total_locations: 10000,
+            total_groups: 10,
+        };
+
+        let cloned = stats.clone();
+        assert_eq!(cloned.total_devices, stats.total_devices);
+        assert_eq!(cloned.active_devices, stats.active_devices);
+        assert_eq!(cloned.inactive_devices, stats.inactive_devices);
+        assert_eq!(cloned.total_locations, stats.total_locations);
+        assert_eq!(cloned.total_groups, stats.total_groups);
+    }
+
+    #[test]
+    fn test_admin_stats_serialization() {
+        let stats = AdminStats {
+            total_devices: 100,
+            active_devices: 75,
+            inactive_devices: 25,
+            total_locations: 10000,
+            total_groups: 10,
+        };
+
+        let json = serde_json::to_string(&stats).unwrap();
+
+        // Should use camelCase
+        assert!(json.contains("\"totalDevices\":100"));
+        assert!(json.contains("\"activeDevices\":75"));
+        assert!(json.contains("\"inactiveDevices\":25"));
+        assert!(json.contains("\"totalLocations\":10000"));
+        assert!(json.contains("\"totalGroups\":10"));
+    }
+
+    #[test]
+    fn test_admin_stats_serialization_zero() {
+        let stats = AdminStats {
+            total_devices: 0,
+            active_devices: 0,
+            inactive_devices: 0,
+            total_locations: 0,
+            total_groups: 0,
+        };
+
+        let json = serde_json::to_string(&stats).unwrap();
+        assert!(json.contains("\"totalDevices\":0"));
+        assert!(json.contains("\"totalGroups\":0"));
+    }
+
+    // ===========================================
+    // DeviceRepository Struct Tests
+    // ===========================================
+
+    // Note: Actual database operations are tested in integration tests.
+    // These unit tests verify struct creation and basic properties.
+
+    #[test]
+    fn test_device_repository_clone() {
+        // DeviceRepository derives Clone - verify the derive works
+        // We can't actually create one without a pool, but we can verify
+        // the Clone trait is implemented
+        fn assert_clone<T: Clone>() {}
+        assert_clone::<DeviceRepository>();
+    }
+
+    // ===========================================
+    // Edge Case Tests
+    // ===========================================
+
+    #[test]
+    fn test_admin_stats_all_inactive() {
+        let stats = AdminStats {
+            total_devices: 50,
+            active_devices: 0,
+            inactive_devices: 50,
+            total_locations: 5000,
+            total_groups: 5,
+        };
+
+        assert_eq!(stats.active_devices, 0);
+        assert_eq!(stats.inactive_devices, stats.total_devices);
+    }
+
+    #[test]
+    fn test_admin_stats_all_active() {
+        let stats = AdminStats {
+            total_devices: 50,
+            active_devices: 50,
+            inactive_devices: 0,
+            total_locations: 5000,
+            total_groups: 5,
+        };
+
+        assert_eq!(stats.inactive_devices, 0);
+        assert_eq!(stats.active_devices, stats.total_devices);
+    }
+
+    #[test]
+    fn test_admin_stats_single_group() {
+        let stats = AdminStats {
+            total_devices: 20,
+            active_devices: 20,
+            inactive_devices: 0,
+            total_locations: 1000,
+            total_groups: 1,
+        };
+
+        assert_eq!(stats.total_groups, 1);
+    }
+
+    #[test]
+    fn test_admin_stats_many_groups() {
+        let stats = AdminStats {
+            total_devices: 1000,
+            active_devices: 800,
+            inactive_devices: 200,
+            total_locations: 100000,
+            total_groups: 500,
+        };
+
+        assert_eq!(stats.total_groups, 500);
+    }
+
+    #[test]
+    fn test_admin_stats_negative_values() {
+        // While unlikely in practice, i64 can hold negative values
+        let stats = AdminStats {
+            total_devices: -1,  // Invalid but structurally possible
+            active_devices: 0,
+            inactive_devices: -1,
+            total_locations: 0,
+            total_groups: 0,
+        };
+
+        assert_eq!(stats.total_devices, -1);
+        assert_eq!(stats.inactive_devices, -1);
     }
 }
