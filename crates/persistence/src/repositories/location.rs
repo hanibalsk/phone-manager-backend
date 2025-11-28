@@ -260,6 +260,48 @@ impl LocationRepository {
         .fetch_all(&self.pool)
         .await
     }
+
+    /// Get all locations for a device within a time range (no pagination).
+    ///
+    /// Used for simplification operations that need the complete path.
+    /// Always returns in ascending order (oldest to newest) for proper
+    /// trajectory simplification.
+    ///
+    /// # Arguments
+    /// * `device_id` - Device to fetch locations for
+    /// * `from_timestamp` - Optional start timestamp filter
+    /// * `to_timestamp` - Optional end timestamp filter
+    ///
+    /// # Returns
+    /// * Vector of location entities ordered by captured_at ASC
+    pub async fn get_all_locations_in_range(
+        &self,
+        device_id: Uuid,
+        from_timestamp: Option<DateTime<Utc>>,
+        to_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<Vec<LocationEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("get_all_locations_in_range");
+
+        let result = sqlx::query_as::<_, LocationEntity>(
+            r#"
+            SELECT id, device_id, latitude, longitude, accuracy, altitude, bearing,
+                   speed, provider, battery_level, network_type, captured_at, created_at
+            FROM locations
+            WHERE device_id = $1
+              AND ($2::timestamptz IS NULL OR captured_at >= $2)
+              AND ($3::timestamptz IS NULL OR captured_at <= $3)
+            ORDER BY captured_at ASC, id ASC
+            "#,
+        )
+        .bind(device_id)
+        .bind(from_timestamp)
+        .bind(to_timestamp)
+        .fetch_all(&self.pool)
+        .await;
+
+        timer.record();
+        result
+    }
 }
 
 /// Query parameters for location history with cursor-based pagination.

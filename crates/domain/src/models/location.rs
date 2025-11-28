@@ -164,6 +164,11 @@ pub struct GetLocationHistoryQuery {
     /// Sort order: "asc" or "desc" (default "desc").
     #[serde(default)]
     pub order: SortOrder,
+
+    /// Simplification tolerance in meters (0-10000).
+    /// When > 0, applies Ramer-Douglas-Peucker line simplification.
+    /// Pagination is disabled when simplification is active.
+    pub tolerance: Option<f64>,
 }
 
 impl GetLocationHistoryQuery {
@@ -173,12 +178,23 @@ impl GetLocationHistoryQuery {
     pub const MAX_LIMIT: i32 = 100;
     /// Minimum limit for location history queries.
     pub const MIN_LIMIT: i32 = 1;
+    /// Maximum tolerance for simplification (meters).
+    pub const MAX_TOLERANCE: f64 = 10000.0;
 
     /// Returns the effective limit, clamped to valid range.
     pub fn effective_limit(&self) -> i32 {
         self.limit
             .unwrap_or(Self::DEFAULT_LIMIT)
             .clamp(Self::MIN_LIMIT, Self::MAX_LIMIT)
+    }
+
+    /// Returns the effective tolerance if valid and > 0.
+    /// Returns None if tolerance is not set, zero, or negative.
+    /// Clamps to MAX_TOLERANCE if exceeds the limit.
+    pub fn effective_tolerance(&self) -> Option<f64> {
+        self.tolerance
+            .filter(|&t| t > 0.0)
+            .map(|t| t.clamp(0.0, Self::MAX_TOLERANCE))
     }
 }
 
@@ -235,12 +251,50 @@ pub struct PaginationInfo {
     pub has_more: bool,
 }
 
+/// Simplification metadata included when tolerance > 0.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SimplificationInfo {
+    /// Whether simplification was applied.
+    pub applied: bool,
+    /// Tolerance used in meters.
+    pub tolerance: f64,
+    /// Number of points before simplification.
+    pub original_count: usize,
+    /// Number of points after simplification.
+    pub simplified_count: usize,
+    /// Percentage of points removed.
+    pub reduction_percent: f64,
+}
+
+impl SimplificationInfo {
+    /// Creates a new SimplificationInfo with calculated reduction percentage.
+    pub fn new(tolerance: f64, original_count: usize, simplified_count: usize) -> Self {
+        let reduction_percent = if original_count > 0 {
+            ((original_count - simplified_count) as f64 / original_count as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        Self {
+            applied: true,
+            tolerance,
+            original_count,
+            simplified_count,
+            reduction_percent: (reduction_percent * 10.0).round() / 10.0, // Round to 1 decimal
+        }
+    }
+}
+
 /// Response payload for location history endpoint.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocationHistoryResponse {
     pub locations: Vec<LocationHistoryItem>,
     pub pagination: PaginationInfo,
+    /// Simplification metadata (present when tolerance > 0).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub simplification: Option<SimplificationInfo>,
 }
 
 #[cfg(test)]
@@ -566,5 +620,107 @@ mod tests {
             network_type: None,
         };
         assert!(data.validate().is_err());
+    }
+
+    // =========================================================================
+    // GetLocationHistoryQuery tolerance tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_location_history_query_tolerance_default() {
+        let json = r#"{}"#;
+        let query: GetLocationHistoryQuery = serde_json::from_str(json).unwrap();
+        assert!(query.tolerance.is_none());
+        assert!(query.effective_tolerance().is_none());
+    }
+
+    #[test]
+    fn test_get_location_history_query_tolerance_zero() {
+        let json = r#"{"tolerance": 0}"#;
+        let query: GetLocationHistoryQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.tolerance, Some(0.0));
+        // Zero tolerance should return None (no simplification)
+        assert!(query.effective_tolerance().is_none());
+    }
+
+    #[test]
+    fn test_get_location_history_query_tolerance_negative() {
+        let json = r#"{"tolerance": -10}"#;
+        let query: GetLocationHistoryQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.tolerance, Some(-10.0));
+        // Negative tolerance should return None
+        assert!(query.effective_tolerance().is_none());
+    }
+
+    #[test]
+    fn test_get_location_history_query_tolerance_valid() {
+        let json = r#"{"tolerance": 50}"#;
+        let query: GetLocationHistoryQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.tolerance, Some(50.0));
+        assert_eq!(query.effective_tolerance(), Some(50.0));
+    }
+
+    #[test]
+    fn test_get_location_history_query_tolerance_exceeds_max() {
+        let json = r#"{"tolerance": 15000}"#;
+        let query: GetLocationHistoryQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.tolerance, Some(15000.0));
+        // Should be clamped to MAX_TOLERANCE
+        assert_eq!(query.effective_tolerance(), Some(GetLocationHistoryQuery::MAX_TOLERANCE));
+    }
+
+    #[test]
+    fn test_get_location_history_query_tolerance_float() {
+        let json = r#"{"tolerance": 50.5}"#;
+        let query: GetLocationHistoryQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.tolerance, Some(50.5));
+        assert_eq!(query.effective_tolerance(), Some(50.5));
+    }
+
+    // =========================================================================
+    // SimplificationInfo tests
+    // =========================================================================
+
+    #[test]
+    fn test_simplification_info_new() {
+        let info = SimplificationInfo::new(50.0, 1000, 100);
+        assert!(info.applied);
+        assert_eq!(info.tolerance, 50.0);
+        assert_eq!(info.original_count, 1000);
+        assert_eq!(info.simplified_count, 100);
+        assert_eq!(info.reduction_percent, 90.0);
+    }
+
+    #[test]
+    fn test_simplification_info_no_reduction() {
+        let info = SimplificationInfo::new(10.0, 100, 100);
+        assert!(info.applied);
+        assert_eq!(info.reduction_percent, 0.0);
+    }
+
+    #[test]
+    fn test_simplification_info_full_reduction() {
+        // Only start and end points kept
+        let info = SimplificationInfo::new(1000.0, 1000, 2);
+        assert!(info.applied);
+        assert_eq!(info.reduction_percent, 99.8);
+    }
+
+    #[test]
+    fn test_simplification_info_empty_original() {
+        let info = SimplificationInfo::new(50.0, 0, 0);
+        assert!(info.applied);
+        assert_eq!(info.reduction_percent, 0.0);
+    }
+
+    #[test]
+    fn test_simplification_info_serialization() {
+        let info = SimplificationInfo::new(50.0, 1523, 127);
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"applied\":true"));
+        assert!(json.contains("\"tolerance\":50"));
+        assert!(json.contains("\"originalCount\":1523"));
+        assert!(json.contains("\"simplifiedCount\":127"));
+        assert!(json.contains("\"reductionPercent\":"));
     }
 }

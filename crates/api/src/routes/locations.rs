@@ -4,11 +4,13 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use chrono::{TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc};
+use geo::{LineString, Simplify};
 use persistence::repositories::{
     DeviceRepository, IdempotencyKeyRepository, LocationHistoryQuery, LocationInput,
     LocationRepository,
 };
+use std::collections::HashSet;
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
@@ -18,7 +20,7 @@ use crate::error::ApiError;
 use crate::extractors::idempotency_key::OptionalIdempotencyKey;
 use domain::models::location::{
     BatchUploadRequest, GetLocationHistoryQuery, LocationHistoryItem, LocationHistoryResponse,
-    PaginationInfo, SortOrder, UploadLocationRequest, UploadLocationResponse,
+    PaginationInfo, SimplificationInfo, SortOrder, UploadLocationRequest, UploadLocationResponse,
 };
 
 /// Upload a single location.
@@ -275,6 +277,10 @@ async fn store_idempotency_key(
 /// Get location history for a device with cursor-based pagination.
 ///
 /// GET /api/v1/devices/:device_id/locations
+///
+/// Supports optional simplification via the `tolerance` parameter (in meters).
+/// When tolerance > 0, applies Ramer-Douglas-Peucker line simplification
+/// and pagination is disabled.
 pub async fn get_location_history(
     State(state): State<AppState>,
     Path(device_id): Path<Uuid>,
@@ -291,6 +297,60 @@ pub async fn get_location_history(
         return Err(ApiError::NotFound("Device not found".to_string()));
     }
 
+    // Validate tolerance if provided
+    if let Some(tolerance) = query.tolerance {
+        if tolerance < 0.0 {
+            return Err(ApiError::Validation(
+                "tolerance must be non-negative".to_string(),
+            ));
+        }
+        if tolerance > GetLocationHistoryQuery::MAX_TOLERANCE {
+            return Err(ApiError::Validation(format!(
+                "tolerance must not exceed {} meters",
+                GetLocationHistoryQuery::MAX_TOLERANCE
+            )));
+        }
+    }
+
+    // Convert timestamp filters from milliseconds to DateTime
+    let from_timestamp = match query.from {
+        Some(ts) => {
+            let dt = Utc
+                .timestamp_millis_opt(ts)
+                .single()
+                .ok_or_else(|| ApiError::Validation(format!("Invalid 'from' timestamp: {}", ts)))?;
+            Some(dt)
+        }
+        None => None,
+    };
+    let to_timestamp = match query.to {
+        Some(ts) => {
+            let dt = Utc
+                .timestamp_millis_opt(ts)
+                .single()
+                .ok_or_else(|| ApiError::Validation(format!("Invalid 'to' timestamp: {}", ts)))?;
+            Some(dt)
+        }
+        None => None,
+    };
+
+    let location_repo = LocationRepository::new(state.pool.clone());
+
+    // Check if simplification is requested
+    if let Some(tolerance) = query.effective_tolerance() {
+        return get_simplified_locations(
+            &location_repo,
+            device_id,
+            from_timestamp,
+            to_timestamp,
+            query.order == SortOrder::Asc,
+            tolerance,
+            query.effective_limit(),
+        )
+        .await;
+    }
+
+    // Standard pagination path (no simplification)
     // Decode cursor if present
     let (cursor_timestamp, cursor_id) = match &query.cursor {
         Some(cursor) => {
@@ -299,25 +359,6 @@ pub async fn get_location_history(
             (Some(ts), Some(id))
         }
         None => (None, None),
-    };
-
-    // Convert timestamp filters from milliseconds to DateTime
-    // Return 400 if timestamps are provided but invalid (e.g., overflow)
-    let from_timestamp = match query.from {
-        Some(ts) => {
-            let dt = Utc.timestamp_millis_opt(ts).single()
-                .ok_or_else(|| ApiError::Validation(format!("Invalid 'from' timestamp: {}", ts)))?;
-            Some(dt)
-        }
-        None => None,
-    };
-    let to_timestamp = match query.to {
-        Some(ts) => {
-            let dt = Utc.timestamp_millis_opt(ts).single()
-                .ok_or_else(|| ApiError::Validation(format!("Invalid 'to' timestamp: {}", ts)))?;
-            Some(dt)
-        }
-        None => None,
     };
 
     // Get effective limit (clamped to valid range)
@@ -335,14 +376,13 @@ pub async fn get_location_history(
     };
 
     // Execute query
-    let location_repo = LocationRepository::new(state.pool.clone());
     let (entities, has_more) = location_repo.get_location_history(repo_query).await?;
 
     // Build response with next cursor
     let next_cursor = if has_more {
-        entities.last().map(|loc| {
-            shared::pagination::encode_cursor(loc.captured_at, loc.id)
-        })
+        entities
+            .last()
+            .map(|loc| shared::pagination::encode_cursor(loc.captured_at, loc.id))
     } else {
         None
     };
@@ -365,7 +405,127 @@ pub async fn get_location_history(
 
     Ok(Json(LocationHistoryResponse {
         locations,
-        pagination: PaginationInfo { next_cursor, has_more },
+        pagination: PaginationInfo {
+            next_cursor,
+            has_more,
+        },
+        simplification: None,
+    }))
+}
+
+/// Fetch all locations in time range and apply RDP line simplification.
+///
+/// When simplification is active, pagination is disabled and all matching
+/// locations are processed together to ensure correct trajectory simplification.
+async fn get_simplified_locations(
+    location_repo: &LocationRepository,
+    device_id: Uuid,
+    from_timestamp: Option<DateTime<Utc>>,
+    to_timestamp: Option<DateTime<Utc>>,
+    ascending: bool,
+    tolerance: f64,
+    limit: i32,
+) -> Result<Json<LocationHistoryResponse>, ApiError> {
+    // Fetch all locations in the time range (always ascending for RDP)
+    let mut entities = location_repo
+        .get_all_locations_in_range(device_id, from_timestamp, to_timestamp)
+        .await?;
+
+    let original_count = entities.len();
+
+    // Need at least 3 points for RDP to have any effect
+    if entities.len() < 3 {
+        // If descending order requested, reverse the result
+        if !ascending {
+            entities.reverse();
+        }
+
+        let locations: Vec<LocationHistoryItem> = entities
+            .into_iter()
+            .take(limit as usize)
+            .map(|e| {
+                let loc: domain::models::Location = e.into();
+                loc.into()
+            })
+            .collect();
+
+        info!(
+            device_id = %device_id,
+            count = locations.len(),
+            simplified = false,
+            "Location history retrieved (too few points to simplify)"
+        );
+
+        return Ok(Json(LocationHistoryResponse {
+            locations,
+            pagination: PaginationInfo {
+                next_cursor: None,
+                has_more: false,
+            },
+            simplification: Some(SimplificationInfo::new(tolerance, original_count, locations.len())),
+        }));
+    }
+
+    // Build LineString from coordinates (geo uses (x, y) = (lon, lat))
+    let coords: Vec<geo::Coord<f64>> = entities
+        .iter()
+        .map(|e| geo::coord! { x: e.longitude, y: e.latitude })
+        .collect();
+
+    let line: LineString<f64> = coords.into();
+
+    // Convert tolerance from meters to degrees (approximate: 1 degree ≈ 111km)
+    let tolerance_degrees = tolerance / 111_000.0;
+
+    // Apply Ramer-Douglas-Peucker simplification
+    let simplified_line = line.simplify(&tolerance_degrees);
+
+    // Build set of simplified coordinates for matching
+    // Use bit representation for exact floating point comparison
+    let simplified_coords: HashSet<(u64, u64)> = simplified_line
+        .coords()
+        .map(|c| (c.x.to_bits(), c.y.to_bits()))
+        .collect();
+
+    // Filter entities to only those whose coordinates appear in simplified line
+    let kept_entities: Vec<_> = entities
+        .into_iter()
+        .filter(|e| simplified_coords.contains(&(e.longitude.to_bits(), e.latitude.to_bits())))
+        .collect();
+
+    // If descending order requested, reverse the result
+    let mut result_entities = kept_entities;
+    if !ascending {
+        result_entities.reverse();
+    }
+
+    // Apply limit after simplification
+    let locations: Vec<LocationHistoryItem> = result_entities
+        .into_iter()
+        .take(limit as usize)
+        .map(|e| {
+            let loc: domain::models::Location = e.into();
+            loc.into()
+        })
+        .collect();
+
+    let simplified_count = locations.len();
+
+    info!(
+        device_id = %device_id,
+        original_count = original_count,
+        simplified_count = simplified_count,
+        tolerance = tolerance,
+        "Location history retrieved with simplification"
+    );
+
+    Ok(Json(LocationHistoryResponse {
+        locations,
+        pagination: PaginationInfo {
+            next_cursor: None,
+            has_more: false,
+        },
+        simplification: Some(SimplificationInfo::new(tolerance, original_count, simplified_count)),
     }))
 }
 

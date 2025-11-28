@@ -16,6 +16,7 @@ Rust backend API for the Phone Manager mobile application. Handles device regist
 | Serialization | Serde + JSON | 1.0 |
 | Logging | Tracing | 0.1 |
 | Metrics | Prometheus | 0.24 |
+| Geospatial | geo | 0.28 |
 
 ## Project Structure
 
@@ -88,6 +89,10 @@ PM__LIMITS__MAX_BATCH_SIZE=50
 - 30-day retention with automated cleanup
 - Last location aggregation per device
 - Location history with cursor-based pagination
+- Trajectory simplification via Ramer-Douglas-Peucker algorithm
+  - `tolerance` parameter (0-10000 meters)
+  - Reduces points while preserving trajectory shape
+  - Response includes simplification metadata
 
 ### Geofences
 - Per-device circular geofences (max 50/device)
@@ -121,7 +126,17 @@ PM__LIMITS__MAX_BATCH_SIZE=50
 |--------|------|-------------|
 | POST | `/api/v1/locations` | Upload single location |
 | POST | `/api/v1/locations/batch` | Upload batch locations (max 50) |
-| GET | `/api/v1/devices/:device_id/locations` | Get location history (cursor pagination) |
+| GET | `/api/v1/devices/:device_id/locations` | Get location history (cursor pagination, optional simplification) |
+
+#### Location History Query Parameters
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `cursor` | string | Pagination cursor from previous response |
+| `limit` | int | Results per page (1-100, default 50) |
+| `from` | int64 | Start timestamp (milliseconds) |
+| `to` | int64 | End timestamp (milliseconds) |
+| `order` | string | Sort order: `asc` or `desc` (default) |
+| `tolerance` | float | Simplification tolerance in meters (0-10000). When > 0, applies RDP simplification and disables pagination |
 
 ### Geofences
 | Method | Path | Description |

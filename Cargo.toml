@@ -66,6 +66,9 @@ metrics-exporter-prometheus = "0.14"
 # Async utilities
 async-trait = "0.1"
 
+# Geospatial
+geo = "0.28"
+
 # Rate limiting
 governor = "0.7"
 
