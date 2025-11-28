@@ -31,6 +31,5 @@ CREATE INDEX idx_locations_device_captured ON locations(device_id, captured_at D
 -- Index for time-based cleanup
 CREATE INDEX idx_locations_created_at ON locations(created_at);
 
--- Partial index for recent locations (optimization for common queries)
-CREATE INDEX idx_locations_recent ON locations(device_id, captured_at DESC)
-    WHERE captured_at > NOW() - INTERVAL '24 hours';
+-- Note: Partial index for recent locations removed because NOW() is not IMMUTABLE
+-- The idx_locations_device_captured index handles these queries efficiently
