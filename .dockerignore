@@ -21,8 +21,9 @@ target/
 .env.local
 .env.*.local
 
-# Documentation (not needed for runtime)
+# Documentation (not needed for runtime, except API spec)
 docs/
+!docs/api/
 *.md
 !README.md
 

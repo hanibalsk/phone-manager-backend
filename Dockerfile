@@ -7,7 +7,7 @@
 # ------------------------------------------------------------------------------
 # Stage 1: Build (Production)
 # ------------------------------------------------------------------------------
-FROM rust:1.83-slim-bookworm AS builder
+FROM rust:slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -39,6 +39,7 @@ RUN cargo build --release --workspace && \
 # Copy actual source code
 COPY crates/ crates/
 COPY config/ config/
+COPY docs/api/ docs/api/
 
 # Touch source files to invalidate cache and rebuild with actual code
 RUN touch crates/api/src/main.rs crates/api/src/lib.rs \
@@ -87,7 +88,7 @@ CMD ["/app/phone-manager"]
 # ------------------------------------------------------------------------------
 # Stage 3: Development (with cargo-watch)
 # ------------------------------------------------------------------------------
-FROM rust:1.83-slim-bookworm AS development
+FROM rust:slim-bookworm AS development
 
 WORKDIR /app
 
