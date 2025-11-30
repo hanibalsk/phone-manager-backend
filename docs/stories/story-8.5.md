@@ -87,3 +87,40 @@
 |------|--------|
 | 2025-11-30 | Story created |
 | 2025-11-30 | Story completed - POST /api/v1/trips/:tripId/correct-path endpoint |
+| 2025-11-30 | Senior Developer Review: APPROVED |
+
+---
+
+## Senior Developer Review (AI)
+
+**Reviewer**: Martin Janci
+**Date**: 2025-11-30
+**Outcome**: ✅ **APPROVED**
+
+### Summary
+
+Story 8.5 implements on-demand path correction endpoint with proper state handling. All 7 acceptance criteria are met.
+
+### Acceptance Criteria Coverage
+
+| AC | Status | Evidence |
+|----|--------|----------|
+| POST /api/v1/trips/:tripId/correct-path | ✅ | `trips.rs:529-653` - trigger_path_correction() |
+| Re-triggers path correction | ✅ | Deletes existing, calls PathCorrectionService |
+| Returns status indicating queued/started | ✅ | CorrectPathResponse with status and message |
+| Override FAILED/SKIPPED corrections | ✅ | Delete existing before re-run |
+| Returns 404 if trip not found | ✅ | Trip existence validated |
+| Returns 409 if PENDING | ✅ | Conflict error for in-progress |
+| Error if service unavailable | ✅ | ServiceUnavailable for circuit breaker open |
+
+### Key Strengths
+
+- Smart handling of existing correction states (PENDING blocks, others allow retry)
+- Allows re-correction of COMPLETED corrections (explicit user request)
+- Comprehensive error response handling with user-friendly messages
+- Returns SKIPPED for insufficient locations instead of error
+- Proper 503 response for circuit breaker open state
+
+### Action Items
+
+None required.

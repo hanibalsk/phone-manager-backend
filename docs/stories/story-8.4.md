@@ -82,3 +82,42 @@
 |------|--------|
 | 2025-11-30 | Story created |
 | 2025-11-30 | Story completed - GET /api/v1/trips/:tripId/path endpoint |
+| 2025-11-30 | Senior Developer Review: APPROVED |
+
+---
+
+## Senior Developer Review (AI)
+
+**Reviewer**: Martin Janci
+**Date**: 2025-11-30
+**Outcome**: ✅ **APPROVED**
+
+### Summary
+
+Story 8.4 implements the path retrieval endpoint with proper GeoJSON parsing. All 5 acceptance criteria are met.
+
+### Acceptance Criteria Coverage
+
+| AC | Status | Evidence |
+|----|--------|----------|
+| GET /api/v1/trips/:tripId/path endpoint | ✅ | `trips.rs:461-517` - get_trip_path() |
+| Returns original path, corrected path, status | ✅ | TripPathResponse fields |
+| Returns correction quality | ✅ | correction_quality field in response |
+| Returns 404 if not found | ✅ | Trip and correction both validated |
+| Paths as [lat, lon] arrays | ✅ | parse_geojson_linestring swaps coordinates |
+
+### Key Strengths
+
+- GeoJSON LineString parsing with coordinate swap ([lon, lat] → [lat, lon])
+- Proper error handling for malformed GeoJSON
+- Supports optional altitude in GeoJSON (ignored in response)
+- Comprehensive unit tests for GeoJSON parsing edge cases
+- Uses skip_serializing_if for optional fields
+
+### Note
+
+Coordinate swap matches common mobile API conventions where [lat, lon] is expected.
+
+### Action Items
+
+None required.
