@@ -10,6 +10,8 @@ pub struct Config {
     pub security: SecurityConfig,
     #[allow(dead_code)] // Used in future stories for validation limits
     pub limits: LimitsConfig,
+    #[allow(dead_code)] // Used in Story 8.3 for automatic path correction
+    pub map_matching: MapMatchingConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -83,6 +85,38 @@ pub struct LimitsConfig {
     pub max_group_id_length: usize,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)] // Used in Story 8.3 for automatic path correction
+pub struct MapMatchingConfig {
+    /// Map-matching provider: osrm or valhalla
+    #[serde(default = "default_map_matching_provider")]
+    pub provider: String,
+
+    /// Service URL (required if enabled)
+    #[serde(default)]
+    pub url: String,
+
+    /// Request timeout in milliseconds
+    #[serde(default = "default_map_matching_timeout_ms")]
+    pub timeout_ms: u64,
+
+    /// Rate limit: max requests per minute to external service
+    #[serde(default = "default_map_matching_rate_limit")]
+    pub rate_limit_per_minute: u32,
+
+    /// Number of failures before circuit breaker opens
+    #[serde(default = "default_circuit_breaker_failures")]
+    pub circuit_breaker_failures: u32,
+
+    /// Seconds to keep circuit breaker open before retry
+    #[serde(default = "default_circuit_breaker_reset_secs")]
+    pub circuit_breaker_reset_secs: u64,
+
+    /// Whether map-matching is enabled
+    #[serde(default)]
+    pub enabled: bool,
+}
+
 // Default value functions
 fn default_host() -> String {
     "0.0.0.0".to_string()
@@ -131,6 +165,21 @@ fn default_max_display_name_length() -> usize {
 }
 fn default_max_group_id_length() -> usize {
     50
+}
+fn default_map_matching_provider() -> String {
+    "osrm".to_string()
+}
+fn default_map_matching_timeout_ms() -> u64 {
+    30000
+}
+fn default_map_matching_rate_limit() -> u32 {
+    30
+}
+fn default_circuit_breaker_failures() -> u32 {
+    5
+}
+fn default_circuit_breaker_reset_secs() -> u64 {
+    60
 }
 
 /// Configuration validation error
@@ -198,6 +247,15 @@ impl Config {
             location_retention_days = 30
             max_display_name_length = 50
             max_group_id_length = 50
+
+            [map_matching]
+            provider = "osrm"
+            url = ""
+            timeout_ms = 30000
+            rate_limit_per_minute = 30
+            circuit_breaker_failures = 5
+            circuit_breaker_reset_secs = 60
+            enabled = false
         "#;
 
         let mut builder = config::Config::builder()

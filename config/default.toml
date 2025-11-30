@@ -62,3 +62,26 @@ max_display_name_length = 50
 
 # Maximum length of group ID
 max_group_id_length = 50
+
+[map_matching]
+# Map-matching service provider: osrm or valhalla
+provider = "osrm"
+
+# Map-matching service URL (OSRM or Valhalla endpoint)
+# Set via PM__MAP_MATCHING__URL environment variable
+url = ""
+
+# Request timeout in milliseconds (30s default)
+timeout_ms = 30000
+
+# Rate limit: maximum requests per minute to external service
+rate_limit_per_minute = 30
+
+# Circuit breaker: failures before opening
+circuit_breaker_failures = 5
+
+# Circuit breaker: seconds to stay open before half-open retry
+circuit_breaker_reset_secs = 60
+
+# Whether map-matching is enabled (can be disabled if service unavailable)
+enabled = false

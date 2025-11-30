@@ -5,3 +5,4 @@ pub mod extractors;
 pub mod jobs;
 pub mod middleware;
 pub mod routes;
+pub mod services;

@@ -72,6 +72,9 @@ geo = "0.28"
 # Rate limiting
 governor = "0.7"
 
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
 # Testing
 tokio-test = "0.4"
 fake = { version = "2.9", features = ["chrono", "uuid"] }
