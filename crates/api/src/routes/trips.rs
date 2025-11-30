@@ -1,12 +1,14 @@
 //! Trip endpoint handlers.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use persistence::repositories::{
-    DeviceRepository, MovementEventRepository, TripInput, TripRepository, TripUpdateInput,
+    DeviceRepository, MovementEventRepository, TripInput, TripQuery, TripRepository,
+    TripUpdateInput,
 };
 use tracing::{error, info};
 use uuid::Uuid;
@@ -16,7 +18,8 @@ use crate::app::AppState;
 use crate::error::ApiError;
 use domain::models::movement_event::{DetectionSource, TransportationMode};
 use domain::models::trip::{
-    CreateTripRequest, CreateTripResponse, TripResponse, TripState, UpdateTripRequest,
+    CreateTripRequest, CreateTripResponse, GetTripsQuery, GetTripsResponse, TripPagination,
+    TripResponse, TripState, UpdateTripRequest,
 };
 
 /// Create a new trip with idempotency support.
@@ -257,6 +260,146 @@ pub async fn update_trip_state(
     Ok(Json(response))
 }
 
+/// Get trips for a device with pagination.
+///
+/// GET /api/v1/devices/:deviceId/trips
+///
+/// Supports filtering by state, date range, and cursor-based pagination.
+/// Returns 404 if device not found.
+pub async fn get_device_trips(
+    State(state): State<AppState>,
+    Path(device_id): Path<Uuid>,
+    Query(query): Query<GetTripsQuery>,
+) -> Result<Json<GetTripsResponse>, ApiError> {
+    // Verify device exists and is active
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    if !device.active {
+        return Err(ApiError::NotFound("Device not found".to_string()));
+    }
+
+    // Parse and validate limit (1-50, default 20)
+    let limit = query.limit.unwrap_or(20).clamp(1, 50);
+
+    // Parse cursor if provided (format: base64(timestamp:uuid))
+    let (cursor_timestamp, cursor_id) = if let Some(ref cursor) = query.cursor {
+        parse_cursor(cursor)?
+    } else {
+        (None, None)
+    };
+
+    // Validate state filter if provided
+    if let Some(ref state_str) = query.state {
+        if state_str.parse::<TripState>().is_err() {
+            return Err(ApiError::Validation(format!(
+                "Invalid state filter: {}. Must be one of: ACTIVE, COMPLETED, CANCELLED",
+                state_str
+            )));
+        }
+    }
+
+    // Build query
+    let trip_query = TripQuery {
+        device_id,
+        cursor_timestamp,
+        cursor_id,
+        from_timestamp: query.from,
+        to_timestamp: query.to,
+        state_filter: query.state.clone(),
+        limit,
+    };
+
+    // Execute query
+    let trip_repo = TripRepository::new(state.pool.clone());
+    let (trips, has_more) = trip_repo.get_trips_by_device(trip_query).await?;
+
+    // Build next cursor from last result
+    let next_cursor = if has_more && !trips.is_empty() {
+        let last = trips.last().unwrap();
+        Some(encode_cursor(last.start_timestamp, last.id))
+    } else {
+        None
+    };
+
+    // Convert to response format
+    let trip_responses: Vec<TripResponse> = trips
+        .into_iter()
+        .map(|entity| TripResponse {
+            id: entity.id,
+            local_trip_id: entity.local_trip_id,
+            state: entity
+                .state
+                .parse::<TripState>()
+                .unwrap_or(TripState::Active),
+            start_timestamp: entity.start_timestamp,
+            end_timestamp: entity.end_timestamp,
+            start_latitude: entity.start_latitude,
+            start_longitude: entity.start_longitude,
+            end_latitude: entity.end_latitude,
+            end_longitude: entity.end_longitude,
+            transportation_mode: entity
+                .transportation_mode
+                .parse::<TransportationMode>()
+                .unwrap_or(TransportationMode::Unknown),
+            detection_source: entity
+                .detection_source
+                .parse::<DetectionSource>()
+                .unwrap_or(DetectionSource::None),
+            distance_meters: entity.distance_meters,
+            duration_seconds: entity.duration_seconds,
+            created_at: entity.created_at,
+        })
+        .collect();
+
+    info!(
+        device_id = %device_id,
+        count = trip_responses.len(),
+        has_more = has_more,
+        "Retrieved device trips"
+    );
+
+    Ok(Json(GetTripsResponse {
+        trips: trip_responses,
+        pagination: TripPagination {
+            next_cursor,
+            has_more,
+        },
+    }))
+}
+
+/// Parse cursor from base64-encoded "timestamp:uuid" format.
+fn parse_cursor(cursor: &str) -> Result<(Option<i64>, Option<Uuid>), ApiError> {
+    let decoded = URL_SAFE_NO_PAD
+        .decode(cursor)
+        .map_err(|_| ApiError::Validation("Invalid cursor format".to_string()))?;
+
+    let cursor_str = String::from_utf8(decoded)
+        .map_err(|_| ApiError::Validation("Invalid cursor format".to_string()))?;
+
+    let parts: Vec<&str> = cursor_str.split(':').collect();
+    if parts.len() != 2 {
+        return Err(ApiError::Validation("Invalid cursor format".to_string()));
+    }
+
+    let timestamp = parts[0]
+        .parse::<i64>()
+        .map_err(|_| ApiError::Validation("Invalid cursor timestamp".to_string()))?;
+
+    let uuid = Uuid::parse_str(parts[1])
+        .map_err(|_| ApiError::Validation("Invalid cursor UUID".to_string()))?;
+
+    Ok((Some(timestamp), Some(uuid)))
+}
+
+/// Encode cursor as base64("timestamp:uuid").
+fn encode_cursor(timestamp: i64, id: Uuid) -> String {
+    URL_SAFE_NO_PAD.encode(format!("{}:{}", timestamp, id))
+}
+
 /// Calculate and store trip statistics asynchronously.
 ///
 /// Calculates distance using PostGIS ST_Distance on movement events
@@ -473,5 +616,102 @@ mod tests {
         // Optional fields should not appear when None (skip_serializing_if)
         assert!(!json.contains("endTimestamp"));
         assert!(!json.contains("distanceMeters"));
+    }
+
+    #[test]
+    fn test_get_trips_query_deserialization() {
+        use domain::models::trip::GetTripsQuery;
+
+        let json = r#"{
+            "cursor": "MTIzNDU2Nzg5MDAwMDo1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDA",
+            "limit": 25,
+            "state": "COMPLETED",
+            "from": 1234567890000,
+            "to": 1234567999000
+        }"#;
+
+        let query: GetTripsQuery = serde_json::from_str(json).unwrap();
+        assert!(query.cursor.is_some());
+        assert_eq!(query.limit, Some(25));
+        assert_eq!(query.state, Some("COMPLETED".to_string()));
+        assert_eq!(query.from, Some(1234567890000));
+        assert_eq!(query.to, Some(1234567999000));
+    }
+
+    #[test]
+    fn test_get_trips_query_minimal() {
+        use domain::models::trip::GetTripsQuery;
+
+        let json = r#"{}"#;
+        let query: GetTripsQuery = serde_json::from_str(json).unwrap();
+        assert!(query.cursor.is_none());
+        assert!(query.limit.is_none());
+        assert!(query.state.is_none());
+        assert!(query.from.is_none());
+        assert!(query.to.is_none());
+    }
+
+    #[test]
+    fn test_cursor_encode_decode() {
+        let timestamp = 1234567890000i64;
+        let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+
+        let encoded = encode_cursor(timestamp, id);
+        let (parsed_ts, parsed_id) = parse_cursor(&encoded).unwrap();
+
+        assert_eq!(parsed_ts, Some(timestamp));
+        assert_eq!(parsed_id, Some(id));
+    }
+
+    #[test]
+    fn test_cursor_decode_invalid() {
+        // Invalid base64
+        assert!(parse_cursor("!!!invalid!!!").is_err());
+
+        // Valid base64 but wrong format
+        let invalid_format = URL_SAFE_NO_PAD.encode("invalid");
+        assert!(parse_cursor(&invalid_format).is_err());
+
+        // Valid format but invalid timestamp
+        let invalid_ts = URL_SAFE_NO_PAD.encode("abc:550e8400-e29b-41d4-a716-446655440000");
+        assert!(parse_cursor(&invalid_ts).is_err());
+
+        // Valid format but invalid UUID
+        let invalid_uuid = URL_SAFE_NO_PAD.encode("1234567890000:invalid-uuid");
+        assert!(parse_cursor(&invalid_uuid).is_err());
+    }
+
+    #[test]
+    fn test_get_trips_response_serialization() {
+        use domain::models::trip::{GetTripsResponse, TripPagination};
+
+        let response = GetTripsResponse {
+            trips: vec![TripResponse {
+                id: Uuid::new_v4(),
+                local_trip_id: "trip-1".to_string(),
+                state: TripState::Completed,
+                start_timestamp: 1234567890000,
+                end_timestamp: Some(1234567899000),
+                start_latitude: 45.0,
+                start_longitude: -120.0,
+                end_latitude: Some(45.5),
+                end_longitude: Some(-120.5),
+                transportation_mode: TransportationMode::Walking,
+                detection_source: DetectionSource::ActivityRecognition,
+                distance_meters: Some(1500.0),
+                duration_seconds: Some(9000),
+                created_at: chrono::Utc::now(),
+            }],
+            pagination: TripPagination {
+                next_cursor: Some("cursor123".to_string()),
+                has_more: true,
+            },
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"trips\""));
+        assert!(json.contains("\"pagination\""));
+        assert!(json.contains("\"nextCursor\""));
+        assert!(json.contains("\"hasMore\":true"));
     }
 }

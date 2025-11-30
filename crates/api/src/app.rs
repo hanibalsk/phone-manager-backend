@@ -99,6 +99,10 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         // Trip routes (v1)
         .route("/api/v1/trips", post(trips::create_trip))
         .route("/api/v1/trips/:trip_id", patch(trips::update_trip_state))
+        .route(
+            "/api/v1/devices/:device_id/trips",
+            get(trips::get_device_trips),
+        )
         // Geofence routes (v1)
         .route("/api/v1/geofences", post(geofences::create_geofence))
         .route("/api/v1/geofences", get(geofences::list_geofences))

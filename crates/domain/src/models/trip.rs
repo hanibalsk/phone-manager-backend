@@ -232,6 +232,26 @@ pub struct GetTripsResponse {
     pub pagination: TripPagination,
 }
 
+/// Query parameters for GET /api/v1/devices/:deviceId/trips
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetTripsQuery {
+    /// Opaque cursor for pagination (base64-encoded timestamp:id).
+    pub cursor: Option<String>,
+
+    /// Number of results per page (1-50, default 20).
+    pub limit: Option<i32>,
+
+    /// Filter by trip state (ACTIVE, COMPLETED, CANCELLED).
+    pub state: Option<String>,
+
+    /// Start timestamp filter (milliseconds since epoch).
+    pub from: Option<i64>,
+
+    /// End timestamp filter (milliseconds since epoch).
+    pub to: Option<i64>,
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
