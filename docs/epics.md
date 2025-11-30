@@ -899,20 +899,27 @@ This document provides the detailed story breakdown for the Phone Manager backen
 **Prerequisites**: Epic 1 complete (database infrastructure)
 
 **Acceptance Criteria**:
-1. Migration creates `movement_events` table with columns: id (UUID), device_id (UUID FK), trip_id (UUID FK nullable), timestamp (BIGINT), location (GEOGRAPHY(POINT, 4326)), accuracy (REAL), speed (REAL nullable), bearing (REAL nullable), altitude (DOUBLE PRECISION nullable), transportation_mode (VARCHAR), confidence (REAL), detection_source (VARCHAR), created_at (TIMESTAMPTZ)
-2. Foreign key constraint to devices table with ON DELETE CASCADE
-3. Foreign key constraint to trips table with ON DELETE SET NULL
-4. Index on (device_id, timestamp) for efficient queries
-5. Index on (trip_id) for trip-based lookups
-6. PostGIS GIST index on location column
-7. Check constraint: confidence BETWEEN 0.0 AND 1.0
-8. Check constraint: accuracy >= 0
-9. Migration runs successfully with `sqlx migrate run`
+1. Migration enables PostGIS extension (`CREATE EXTENSION IF NOT EXISTS "postgis"`)
+2. Migration creates `movement_events` table with columns: id (UUID), device_id (UUID FK), trip_id (UUID nullable), timestamp (BIGINT), location (GEOGRAPHY(POINT, 4326)), accuracy (REAL), speed (REAL nullable), bearing (REAL nullable), altitude (DOUBLE PRECISION nullable), transportation_mode (VARCHAR), confidence (REAL), detection_source (VARCHAR), created_at (TIMESTAMPTZ)
+3. Foreign key constraint to devices table with ON DELETE CASCADE
+4. trip_id column created without FK constraint (FK to trips table added in Epic 6 migration after trips table exists)
+5. Index on (device_id, timestamp DESC) for efficient time-ordered queries
+6. Index on (device_id, timestamp DESC, id) for keyset pagination
+7. Partial index on (trip_id) WHERE trip_id IS NOT NULL for trip-based lookups
+8. PostGIS GIST index on location column for geospatial queries
+9. Check constraint: confidence BETWEEN 0.0 AND 1.0
+10. Check constraint: accuracy >= 0
+11. Check constraint: bearing IS NULL OR (bearing >= 0 AND bearing <= 360)
+12. Check constraint: speed IS NULL OR speed >= 0
+13. Check constraint: transportation_mode IN valid enum values
+14. Check constraint: detection_source IN valid enum values
+15. Migration runs successfully with `sqlx migrate run`
 
 **Technical Notes**:
 - Use GEOGRAPHY type for accurate distance calculations
 - SRID 4326 (WGS84) for GPS coordinates
 - Store timestamp as milliseconds epoch for client compatibility
+- trip_id FK deferred to avoid circular dependency with Epic 6
 
 ---
 
@@ -927,17 +934,20 @@ This document provides the detailed story breakdown for the Phone Manager backen
 **Acceptance Criteria**:
 1. `POST /api/v1/movement-events` accepts JSON: `{"deviceId": "<uuid>", "tripId": "<uuid-optional>", "timestamp": <ms-epoch>, "latitude": <float>, "longitude": <float>, "accuracy": <float>, "speed": <float-optional>, "bearing": <float-optional>, "altitude": <float-optional>, "transportationMode": "<mode>", "confidence": <float>, "detectionSource": "<source>"}`
 2. Validates: latitude (-90 to 90), longitude (-180 to 180), accuracy (>= 0), bearing (0-360 if present), speed (>= 0 if present), confidence (0.0-1.0), transportationMode (STATIONARY|WALKING|RUNNING|CYCLING|IN_VEHICLE|UNKNOWN), detectionSource (ACTIVITY_RECOGNITION|BLUETOOTH_CAR|ANDROID_AUTO|MULTIPLE|NONE)
-3. Returns 400 for validation errors with field-level details
-4. Returns 404 if device not registered
-5. Returns 404 if tripId provided but trip doesn't exist
-6. Returns 200 with: `{"id": "<uuid>", "createdAt": "<timestamp>"}`
-7. Stores location as PostGIS GEOGRAPHY point
-8. Response time <50ms for single event
+3. Validates timestamp: not in future (5 min tolerance for clock skew), not older than 7 days
+4. Returns 400 for validation errors with field-level details
+5. Returns 404 if device not registered or inactive
+6. ~~Returns 404 if tripId provided but trip doesn't exist~~ (Deferred to Epic 6 - see Technical Notes)
+7. Returns 200 with: `{"id": "<uuid>", "createdAt": "<timestamp>"}`
+8. Stores location as PostGIS GEOGRAPHY point
+9. Response time <50ms for single event
 
 **Technical Notes**:
 - Domain model in `crates/domain/src/models/movement_event.rs`
 - Repository in `crates/persistence/src/repositories/movement_event.rs`
 - Use `ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography` for PostGIS
+- tripId validation deferred until Epic 6 (trips table required)
+- When Epic 6 implemented: validate trip exists AND trip.device_id == event.device_id (ownership check)
 
 ---
 
@@ -952,20 +962,21 @@ This document provides the detailed story breakdown for the Phone Manager backen
 **Acceptance Criteria**:
 1. `POST /api/v1/movement-events/batch` accepts JSON: `{"deviceId": "<uuid>", "events": [<movement-event-objects>]}`
 2. Validates: 1-100 events per batch, max 2MB payload
-3. Each event validated same as single upload (Story 5.2)
-4. All events must belong to same deviceId
+3. Each event validated same as single upload (Story 5.2) including timestamp freshness
+4. All events must belong to same deviceId (enforced by request schema)
 5. Optional tripId can differ per event in batch
 6. Returns 400 if batch validation fails with details
-7. Returns 404 if device not registered
+7. Returns 404 if device not registered or inactive
 8. Returns 200 with: `{"success": true, "processedCount": <count>}`
 9. All events inserted in single transaction (atomic)
 10. Request timeout: 30 seconds
 11. Response time <500ms for 100 events
 
 **Technical Notes**:
-- Use SQLx batch insert with UNNEST for PostgreSQL performance
+- Uses loop insert within transaction (UNNEST optimization deferred)
 - Transaction ensures all-or-nothing semantics
-- Consider using `COPY` for larger batches (future optimization)
+- tripId validation deferred until Epic 6 (same as Story 5.2)
+- Reuses validation DTOs from Story 5.2 for consistency
 
 ---
 

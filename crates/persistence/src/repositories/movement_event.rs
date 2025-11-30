@@ -266,6 +266,61 @@ impl MovementEventRepository {
 
         Ok(result.rows_affected())
     }
+
+    /// Get all movement events for a trip, ordered by timestamp ascending.
+    /// Used for trip statistics calculation (distance, duration).
+    pub async fn get_events_for_trip(
+        &self,
+        trip_id: Uuid,
+    ) -> Result<Vec<MovementEventEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("get_events_for_trip");
+
+        let result = sqlx::query_as::<_, MovementEventEntity>(
+            r#"
+            SELECT
+                id, device_id, trip_id, timestamp,
+                ST_Y(location::geometry) as latitude,
+                ST_X(location::geometry) as longitude,
+                accuracy, speed, bearing, altitude,
+                transportation_mode, confidence, detection_source, created_at
+            FROM movement_events
+            WHERE trip_id = $1
+            ORDER BY timestamp ASC, id ASC
+            "#,
+        )
+        .bind(trip_id)
+        .fetch_all(&self.pool)
+        .await;
+
+        timer.record();
+        result
+    }
+
+    /// Calculate total distance for a trip using PostGIS ST_Distance.
+    /// Returns distance in meters, summing point-to-point distances.
+    pub async fn calculate_trip_distance(&self, trip_id: Uuid) -> Result<f64, sqlx::Error> {
+        let timer = QueryTimer::new("calculate_trip_distance");
+
+        let result: (Option<f64>,) = sqlx::query_as(
+            r#"
+            SELECT COALESCE(SUM(distance), 0) as total_distance
+            FROM (
+                SELECT ST_Distance(
+                    location,
+                    LAG(location) OVER (ORDER BY timestamp, id)
+                ) as distance
+                FROM movement_events
+                WHERE trip_id = $1
+            ) distances
+            "#,
+        )
+        .bind(trip_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        timer.record();
+        Ok(result.0.unwrap_or(0.0))
+    }
 }
 
 /// Query parameters for movement event pagination.

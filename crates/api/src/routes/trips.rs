@@ -5,8 +5,10 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use persistence::repositories::{DeviceRepository, TripInput, TripRepository, TripUpdateInput};
-use tracing::info;
+use persistence::repositories::{
+    DeviceRepository, MovementEventRepository, TripInput, TripRepository, TripUpdateInput,
+};
+use tracing::{error, info};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -242,9 +244,75 @@ pub async fn update_trip_state(
         "Trip state updated"
     );
 
-    // TODO: Trigger async statistics calculation for COMPLETED trips (Story 6.4)
+    // Trigger async statistics calculation for COMPLETED trips
+    if request.state == TripState::Completed {
+        let pool = state.pool.clone();
+        let start_ts = updated.start_timestamp;
+        let end_ts = updated.end_timestamp;
+        tokio::spawn(async move {
+            calculate_trip_statistics(pool, trip_id, start_ts, end_ts).await;
+        });
+    }
 
     Ok(Json(response))
+}
+
+/// Calculate and store trip statistics asynchronously.
+///
+/// Calculates distance using PostGIS ST_Distance on movement events
+/// and duration from timestamps. Updates the trips table with results.
+/// Errors are logged but don't affect the trip state.
+async fn calculate_trip_statistics(
+    pool: sqlx::PgPool,
+    trip_id: Uuid,
+    start_timestamp: i64,
+    end_timestamp: Option<i64>,
+) {
+    info!(trip_id = %trip_id, "Starting trip statistics calculation");
+
+    // Calculate duration (if end_timestamp exists)
+    let duration_seconds = end_timestamp.map(|end| {
+        // Timestamps are in milliseconds, convert to seconds
+        (end - start_timestamp) / 1000
+    });
+
+    // Calculate distance using PostGIS
+    let event_repo = MovementEventRepository::new(pool.clone());
+    let distance_result = event_repo.calculate_trip_distance(trip_id).await;
+
+    match distance_result {
+        Ok(distance_meters) => {
+            // Update trip with calculated statistics
+            let trip_repo = TripRepository::new(pool);
+            match trip_repo
+                .update_statistics(trip_id, distance_meters, duration_seconds.unwrap_or(0))
+                .await
+            {
+                Ok(()) => {
+                    info!(
+                        trip_id = %trip_id,
+                        distance_meters = distance_meters,
+                        duration_seconds = duration_seconds,
+                        "Trip statistics calculated and stored"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        trip_id = %trip_id,
+                        error = %e,
+                        "Failed to update trip statistics"
+                    );
+                }
+            }
+        }
+        Err(e) => {
+            error!(
+                trip_id = %trip_id,
+                error = %e,
+                "Failed to calculate trip distance"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
