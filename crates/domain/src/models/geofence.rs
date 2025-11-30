@@ -43,7 +43,7 @@ impl GeofenceEventType {
     }
 
     /// Parses from database string representation.
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "enter" => Some(GeofenceEventType::Enter),
             "exit" => Some(GeofenceEventType::Exit),
@@ -205,20 +205,20 @@ mod tests {
     }
 
     #[test]
-    fn test_geofence_event_type_from_str() {
+    fn test_geofence_event_type_parse() {
         assert_eq!(
-            GeofenceEventType::from_str("enter"),
+            GeofenceEventType::parse("enter"),
             Some(GeofenceEventType::Enter)
         );
         assert_eq!(
-            GeofenceEventType::from_str("exit"),
+            GeofenceEventType::parse("exit"),
             Some(GeofenceEventType::Exit)
         );
         assert_eq!(
-            GeofenceEventType::from_str("dwell"),
+            GeofenceEventType::parse("dwell"),
             Some(GeofenceEventType::Dwell)
         );
-        assert_eq!(GeofenceEventType::from_str("invalid"), None);
+        assert_eq!(GeofenceEventType::parse("invalid"), None);
     }
 
     #[test]

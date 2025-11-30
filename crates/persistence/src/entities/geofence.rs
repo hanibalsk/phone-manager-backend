@@ -36,7 +36,7 @@ impl From<GeofenceEntity> for Geofence {
             event_types: entity
                 .event_types
                 .iter()
-                .filter_map(|s| GeofenceEventType::from_str(s))
+                .filter_map(|s| GeofenceEventType::parse(s))
                 .collect(),
             active: entity.active,
             metadata: entity.metadata,

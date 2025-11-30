@@ -19,6 +19,7 @@ impl GeofenceRepository {
     }
 
     /// Create a new geofence.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
         device_id: Uuid,
@@ -122,6 +123,7 @@ impl GeofenceRepository {
 
     /// Update a geofence (partial update).
     /// Only provided fields are updated; None values are preserved.
+    #[allow(clippy::too_many_arguments)]
     pub async fn update(
         &self,
         geofence_id: Uuid,
