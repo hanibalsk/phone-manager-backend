@@ -22,7 +22,7 @@ use domain::models::trip::{
     CreateTripRequest, CreateTripResponse, GetTripsQuery, GetTripsResponse, TripPagination,
     TripResponse, TripState, UpdateTripRequest,
 };
-use domain::models::trip_path_correction::{CorrectionStatus, TripPathResponse};
+use domain::models::trip_path_correction::{CorrectPathResponse, CorrectionStatus, TripPathResponse};
 
 /// Create a new trip with idempotency support.
 ///
@@ -437,6 +437,143 @@ pub async fn get_trip_path(
         correction_status: status,
         correction_quality: correction.correction_quality,
     }))
+}
+
+/// Trigger on-demand path correction for a trip.
+///
+/// POST /api/v1/trips/:tripId/correct-path
+///
+/// Manually triggers path correction for a completed trip.
+/// Can be used to retry failed corrections or correct older trips.
+/// Returns 404 if trip not found.
+/// Returns 400 if trip is not in COMPLETED state.
+/// Returns 409 if correction is already in progress.
+/// Returns 503 if map-matching service is unavailable.
+pub async fn trigger_path_correction(
+    State(state): State<AppState>,
+    Path(trip_id): Path<Uuid>,
+) -> Result<Json<CorrectPathResponse>, ApiError> {
+    // Verify trip exists
+    let trip_repo = TripRepository::new(state.pool.clone());
+    let trip = trip_repo
+        .find_by_id(trip_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Trip not found".to_string()))?;
+
+    // Verify trip is completed (only completed trips can have path correction)
+    let trip_state = trip
+        .state
+        .parse::<TripState>()
+        .map_err(|_| ApiError::Internal("Invalid trip state in database".to_string()))?;
+
+    if trip_state != TripState::Completed {
+        return Err(ApiError::Validation(format!(
+            "Trip must be in COMPLETED state to trigger path correction. Current state: {}",
+            trip_state
+        )));
+    }
+
+    // Check if correction already exists
+    let correction_repo = TripPathCorrectionRepository::new(state.pool.clone());
+    if let Some(existing) = correction_repo.find_by_trip_id(trip_id).await? {
+        let status = existing
+            .correction_status
+            .parse::<CorrectionStatus>()
+            .unwrap_or(CorrectionStatus::Pending);
+
+        match status {
+            CorrectionStatus::Pending => {
+                return Err(ApiError::Conflict(
+                    "Path correction is already in progress".to_string(),
+                ));
+            }
+            CorrectionStatus::Completed => {
+                // Allow re-correction of completed paths (user explicitly requested)
+                info!(
+                    trip_id = %trip_id,
+                    "Deleting existing COMPLETED correction for re-correction"
+                );
+                correction_repo.delete_by_trip_id(trip_id).await?;
+            }
+            CorrectionStatus::Failed | CorrectionStatus::Skipped => {
+                // Allow retry of failed/skipped corrections
+                info!(
+                    trip_id = %trip_id,
+                    status = %status,
+                    "Deleting existing {} correction for retry",
+                    status
+                );
+                correction_repo.delete_by_trip_id(trip_id).await?;
+            }
+        }
+    }
+
+    // Trigger path correction
+    let service = PathCorrectionService::new(state.pool.clone(), &state.config.map_matching);
+
+    match service.correct_trip_path(trip_id).await {
+        Ok(result) => {
+            info!(
+                trip_id = %trip_id,
+                status = %result.status,
+                quality = ?result.quality,
+                "On-demand path correction completed"
+            );
+
+            let message = match result.status.as_str() {
+                "COMPLETED" => format!(
+                    "Path correction completed with quality score: {:.2}",
+                    result.quality.unwrap_or(0.0)
+                ),
+                "SKIPPED" => "Path correction skipped (insufficient data or service unavailable)"
+                    .to_string(),
+                "FAILED" => "Path correction failed (map-matching service error)".to_string(),
+                _ => "Path correction processed".to_string(),
+            };
+
+            Ok(Json(CorrectPathResponse {
+                status: result.status,
+                message,
+            }))
+        }
+        Err(e) => {
+            error!(trip_id = %trip_id, error = %e, "On-demand path correction failed");
+
+            // Return user-friendly error based on error type
+            match e {
+                crate::services::path_correction::PathCorrectionError::InsufficientLocations(n) => {
+                    Ok(Json(CorrectPathResponse {
+                        status: "SKIPPED".to_string(),
+                        message: format!(
+                            "Not enough locations for path correction (need at least 2, got {})",
+                            n
+                        ),
+                    }))
+                }
+                crate::services::path_correction::PathCorrectionError::AlreadyExists(_) => {
+                    Err(ApiError::Conflict(
+                        "Path correction already exists".to_string(),
+                    ))
+                }
+                crate::services::path_correction::PathCorrectionError::MapMatching(map_err) => {
+                    // Check if circuit breaker is open
+                    if map_err.to_string().contains("circuit breaker") {
+                        Err(ApiError::ServiceUnavailable(
+                            "Map-matching service temporarily unavailable".to_string(),
+                        ))
+                    } else {
+                        Ok(Json(CorrectPathResponse {
+                            status: "FAILED".to_string(),
+                            message: format!("Map-matching error: {}", map_err),
+                        }))
+                    }
+                }
+                crate::services::path_correction::PathCorrectionError::Database(db_err) => {
+                    Err(ApiError::Internal(format!("Database error: {}", db_err)))
+                }
+            }
+        }
+    }
 }
 
 /// Parse GeoJSON LineString to array of [lat, lon] coordinate pairs.

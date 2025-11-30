@@ -104,6 +104,10 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             get(trips::get_trip_path),
         )
         .route(
+            "/api/v1/trips/:trip_id/correct-path",
+            post(trips::trigger_path_correction),
+        )
+        .route(
             "/api/v1/devices/:device_id/trips",
             get(trips::get_device_trips),
         )
