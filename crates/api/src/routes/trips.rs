@@ -7,10 +7,10 @@ use axum::{
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use persistence::repositories::{
-    DeviceRepository, MovementEventRepository, TripInput, TripQuery, TripRepository,
-    TripUpdateInput,
+    DeviceRepository, MovementEventRepository, TripInput, TripPathCorrectionRepository, TripQuery,
+    TripRepository, TripUpdateInput,
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -22,6 +22,7 @@ use domain::models::trip::{
     CreateTripRequest, CreateTripResponse, GetTripsQuery, GetTripsResponse, TripPagination,
     TripResponse, TripState, UpdateTripRequest,
 };
+use domain::models::trip_path_correction::{CorrectionStatus, TripPathResponse};
 
 /// Create a new trip with idempotency support.
 ///
@@ -372,6 +373,107 @@ pub async fn get_device_trips(
             has_more,
         },
     }))
+}
+
+/// Get trip path correction data.
+///
+/// GET /api/v1/trips/:tripId/path
+///
+/// Returns the original and corrected paths for a trip along with correction status.
+/// Returns 404 if trip not found or if no path correction record exists.
+pub async fn get_trip_path(
+    State(state): State<AppState>,
+    Path(trip_id): Path<Uuid>,
+) -> Result<Json<TripPathResponse>, ApiError> {
+    // Verify trip exists
+    let trip_repo = TripRepository::new(state.pool.clone());
+    let _trip = trip_repo
+        .find_by_id(trip_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Trip not found".to_string()))?;
+
+    // Get path correction record
+    let correction_repo = TripPathCorrectionRepository::new(state.pool.clone());
+    let correction = correction_repo
+        .find_by_trip_id(trip_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound("Path correction not found for this trip".to_string())
+        })?;
+
+    // Parse original path from GeoJSON
+    let original_coords = parse_geojson_linestring(&correction.original_path).map_err(|e| {
+        error!(trip_id = %trip_id, error = %e, "Failed to parse original path GeoJSON");
+        ApiError::Internal("Failed to parse path data".to_string())
+    })?;
+
+    // Parse corrected path if present
+    let corrected_coords = if let Some(ref corrected_path) = correction.corrected_path {
+        Some(parse_geojson_linestring(corrected_path).map_err(|e| {
+            error!(trip_id = %trip_id, error = %e, "Failed to parse corrected path GeoJSON");
+            ApiError::Internal("Failed to parse path data".to_string())
+        })?)
+    } else {
+        None
+    };
+
+    // Parse correction status
+    let status = correction
+        .correction_status
+        .parse::<CorrectionStatus>()
+        .unwrap_or(CorrectionStatus::Pending);
+
+    debug!(
+        trip_id = %trip_id,
+        status = %status,
+        original_points = original_coords.len(),
+        corrected_points = ?corrected_coords.as_ref().map(|c| c.len()),
+        "Retrieved trip path correction"
+    );
+
+    Ok(Json(TripPathResponse {
+        original_path: original_coords,
+        corrected_path: corrected_coords,
+        correction_status: status,
+        correction_quality: correction.correction_quality,
+    }))
+}
+
+/// Parse GeoJSON LineString to array of [lat, lon] coordinate pairs.
+///
+/// GeoJSON stores coordinates as [longitude, latitude], but we return
+/// [latitude, longitude] for client convenience (matching common mobile APIs).
+fn parse_geojson_linestring(geojson: &str) -> Result<Vec<[f64; 2]>, String> {
+    // Parse the GeoJSON
+    let value: serde_json::Value =
+        serde_json::from_str(geojson).map_err(|e| format!("Invalid GeoJSON: {}", e))?;
+
+    // Extract coordinates array
+    let coords = value
+        .get("coordinates")
+        .ok_or_else(|| "Missing coordinates in GeoJSON".to_string())?
+        .as_array()
+        .ok_or_else(|| "Coordinates is not an array".to_string())?;
+
+    // Convert [lon, lat] to [lat, lon]
+    let mut result = Vec::with_capacity(coords.len());
+    for coord in coords {
+        let arr = coord
+            .as_array()
+            .ok_or_else(|| "Coordinate is not an array".to_string())?;
+        if arr.len() < 2 {
+            return Err("Coordinate must have at least 2 elements".to_string());
+        }
+        let lon = arr[0]
+            .as_f64()
+            .ok_or_else(|| "Longitude is not a number".to_string())?;
+        let lat = arr[1]
+            .as_f64()
+            .ok_or_else(|| "Latitude is not a number".to_string())?;
+        result.push([lat, lon]); // Return as [lat, lon]
+    }
+
+    Ok(result)
 }
 
 /// Parse cursor from base64-encoded "timestamp:uuid" format.
@@ -752,5 +854,65 @@ mod tests {
         assert!(json.contains("\"pagination\""));
         assert!(json.contains("\"nextCursor\""));
         assert!(json.contains("\"hasMore\":true"));
+    }
+
+    // =========================================================================
+    // GeoJSON Parsing Tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_geojson_linestring_valid() {
+        let geojson = r#"{"type":"LineString","coordinates":[[-120.0,45.0],[-120.1,45.1],[-120.2,45.2]]}"#;
+        let result = parse_geojson_linestring(geojson).unwrap();
+
+        assert_eq!(result.len(), 3);
+        // Coordinates should be [lat, lon] (swapped from GeoJSON [lon, lat])
+        assert_eq!(result[0], [45.0, -120.0]);
+        assert_eq!(result[1], [45.1, -120.1]);
+        assert_eq!(result[2], [45.2, -120.2]);
+    }
+
+    #[test]
+    fn test_parse_geojson_linestring_two_points() {
+        let geojson = r#"{"type":"LineString","coordinates":[[-122.4194,37.7749],[-122.4084,37.7899]]}"#;
+        let result = parse_geojson_linestring(geojson).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], [37.7749, -122.4194]);
+        assert_eq!(result[1], [37.7899, -122.4084]);
+    }
+
+    #[test]
+    fn test_parse_geojson_linestring_invalid_json() {
+        let geojson = "not json";
+        assert!(parse_geojson_linestring(geojson).is_err());
+    }
+
+    #[test]
+    fn test_parse_geojson_linestring_missing_coordinates() {
+        let geojson = r#"{"type":"LineString"}"#;
+        assert!(parse_geojson_linestring(geojson).is_err());
+    }
+
+    #[test]
+    fn test_parse_geojson_linestring_invalid_coordinates() {
+        let geojson = r#"{"type":"LineString","coordinates":"not an array"}"#;
+        assert!(parse_geojson_linestring(geojson).is_err());
+    }
+
+    #[test]
+    fn test_parse_geojson_linestring_invalid_point() {
+        let geojson = r#"{"type":"LineString","coordinates":[[-120.0]]}"#; // Single element
+        assert!(parse_geojson_linestring(geojson).is_err());
+    }
+
+    #[test]
+    fn test_parse_geojson_linestring_with_altitude() {
+        // GeoJSON can have optional third element (altitude) - should still work
+        let geojson = r#"{"type":"LineString","coordinates":[[-120.0,45.0,100.0],[-120.1,45.1,200.0]]}"#;
+        let result = parse_geojson_linestring(geojson).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], [45.0, -120.0]); // Altitude is ignored
     }
 }

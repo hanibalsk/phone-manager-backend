@@ -100,6 +100,10 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route("/api/v1/trips", post(trips::create_trip))
         .route("/api/v1/trips/:trip_id", patch(trips::update_trip_state))
         .route(
+            "/api/v1/trips/:trip_id/path",
+            get(trips::get_trip_path),
+        )
+        .route(
             "/api/v1/devices/:device_id/trips",
             get(trips::get_device_trips),
         )
