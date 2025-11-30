@@ -9,6 +9,7 @@ mod extractors;
 mod jobs;
 mod middleware;
 mod routes;
+mod services;
 
 #[tokio::main]
 async fn main() -> Result<()> {

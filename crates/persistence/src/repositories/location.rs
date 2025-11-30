@@ -277,6 +277,41 @@ impl LocationRepository {
         .await
     }
 
+    /// Get all locations for a specific trip.
+    ///
+    /// Used for path correction operations. Returns locations associated
+    /// with the trip in ascending order (oldest to newest) for proper
+    /// path construction.
+    ///
+    /// # Arguments
+    /// * `trip_id` - Trip ID to fetch locations for
+    ///
+    /// # Returns
+    /// * Vector of location entities ordered by captured_at ASC
+    pub async fn get_locations_for_trip(
+        &self,
+        trip_id: Uuid,
+    ) -> Result<Vec<LocationEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("get_locations_for_trip");
+
+        let result = sqlx::query_as::<_, LocationEntity>(
+            r#"
+            SELECT id, device_id, latitude, longitude, accuracy, altitude, bearing,
+                   speed, provider, battery_level, network_type, captured_at, created_at,
+                   transportation_mode, detection_source, trip_id
+            FROM locations
+            WHERE trip_id = $1
+            ORDER BY captured_at ASC, id ASC
+            "#,
+        )
+        .bind(trip_id)
+        .fetch_all(&self.pool)
+        .await;
+
+        timer.record();
+        result
+    }
+
     /// Get all locations for a device within a time range (no pagination).
     ///
     /// Used for simplification operations that need the complete path.

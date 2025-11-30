@@ -10,12 +10,13 @@ use persistence::repositories::{
     DeviceRepository, MovementEventRepository, TripInput, TripQuery, TripRepository,
     TripUpdateInput,
 };
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::services::PathCorrectionService;
 use domain::models::movement_event::{DetectionSource, TransportationMode};
 use domain::models::trip::{
     CreateTripRequest, CreateTripResponse, GetTripsQuery, GetTripsResponse, TripPagination,
@@ -247,13 +248,15 @@ pub async fn update_trip_state(
         "Trip state updated"
     );
 
-    // Trigger async statistics calculation for COMPLETED trips
+    // Trigger async statistics calculation and path correction for COMPLETED trips
     if request.state == TripState::Completed {
         let pool = state.pool.clone();
+        let config = state.config.clone();
         let start_ts = updated.start_timestamp;
         let end_ts = updated.end_timestamp;
         tokio::spawn(async move {
-            calculate_trip_statistics(pool, trip_id, start_ts, end_ts).await;
+            calculate_trip_statistics(pool.clone(), trip_id, start_ts, end_ts).await;
+            correct_trip_path(pool, &config.map_matching, trip_id).await;
         });
     }
 
@@ -453,6 +456,42 @@ async fn calculate_trip_statistics(
                 trip_id = %trip_id,
                 error = %e,
                 "Failed to calculate trip distance"
+            );
+        }
+    }
+}
+
+/// Correct trip path using map-matching service asynchronously.
+///
+/// Extracts trip locations, calls map-matching service, and stores
+/// the corrected path. Errors are logged but don't affect the trip state.
+/// If map-matching is disabled, the correction is marked as SKIPPED.
+async fn correct_trip_path(
+    pool: sqlx::PgPool,
+    config: &crate::config::MapMatchingConfig,
+    trip_id: Uuid,
+) {
+    info!(trip_id = %trip_id, "Starting path correction for trip");
+
+    let service = PathCorrectionService::new(pool, config);
+
+    match service.correct_trip_path(trip_id).await {
+        Ok(result) => {
+            info!(
+                trip_id = %trip_id,
+                status = %result.status,
+                quality = ?result.quality,
+                original_points = result.original_points,
+                corrected_points = ?result.corrected_points,
+                "Path correction completed"
+            );
+        }
+        Err(e) => {
+            // Log but don't fail - path correction is best-effort
+            warn!(
+                trip_id = %trip_id,
+                error = %e,
+                "Path correction failed"
             );
         }
     }

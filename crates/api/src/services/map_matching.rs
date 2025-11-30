@@ -155,6 +155,7 @@ impl RateLimiter {
 
 /// Circuit breaker states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // Used for testing and monitoring
 pub enum CircuitState {
     Closed,
     Open,
@@ -230,6 +231,7 @@ impl CircuitBreaker {
     }
 
     /// Get current state.
+    #[allow(dead_code)] // Used for testing and monitoring
     async fn state(&self) -> CircuitState {
         if !self.is_open.load(Ordering::Relaxed) {
             return CircuitState::Closed;
@@ -285,11 +287,13 @@ impl MapMatchingClient {
     }
 
     /// Check if map-matching is enabled and configured.
+    #[allow(dead_code)] // Public API for monitoring
     pub fn is_available(&self) -> bool {
         self.config.enabled && !self.config.url.is_empty()
     }
 
     /// Get current circuit breaker state.
+    #[allow(dead_code)] // Public API for monitoring
     pub async fn circuit_state(&self) -> CircuitState {
         self.circuit_breaker.state().await
     }
