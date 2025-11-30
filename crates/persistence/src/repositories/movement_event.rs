@@ -212,7 +212,8 @@ impl MovementEventRepository {
         .bind(query.from_timestamp)
         .bind(query.to_timestamp)
         .bind(query.cursor_timestamp)
-        .bind(query.cursor_id.unwrap_or(Uuid::max()))
+        // Use max UUID as fallback for descending order pagination
+        .bind(query.cursor_id.unwrap_or_else(|| Uuid::from_bytes([0xff; 16])))
         .bind(fetch_limit)
         .fetch_all(&self.pool)
         .await

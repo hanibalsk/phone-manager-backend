@@ -60,26 +60,41 @@ pub async fn health_check(
     let db_connected = sqlx::query("SELECT 1").execute(&state.pool).await.is_ok();
     let latency_ms = start.elapsed().as_millis() as u64;
 
-    // Check map-matching service configuration
+    // Check map-matching service status using the shared client
     let map_matching_config = &state.config.map_matching;
     let map_matching_enabled = map_matching_config.enabled;
     let map_matching_configured = !map_matching_config.url.is_empty();
 
-    // For availability, we can only report based on configuration
-    // Actual circuit breaker state would require the client instance
-    let map_matching_available = map_matching_enabled && map_matching_configured;
+    // Get actual circuit breaker state from the shared client
+    let (map_matching_available, circuit_state) = if let Some(ref client) = state.map_matching_client
+    {
+        let state = client.circuit_state().await;
+        let is_available = client.is_available()
+            && matches!(
+                state,
+                crate::services::map_matching::CircuitState::Closed
+                    | crate::services::map_matching::CircuitState::HalfOpen
+            );
+        let state_str = match state {
+            crate::services::map_matching::CircuitState::Closed => "closed",
+            crate::services::map_matching::CircuitState::Open => "open",
+            crate::services::map_matching::CircuitState::HalfOpen => "half_open",
+        };
+        (is_available, state_str.to_string())
+    } else if !map_matching_enabled {
+        (false, "disabled".to_string())
+    } else if !map_matching_configured {
+        (false, "not_configured".to_string())
+    } else {
+        // Client failed to initialize
+        (false, "initialization_failed".to_string())
+    };
 
     let external_services = Some(ExternalServicesHealth {
         map_matching: MapMatchingHealth {
             enabled: map_matching_enabled,
             available: map_matching_available,
-            circuit_state: if !map_matching_enabled {
-                "disabled".to_string()
-            } else if !map_matching_configured {
-                "not_configured".to_string()
-            } else {
-                "available".to_string()
-            },
+            circuit_state,
         },
     });
 
@@ -174,7 +189,7 @@ mod tests {
                 map_matching: MapMatchingHealth {
                     enabled: true,
                     available: true,
-                    circuit_state: "available".to_string(),
+                    circuit_state: "closed".to_string(),
                 },
             }),
         };
@@ -182,7 +197,7 @@ mod tests {
         let services = response.external_services.unwrap();
         assert!(services.map_matching.enabled);
         assert!(services.map_matching.available);
-        assert_eq!(services.map_matching.circuit_state, "available");
+        assert_eq!(services.map_matching.circuit_state, "closed");
     }
 
     #[test]
@@ -246,15 +261,39 @@ mod tests {
     }
 
     #[test]
-    fn test_map_matching_health_available() {
+    fn test_map_matching_health_closed() {
         let health = MapMatchingHealth {
             enabled: true,
             available: true,
-            circuit_state: "available".to_string(),
+            circuit_state: "closed".to_string(),
         };
         assert!(health.enabled);
         assert!(health.available);
-        assert_eq!(health.circuit_state, "available");
+        assert_eq!(health.circuit_state, "closed");
+    }
+
+    #[test]
+    fn test_map_matching_health_open() {
+        let health = MapMatchingHealth {
+            enabled: true,
+            available: false,
+            circuit_state: "open".to_string(),
+        };
+        assert!(health.enabled);
+        assert!(!health.available);
+        assert_eq!(health.circuit_state, "open");
+    }
+
+    #[test]
+    fn test_map_matching_health_half_open() {
+        let health = MapMatchingHealth {
+            enabled: true,
+            available: true,
+            circuit_state: "half_open".to_string(),
+        };
+        assert!(health.enabled);
+        assert!(health.available);
+        assert_eq!(health.circuit_state, "half_open");
     }
 
     #[test]
@@ -263,13 +302,13 @@ mod tests {
             map_matching: MapMatchingHealth {
                 enabled: true,
                 available: true,
-                circuit_state: "available".to_string(),
+                circuit_state: "closed".to_string(),
             },
         };
         let json = serde_json::to_string(&health).unwrap();
         assert!(json.contains("\"mapMatching\""));
         assert!(json.contains("\"enabled\":true"));
         assert!(json.contains("\"available\":true"));
-        assert!(json.contains("\"circuitState\":\"available\""));
+        assert!(json.contains("\"circuitState\":\"closed\""));
     }
 }

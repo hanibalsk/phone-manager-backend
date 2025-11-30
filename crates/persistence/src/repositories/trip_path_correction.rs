@@ -233,16 +233,69 @@ impl TripPathCorrectionRepository {
 
         Ok(result.rows_affected() > 0)
     }
+
+    /// Create a SKIPPED trip path correction record.
+    ///
+    /// Used when path correction cannot be performed (e.g., insufficient locations).
+    /// Handles 0 or 1 coordinate gracefully by creating a valid degenerate LINESTRING.
+    pub async fn create_skipped(
+        &self,
+        trip_id: Uuid,
+        coords: &[[f64; 2]],
+    ) -> Result<TripPathCorrectionEntity, sqlx::Error> {
+        let timer = QueryTimer::new("create_trip_path_correction_skipped");
+
+        // Build WKT LINESTRING from coordinates (handles 0 or 1 point)
+        let linestring_wkt = coords_to_linestring_wkt(coords);
+
+        let result = sqlx::query_as::<_, TripPathCorrectionEntity>(
+            r#"
+            INSERT INTO trip_path_corrections (
+                trip_id, original_path, correction_status
+            )
+            VALUES (
+                $1, ST_GeogFromText($2), 'SKIPPED'
+            )
+            RETURNING
+                id, trip_id,
+                ST_AsGeoJSON(original_path) as original_path,
+                CASE WHEN corrected_path IS NULL THEN NULL ELSE ST_AsGeoJSON(corrected_path) END as corrected_path,
+                correction_quality, correction_status,
+                created_at, updated_at
+            "#,
+        )
+        .bind(trip_id)
+        .bind(&linestring_wkt)
+        .fetch_one(&self.pool)
+        .await?;
+
+        timer.record();
+        Ok(result)
+    }
 }
 
 /// Convert coordinate array to WKT LINESTRING format.
 ///
 /// Expects coordinates as [longitude, latitude] pairs.
+/// Handles edge cases:
+/// - 0 coords: Creates a degenerate line at origin (0 0, 0 0)
+/// - 1 coord: Duplicates the point to create a valid line
+/// - 2+ coords: Normal LINESTRING
 fn coords_to_linestring_wkt(coords: &[[f64; 2]]) -> String {
-    let points: Vec<String> = coords
-        .iter()
-        .map(|[lon, lat]| format!("{} {}", lon, lat))
-        .collect();
+    let points: Vec<String> = if coords.is_empty() {
+        // Create a degenerate line at origin for 0 locations
+        vec!["0 0".to_string(), "0 0".to_string()]
+    } else if coords.len() == 1 {
+        // Duplicate single point to create valid LINESTRING
+        let [lon, lat] = coords[0];
+        let point = format!("{} {}", lon, lat);
+        vec![point.clone(), point]
+    } else {
+        coords
+            .iter()
+            .map(|[lon, lat]| format!("{} {}", lon, lat))
+            .collect()
+    };
     format!("SRID=4326;LINESTRING({})", points.join(", "))
 }
 
@@ -265,6 +318,22 @@ mod tests {
         let coords = vec![[-120.0, 45.0], [-120.1, 45.1]];
         let wkt = coords_to_linestring_wkt(&coords);
         assert_eq!(wkt, "SRID=4326;LINESTRING(-120 45, -120.1 45.1)");
+    }
+
+    #[test]
+    fn test_coords_to_linestring_wkt_one_point() {
+        // Single point should be duplicated to form valid LINESTRING
+        let coords = vec![[-120.0, 45.0]];
+        let wkt = coords_to_linestring_wkt(&coords);
+        assert_eq!(wkt, "SRID=4326;LINESTRING(-120 45, -120 45)");
+    }
+
+    #[test]
+    fn test_coords_to_linestring_wkt_empty() {
+        // Empty coords should produce degenerate line at origin
+        let coords: Vec<[f64; 2]> = vec![];
+        let wkt = coords_to_linestring_wkt(&coords);
+        assert_eq!(wkt, "SRID=4326;LINESTRING(0 0, 0 0)");
     }
 
     #[test]

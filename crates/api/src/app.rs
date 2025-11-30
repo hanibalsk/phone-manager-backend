@@ -19,12 +19,15 @@ use crate::middleware::{
     security_headers_middleware, trace_id, RateLimiterState,
 };
 use crate::routes::{admin, devices, geofences, health, locations, movement_events, openapi, privacy, proximity_alerts, trips, versioning};
+use crate::services::map_matching::MapMatchingClient;
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
     pub config: Arc<Config>,
     pub rate_limiter: Option<Arc<RateLimiterState>>,
+    /// Shared map-matching client (None if disabled or failed to initialize)
+    pub map_matching_client: Option<Arc<MapMatchingClient>>,
 }
 
 pub fn create_app(config: Config, pool: PgPool) -> Router {
@@ -39,10 +42,26 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         None
     };
 
+    // Create map-matching client if enabled and configured
+    let map_matching_client =
+        if config.map_matching.enabled && !config.map_matching.url.is_empty() {
+            match MapMatchingClient::new(config.map_matching.clone()) {
+                Ok(client) => Some(Arc::new(client)),
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to create map-matching client");
+                    None
+                }
+            }
+        } else {
+            tracing::debug!("Map-matching is disabled or not configured");
+            None
+        };
+
     let state = AppState {
         pool,
         config: config.clone(),
         rate_limiter,
+        map_matching_client,
     };
 
     // Build CORS layer based on configuration

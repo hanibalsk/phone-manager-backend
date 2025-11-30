@@ -58,7 +58,7 @@ impl TripRepository {
 
     /// Create a new trip with idempotency support.
     ///
-    /// Uses ON CONFLICT to handle duplicate (device_id, local_trip_id) gracefully.
+    /// Uses INSERT ... ON CONFLICT to handle duplicate (device_id, local_trip_id) atomically.
     /// Returns (entity, was_created) tuple.
     pub async fn create_trip(
         &self,
@@ -66,16 +66,9 @@ impl TripRepository {
     ) -> Result<(TripEntity, bool), sqlx::Error> {
         let timer = QueryTimer::new("create_trip");
 
-        // First check if trip already exists
-        let existing = self.find_by_device_and_local_id(input.device_id, &input.local_trip_id).await?;
-
-        if let Some(entity) = existing {
-            timer.record();
-            return Ok((entity, false));
-        }
-
-        // Insert new trip
-        let result = sqlx::query_as::<_, TripEntity>(
+        // Use INSERT ... ON CONFLICT DO NOTHING for atomic idempotency
+        // Then fetch the row (either newly created or existing)
+        let insert_result = sqlx::query(
             r#"
             INSERT INTO trips (
                 device_id, local_trip_id, state, start_timestamp,
@@ -86,14 +79,7 @@ impl TripRepository {
                 ST_SetSRID(ST_MakePoint($4, $5), 4326)::geography,
                 $6, $7
             )
-            RETURNING
-                id, device_id, local_trip_id, state, start_timestamp, end_timestamp,
-                ST_Y(start_location::geometry) as start_latitude,
-                ST_X(start_location::geometry) as start_longitude,
-                CASE WHEN end_location IS NULL THEN NULL ELSE ST_Y(end_location::geometry) END as end_latitude,
-                CASE WHEN end_location IS NULL THEN NULL ELSE ST_X(end_location::geometry) END as end_longitude,
-                transportation_mode, detection_source, distance_meters, duration_seconds,
-                created_at, updated_at
+            ON CONFLICT (device_id, local_trip_id) DO NOTHING
             "#,
         )
         .bind(input.device_id)
@@ -103,11 +89,19 @@ impl TripRepository {
         .bind(input.start_latitude)
         .bind(&input.transportation_mode)
         .bind(&input.detection_source)
-        .fetch_one(&self.pool)
+        .execute(&self.pool)
         .await?;
 
+        let was_created = insert_result.rows_affected() > 0;
+
+        // Fetch the trip (whether newly created or existing)
+        let entity = self
+            .find_by_device_and_local_id(input.device_id, &input.local_trip_id)
+            .await?
+            .expect("Trip must exist after INSERT ON CONFLICT");
+
         timer.record();
-        Ok((result, true))
+        Ok((entity, was_created))
     }
 
     /// Find trip by device_id and local_trip_id.
@@ -317,7 +311,9 @@ impl TripRepository {
         .bind(query.from_timestamp)
         .bind(query.to_timestamp)
         .bind(query.cursor_timestamp)
-        .bind(query.cursor_id.unwrap_or(Uuid::max()))
+        // Use max UUID as fallback when cursor_id is None but cursor_timestamp is Some
+        // This ensures keyset pagination works correctly
+        .bind(query.cursor_id.unwrap_or_else(|| Uuid::from_bytes([0xff; 16])))
         .bind(fetch_limit)
         .fetch_all(&self.pool)
         .await?;

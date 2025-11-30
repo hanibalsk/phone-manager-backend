@@ -7,6 +7,7 @@ use axum::{
 };
 use persistence::repositories::{
     DeviceRepository, MovementEventInput, MovementEventQuery, MovementEventRepository,
+    TripRepository,
 };
 use serde::Deserialize;
 use tracing::info;
@@ -85,8 +86,20 @@ pub async fn create_movement_event(
         ));
     }
 
-    // Note: trip_id validation will be added when trips table exists (Story 6.1)
-    // For now, we accept any trip_id since the FK constraint doesn't exist yet
+    // Validate trip_id if provided - must exist and belong to this device
+    if let Some(trip_id) = request.trip_id {
+        let trip_repo = TripRepository::new(state.pool.clone());
+        let trip = trip_repo
+            .find_by_id(trip_id)
+            .await?
+            .ok_or_else(|| ApiError::NotFound(format!("Trip {} not found", trip_id)))?;
+
+        if trip.device_id != request.device_id {
+            return Err(ApiError::Forbidden(
+                "Trip does not belong to this device".to_string(),
+            ));
+        }
+    }
 
     // Create input for repository
     let input = MovementEventInput {
@@ -161,6 +174,30 @@ pub async fn create_movement_events_batch(
         return Err(ApiError::NotFound(
             "Device not found. Please register first.".to_string(),
         ));
+    }
+
+    // Validate all trip_ids in the batch - collect unique ones for efficiency
+    let unique_trip_ids: std::collections::HashSet<Uuid> = request
+        .events
+        .iter()
+        .filter_map(|e| e.trip_id)
+        .collect();
+
+    if !unique_trip_ids.is_empty() {
+        let trip_repo = TripRepository::new(state.pool.clone());
+        for trip_id in unique_trip_ids {
+            let trip = trip_repo
+                .find_by_id(trip_id)
+                .await?
+                .ok_or_else(|| ApiError::NotFound(format!("Trip {} not found", trip_id)))?;
+
+            if trip.device_id != request.device_id {
+                return Err(ApiError::Forbidden(format!(
+                    "Trip {} does not belong to this device",
+                    trip_id
+                )));
+            }
+        }
     }
 
     // Convert batch items to repository inputs

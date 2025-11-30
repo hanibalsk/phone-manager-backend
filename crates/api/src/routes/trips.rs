@@ -255,12 +255,12 @@ pub async fn update_trip_state(
     // Trigger async statistics calculation and path correction for COMPLETED trips
     if request.state == TripState::Completed {
         let pool = state.pool.clone();
-        let config = state.config.clone();
+        let map_matching_client = state.map_matching_client.clone();
         let start_ts = updated.start_timestamp;
         let end_ts = updated.end_timestamp;
         tokio::spawn(async move {
             calculate_trip_statistics(pool.clone(), trip_id, start_ts, end_ts).await;
-            correct_trip_path(pool, &config.map_matching, trip_id).await;
+            correct_trip_path(pool, map_matching_client, trip_id).await;
         });
     }
 
@@ -522,14 +522,14 @@ pub async fn get_trip_path(
 ///
 /// Manually triggers path correction for a completed trip.
 /// Can be used to retry failed corrections or correct older trips.
+/// Returns 202 Accepted when correction is queued for background processing.
 /// Returns 404 if trip not found.
 /// Returns 400 if trip is not in COMPLETED state.
 /// Returns 409 if correction is already in progress.
-/// Returns 503 if map-matching service is unavailable.
 pub async fn trigger_path_correction(
     State(state): State<AppState>,
     Path(trip_id): Path<Uuid>,
-) -> Result<Json<CorrectPathResponse>, ApiError> {
+) -> Result<(StatusCode, Json<CorrectPathResponse>), ApiError> {
     // Verify trip exists
     let trip_repo = TripRepository::new(state.pool.clone());
     let trip = trip_repo
@@ -585,72 +585,43 @@ pub async fn trigger_path_correction(
         }
     }
 
-    // Trigger path correction
-    let service = PathCorrectionService::new(state.pool.clone(), &state.config.map_matching);
+    // Clone data needed for background task
+    let pool = state.pool.clone();
+    let map_matching_client = state.map_matching_client.clone();
 
-    match service.correct_trip_path(trip_id).await {
-        Ok(result) => {
-            info!(
-                trip_id = %trip_id,
-                status = %result.status,
-                quality = ?result.quality,
-                "On-demand path correction completed"
-            );
+    // Spawn background task for path correction
+    tokio::spawn(async move {
+        let service = PathCorrectionService::new(pool, map_matching_client);
 
-            let message = match result.status.as_str() {
-                "COMPLETED" => format!(
-                    "Path correction completed with quality score: {:.2}",
-                    result.quality.unwrap_or(0.0)
-                ),
-                "SKIPPED" => "Path correction skipped (insufficient data or service unavailable)"
-                    .to_string(),
-                "FAILED" => "Path correction failed (map-matching service error)".to_string(),
-                _ => "Path correction processed".to_string(),
-            };
-
-            Ok(Json(CorrectPathResponse {
-                status: result.status,
-                message,
-            }))
-        }
-        Err(e) => {
-            error!(trip_id = %trip_id, error = %e, "On-demand path correction failed");
-
-            // Return user-friendly error based on error type
-            match e {
-                crate::services::path_correction::PathCorrectionError::InsufficientLocations(n) => {
-                    Ok(Json(CorrectPathResponse {
-                        status: "SKIPPED".to_string(),
-                        message: format!(
-                            "Not enough locations for path correction (need at least 2, got {})",
-                            n
-                        ),
-                    }))
-                }
-                crate::services::path_correction::PathCorrectionError::AlreadyExists(_) => {
-                    Err(ApiError::Conflict(
-                        "Path correction already exists".to_string(),
-                    ))
-                }
-                crate::services::path_correction::PathCorrectionError::MapMatching(map_err) => {
-                    // Check if circuit breaker is open
-                    if map_err.to_string().contains("circuit breaker") {
-                        Err(ApiError::ServiceUnavailable(
-                            "Map-matching service temporarily unavailable".to_string(),
-                        ))
-                    } else {
-                        Ok(Json(CorrectPathResponse {
-                            status: "FAILED".to_string(),
-                            message: format!("Map-matching error: {}", map_err),
-                        }))
-                    }
-                }
-                crate::services::path_correction::PathCorrectionError::Database(db_err) => {
-                    Err(ApiError::Internal(format!("Database error: {}", db_err)))
-                }
+        match service.correct_trip_path(trip_id).await {
+            Ok(result) => {
+                info!(
+                    trip_id = %trip_id,
+                    status = %result.status,
+                    quality = ?result.quality,
+                    "Background path correction completed"
+                );
+            }
+            Err(e) => {
+                error!(
+                    trip_id = %trip_id,
+                    error = %e,
+                    "Background path correction failed"
+                );
             }
         }
-    }
+    });
+
+    // Return 202 Accepted immediately - correction is queued
+    info!(trip_id = %trip_id, "Path correction queued for background processing");
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(CorrectPathResponse {
+            status: "PENDING".to_string(),
+            message: "Path correction queued for background processing. Check GET /trips/:tripId/path for status.".to_string(),
+        }),
+    ))
 }
 
 /// Parse GeoJSON LineString to array of [lat, lon] coordinate pairs.
@@ -784,12 +755,12 @@ async fn calculate_trip_statistics(
 /// If map-matching is disabled, the correction is marked as SKIPPED.
 async fn correct_trip_path(
     pool: sqlx::PgPool,
-    config: &crate::config::MapMatchingConfig,
+    map_matching_client: Option<std::sync::Arc<crate::services::map_matching::MapMatchingClient>>,
     trip_id: Uuid,
 ) {
     info!(trip_id = %trip_id, "Starting path correction for trip");
 
-    let service = PathCorrectionService::new(pool, config);
+    let service = PathCorrectionService::new(pool, map_matching_client);
 
     match service.correct_trip_path(trip_id).await {
         Ok(result) => {

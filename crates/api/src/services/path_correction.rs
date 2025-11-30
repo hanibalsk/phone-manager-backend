@@ -14,7 +14,6 @@ use thiserror::Error;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::config::MapMatchingConfig;
 use crate::services::map_matching::{MapMatchingClient, MapMatchingError};
 
 // ============================================================================
@@ -29,9 +28,6 @@ pub enum PathCorrectionError {
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
-
-    #[error("Not enough locations for path correction (need at least 2, got {0})")]
-    InsufficientLocations(usize),
 
     #[error("Path correction already exists for trip {0}")]
     AlreadyExists(Uuid),
@@ -64,28 +60,14 @@ pub struct PathCorrectionResult {
 /// Service for correcting trip paths using map-matching.
 pub struct PathCorrectionService {
     pool: PgPool,
-    map_matching_client: Option<MapMatchingClient>,
+    map_matching_client: Option<std::sync::Arc<MapMatchingClient>>,
 }
 
 impl PathCorrectionService {
-    /// Create a new PathCorrectionService.
+    /// Create a new PathCorrectionService with a shared map-matching client.
     ///
-    /// If map-matching is disabled or not configured, the client will be None
-    /// and corrections will be skipped.
-    pub fn new(pool: PgPool, config: &MapMatchingConfig) -> Self {
-        let map_matching_client = if config.enabled && !config.url.is_empty() {
-            match MapMatchingClient::new(config.clone()) {
-                Ok(client) => Some(client),
-                Err(e) => {
-                    error!(error = %e, "Failed to create map-matching client");
-                    None
-                }
-            }
-        } else {
-            debug!("Map-matching is disabled or not configured");
-            None
-        };
-
+    /// If the client is None, corrections will be skipped.
+    pub fn new(pool: PgPool, map_matching_client: Option<std::sync::Arc<MapMatchingClient>>) -> Self {
         Self {
             pool,
             map_matching_client,
@@ -137,33 +119,31 @@ impl PathCorrectionService {
             "Fetched locations for trip"
         );
 
-        // Need at least 2 points for a path
+        // Need at least 2 points for meaningful path correction
         if locations.len() < 2 {
             info!(
                 trip_id = %trip_id,
                 location_count = locations.len(),
-                "Not enough locations for path correction, marking as SKIPPED"
+                "Not enough locations for path correction, creating SKIPPED record"
             );
 
-            // Create a skipped record if we have any locations
-            if !locations.is_empty() {
-                let coords: Vec<[f64; 2]> = locations
-                    .iter()
-                    .map(|loc| [loc.longitude, loc.latitude])
-                    .collect();
+            // Convert any existing locations to coordinates
+            let coords: Vec<[f64; 2]> = locations
+                .iter()
+                .map(|loc| [loc.longitude, loc.latitude])
+                .collect();
 
-                // Can't create a LINESTRING with 1 point, but we still want to record the attempt
-                // We'll mark it as skipped without storing the path
-                return Ok(PathCorrectionResult {
-                    trip_id,
-                    status: "SKIPPED".to_string(),
-                    quality: None,
-                    original_points: coords.len(),
-                    corrected_points: None,
-                });
-            }
+            // Create a SKIPPED record in the database so GET /trips/:id/path returns status
+            // The repository handles 0 or 1 coordinate by creating a degenerate LINESTRING
+            correction_repo.create_skipped(trip_id, &coords).await?;
 
-            return Err(PathCorrectionError::InsufficientLocations(locations.len()));
+            return Ok(PathCorrectionResult {
+                trip_id,
+                status: "SKIPPED".to_string(),
+                quality: None,
+                original_points: coords.len(),
+                corrected_points: None,
+            });
         }
 
         // Convert locations to coordinate array [lon, lat]
@@ -235,23 +215,45 @@ impl PathCorrectionService {
                 })
             }
             Err(e) => {
-                error!(
-                    trip_id = %trip_id,
-                    error = %e,
-                    "Map-matching failed"
-                );
+                // Determine if this is a "service unavailable" error (SKIPPED)
+                // or an actual processing failure (FAILED)
+                let (status, log_level) = match &e {
+                    MapMatchingError::CircuitOpen
+                    | MapMatchingError::RateLimited
+                    | MapMatchingError::Disabled
+                    | MapMatchingError::NotConfigured => {
+                        // Service unavailable - mark as SKIPPED for retry later
+                        warn!(
+                            trip_id = %trip_id,
+                            error = %e,
+                            "Map-matching service unavailable, marking as SKIPPED"
+                        );
+                        ("SKIPPED", false)
+                    }
+                    _ => {
+                        // Actual failure - request was processed but failed
+                        error!(
+                            trip_id = %trip_id,
+                            error = %e,
+                            "Map-matching failed, marking as FAILED"
+                        );
+                        ("FAILED", true)
+                    }
+                };
 
-                // Update with FAILED status
+                // Suppress unused variable warning for log_level
+                let _ = log_level;
+
                 let update = TripPathCorrectionUpdateInput {
                     corrected_path_coords: None,
                     correction_quality: None,
-                    correction_status: "FAILED".to_string(),
+                    correction_status: status.to_string(),
                 };
                 correction_repo.update(trip_id, update).await?;
 
                 Ok(PathCorrectionResult {
                     trip_id,
-                    status: "FAILED".to_string(),
+                    status: status.to_string(),
                     quality: None,
                     original_points,
                     corrected_points: None,
@@ -268,22 +270,6 @@ impl PathCorrectionService {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn create_test_config(enabled: bool) -> MapMatchingConfig {
-        MapMatchingConfig {
-            provider: "osrm".to_string(),
-            url: if enabled {
-                "http://router.project-osrm.org".to_string()
-            } else {
-                "".to_string()
-            },
-            timeout_ms: 30000,
-            rate_limit_per_minute: 30,
-            circuit_breaker_failures: 5,
-            circuit_breaker_reset_secs: 60,
-            enabled,
-        }
-    }
 
     #[test]
     fn test_path_correction_result_debug() {
@@ -302,17 +288,22 @@ mod tests {
 
     #[test]
     fn test_path_correction_error_display() {
-        let err = PathCorrectionError::InsufficientLocations(1);
-        assert!(err.to_string().contains("at least 2"));
-
         let err = PathCorrectionError::AlreadyExists(Uuid::new_v4());
         assert!(err.to_string().contains("already exists"));
     }
 
     #[test]
-    fn test_disabled_config() {
-        let config = create_test_config(false);
-        assert!(!config.enabled);
-        assert!(config.url.is_empty());
+    fn test_path_correction_result_clone() {
+        let result = PathCorrectionResult {
+            trip_id: Uuid::new_v4(),
+            status: "COMPLETED".to_string(),
+            quality: Some(0.95),
+            original_points: 100,
+            corrected_points: Some(150),
+        };
+
+        let cloned = result.clone();
+        assert_eq!(cloned.status, result.status);
+        assert_eq!(cloned.quality, result.quality);
     }
 }
