@@ -1,17 +1,21 @@
 //! Trip endpoint handlers.
 
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     Json,
 };
-use persistence::repositories::{DeviceRepository, TripInput, TripRepository};
+use persistence::repositories::{DeviceRepository, TripInput, TripRepository, TripUpdateInput};
 use tracing::info;
+use uuid::Uuid;
 use validator::Validate;
 
 use crate::app::AppState;
 use crate::error::ApiError;
-use domain::models::trip::{CreateTripRequest, CreateTripResponse, TripState};
+use domain::models::movement_event::{DetectionSource, TransportationMode};
+use domain::models::trip::{
+    CreateTripRequest, CreateTripResponse, TripResponse, TripState, UpdateTripRequest,
+};
 
 /// Create a new trip with idempotency support.
 ///
@@ -115,6 +119,134 @@ pub async fn create_trip(
     Ok((status, Json(response)))
 }
 
+/// Update trip state (COMPLETED or CANCELLED).
+///
+/// PATCH /api/v1/trips/:tripId
+///
+/// State transitions:
+/// - ACTIVE → COMPLETED (requires end location)
+/// - ACTIVE → CANCELLED (end location optional)
+///
+/// Returns 200 with updated trip data.
+/// Returns 400 for invalid state transition.
+/// Returns 404 if trip not found.
+pub async fn update_trip_state(
+    State(state): State<AppState>,
+    Path(trip_id): Path<Uuid>,
+    Json(request): Json<UpdateTripRequest>,
+) -> Result<Json<TripResponse>, ApiError> {
+    // Validate the request
+    request.validate().map_err(|e| {
+        let errors: Vec<String> = e
+            .field_errors()
+            .iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |err| {
+                    format!(
+                        "{}: {}",
+                        field,
+                        err.message.as_ref().unwrap_or(&"".into())
+                    )
+                })
+            })
+            .collect();
+        ApiError::Validation(errors.join(", "))
+    })?;
+
+    let trip_repo = TripRepository::new(state.pool.clone());
+
+    // Find the trip
+    let trip = trip_repo
+        .find_by_id(trip_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Trip not found".to_string()))?;
+
+    // Parse current state
+    let current_state = trip
+        .state
+        .parse::<TripState>()
+        .map_err(|_| ApiError::Internal("Invalid trip state in database".to_string()))?;
+
+    // Validate state transition
+    if !current_state.can_transition_to(request.state) {
+        return Err(ApiError::Validation(format!(
+            "Invalid state transition from {} to {}",
+            current_state, request.state
+        )));
+    }
+
+    // For COMPLETED state, require end location
+    if request.state == TripState::Completed {
+        if request.end_timestamp.is_none() {
+            return Err(ApiError::Validation(
+                "endTimestamp is required for COMPLETED state".to_string(),
+            ));
+        }
+        if request.end_latitude.is_none() {
+            return Err(ApiError::Validation(
+                "endLatitude is required for COMPLETED state".to_string(),
+            ));
+        }
+        if request.end_longitude.is_none() {
+            return Err(ApiError::Validation(
+                "endLongitude is required for COMPLETED state".to_string(),
+            ));
+        }
+    }
+
+    // Create update input
+    let update_input = TripUpdateInput {
+        state: request.state.as_str().to_string(),
+        end_timestamp: request.end_timestamp,
+        end_latitude: request.end_latitude,
+        end_longitude: request.end_longitude,
+    };
+
+    // Update the trip
+    let updated = trip_repo
+        .update_state(trip_id, update_input)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Trip not found".to_string()))?;
+
+    // Build response
+    let response = TripResponse {
+        id: updated.id,
+        local_trip_id: updated.local_trip_id,
+        state: updated
+            .state
+            .parse::<TripState>()
+            .unwrap_or(TripState::Active),
+        start_timestamp: updated.start_timestamp,
+        end_timestamp: updated.end_timestamp,
+        start_latitude: updated.start_latitude,
+        start_longitude: updated.start_longitude,
+        end_latitude: updated.end_latitude,
+        end_longitude: updated.end_longitude,
+        transportation_mode: updated
+            .transportation_mode
+            .parse::<TransportationMode>()
+            .unwrap_or(TransportationMode::Unknown),
+        detection_source: updated
+            .detection_source
+            .parse::<DetectionSource>()
+            .unwrap_or(DetectionSource::None),
+        distance_meters: updated.distance_meters,
+        duration_seconds: updated.duration_seconds,
+        created_at: updated.created_at,
+    };
+
+    info!(
+        trip_id = %trip_id,
+        old_state = %current_state,
+        new_state = %request.state,
+        "Trip state updated"
+    );
+
+    // TODO: Trigger async statistics calculation for COMPLETED trips (Story 6.4)
+
+    Ok(Json(response))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,5 +325,85 @@ mod tests {
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("COMPLETED"));
+    }
+
+    #[test]
+    fn test_update_trip_request_completed() {
+        let json = r#"{
+            "state": "COMPLETED",
+            "endTimestamp": 1234567899000,
+            "endLatitude": 45.5,
+            "endLongitude": -120.5
+        }"#;
+
+        let request: UpdateTripRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.state, TripState::Completed);
+        assert_eq!(request.end_timestamp, Some(1234567899000));
+        assert_eq!(request.end_latitude, Some(45.5));
+        assert_eq!(request.end_longitude, Some(-120.5));
+    }
+
+    #[test]
+    fn test_update_trip_request_cancelled() {
+        let json = r#"{
+            "state": "CANCELLED"
+        }"#;
+
+        let request: UpdateTripRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.state, TripState::Cancelled);
+        assert!(request.end_timestamp.is_none());
+        assert!(request.end_latitude.is_none());
+        assert!(request.end_longitude.is_none());
+    }
+
+    #[test]
+    fn test_trip_response_serialization() {
+        let response = TripResponse {
+            id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
+            local_trip_id: "trip-123".to_string(),
+            state: TripState::Completed,
+            start_timestamp: 1234567890000,
+            end_timestamp: Some(1234567899000),
+            start_latitude: 45.0,
+            start_longitude: -120.0,
+            end_latitude: Some(45.5),
+            end_longitude: Some(-120.5),
+            transportation_mode: TransportationMode::Walking,
+            detection_source: DetectionSource::ActivityRecognition,
+            distance_meters: Some(1500.0),
+            duration_seconds: Some(9000),
+            created_at: chrono::Utc::now(),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("COMPLETED"));
+        assert!(json.contains("distanceMeters"));
+        assert!(json.contains("durationSeconds"));
+    }
+
+    #[test]
+    fn test_trip_response_without_optional_fields() {
+        let response = TripResponse {
+            id: Uuid::new_v4(),
+            local_trip_id: "trip-active".to_string(),
+            state: TripState::Active,
+            start_timestamp: 1234567890000,
+            end_timestamp: None,
+            start_latitude: 45.0,
+            start_longitude: -120.0,
+            end_latitude: None,
+            end_longitude: None,
+            transportation_mode: TransportationMode::InVehicle,
+            detection_source: DetectionSource::BluetoothCar,
+            distance_meters: None,
+            duration_seconds: None,
+            created_at: chrono::Utc::now(),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("ACTIVE"));
+        // Optional fields should not appear when None (skip_serializing_if)
+        assert!(!json.contains("endTimestamp"));
+        assert!(!json.contains("distanceMeters"));
     }
 }
