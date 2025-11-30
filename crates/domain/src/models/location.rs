@@ -250,6 +250,19 @@ pub struct LocationHistoryItem {
     pub network_type: Option<String>,
     pub captured_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
+
+    // Context fields (Epic 7)
+    /// Transportation mode when location was captured (e.g., WALKING, IN_VEHICLE)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transportation_mode: Option<String>,
+
+    /// How the transportation mode was detected
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detection_source: Option<String>,
+
+    /// Optional link to the active trip when this location was recorded
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trip_id: Option<Uuid>,
 }
 
 impl From<Location> for LocationHistoryItem {
@@ -267,6 +280,9 @@ impl From<Location> for LocationHistoryItem {
             network_type: loc.network_type,
             captured_at: loc.captured_at,
             created_at: loc.created_at,
+            transportation_mode: loc.transportation_mode,
+            detection_source: loc.detection_source,
+            trip_id: loc.trip_id,
         }
     }
 }
