@@ -290,6 +290,7 @@ pub struct MovementEventQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
 
     #[test]
     fn test_movement_event_input_creation() {

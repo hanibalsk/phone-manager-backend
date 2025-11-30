@@ -202,6 +202,61 @@ pub struct CreateMovementEventResponse {
     pub created_at: DateTime<Utc>,
 }
 
+/// A single event within a batch upload request.
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchMovementEventItem {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trip_id: Option<Uuid>,
+
+    /// Timestamp in milliseconds since epoch
+    #[validate(custom(function = "shared::validation::validate_timestamp"))]
+    pub timestamp: i64,
+
+    #[validate(custom(function = "shared::validation::validate_latitude"))]
+    pub latitude: f64,
+
+    #[validate(custom(function = "shared::validation::validate_longitude"))]
+    pub longitude: f64,
+
+    #[validate(custom(function = "shared::validation::validate_accuracy"))]
+    pub accuracy: f64,
+
+    #[validate(custom(function = "shared::validation::validate_speed"))]
+    pub speed: Option<f64>,
+
+    #[validate(custom(function = "shared::validation::validate_bearing"))]
+    pub bearing: Option<f64>,
+
+    pub altitude: Option<f64>,
+
+    pub transportation_mode: TransportationMode,
+
+    #[validate(custom(function = "crate::models::movement_event::validate_confidence"))]
+    pub confidence: f64,
+
+    pub detection_source: DetectionSource,
+}
+
+/// Request payload for batch movement event upload.
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchMovementEventRequest {
+    pub device_id: Uuid,
+
+    #[validate(length(min = 1, max = 100, message = "events must contain 1 to 100 items"))]
+    #[validate(nested)]
+    pub events: Vec<BatchMovementEventItem>,
+}
+
+/// Response payload for batch movement event upload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchMovementEventResponse {
+    pub success: bool,
+    pub processed_count: usize,
+}
+
 /// Response payload for movement event retrieval.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

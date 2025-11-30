@@ -88,6 +88,10 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/movement-events",
             post(movement_events::create_movement_event),
         )
+        .route(
+            "/api/v1/movement-events/batch",
+            post(movement_events::create_movement_events_batch),
+        )
         // Geofence routes (v1)
         .route("/api/v1/geofences", post(geofences::create_geofence))
         .route("/api/v1/geofences", get(geofences::list_geofences))
