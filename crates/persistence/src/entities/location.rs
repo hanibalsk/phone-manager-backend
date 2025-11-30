@@ -20,6 +20,10 @@ pub struct LocationEntity {
     pub network_type: Option<String>,
     pub captured_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
+    // Context fields (Epic 7)
+    pub transportation_mode: Option<String>,
+    pub detection_source: Option<String>,
+    pub trip_id: Option<Uuid>,
 }
 
 impl From<LocationEntity> for domain::models::Location {
@@ -38,6 +42,9 @@ impl From<LocationEntity> for domain::models::Location {
             network_type: entity.network_type,
             captured_at: entity.captured_at,
             created_at: entity.created_at,
+            transportation_mode: entity.transportation_mode,
+            detection_source: entity.detection_source,
+            trip_id: entity.trip_id,
         }
     }
 }
@@ -61,6 +68,9 @@ mod tests {
             network_type: Some("wifi".to_string()),
             captured_at: Utc::now(),
             created_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         }
     }
 
@@ -115,6 +125,9 @@ mod tests {
             network_type: None,
             captured_at: Utc::now(),
             created_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
 
         let location: domain::models::Location = entity.into();
@@ -124,6 +137,9 @@ mod tests {
         assert!(location.provider.is_none());
         assert!(location.battery_level.is_none());
         assert!(location.network_type.is_none());
+        assert!(location.transportation_mode.is_none());
+        assert!(location.detection_source.is_none());
+        assert!(location.trip_id.is_none());
     }
 
     #[test]

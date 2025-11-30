@@ -22,6 +22,13 @@ pub struct Location {
     pub network_type: Option<String>,
     pub captured_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
+    // Context fields (Epic 7)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transportation_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detection_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trip_id: Option<Uuid>,
 }
 
 /// Request payload for single location upload.
@@ -322,6 +329,9 @@ mod tests {
             network_type: Some("wifi".to_string()),
             captured_at: Utc::now(),
             created_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         }
     }
 

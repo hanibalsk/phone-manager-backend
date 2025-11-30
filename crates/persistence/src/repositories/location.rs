@@ -51,7 +51,8 @@ impl LocationRepository {
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             RETURNING id, device_id, latitude, longitude, accuracy, altitude, bearing,
-                      speed, provider, battery_level, network_type, captured_at, created_at
+                      speed, provider, battery_level, network_type, captured_at, created_at,
+                      transportation_mode, detection_source, trip_id
             "#,
         )
         .bind(input.device_id)
@@ -136,7 +137,8 @@ impl LocationRepository {
         sqlx::query_as::<_, LocationEntity>(
             r#"
             SELECT id, device_id, latitude, longitude, accuracy, altitude, bearing,
-                   speed, provider, battery_level, network_type, captured_at, created_at
+                   speed, provider, battery_level, network_type, captured_at, created_at,
+                   transportation_mode, detection_source, trip_id
             FROM locations
             WHERE device_id = $1
             ORDER BY captured_at DESC
@@ -212,7 +214,8 @@ impl LocationRepository {
         sqlx::query_as::<_, LocationEntity>(
             r#"
             SELECT id, device_id, latitude, longitude, accuracy, altitude, bearing,
-                   speed, provider, battery_level, network_type, captured_at, created_at
+                   speed, provider, battery_level, network_type, captured_at, created_at,
+                   transportation_mode, detection_source, trip_id
             FROM locations
             WHERE device_id = $1
               AND ($2::timestamptz IS NULL OR captured_at >= $2)
@@ -241,7 +244,8 @@ impl LocationRepository {
         sqlx::query_as::<_, LocationEntity>(
             r#"
             SELECT id, device_id, latitude, longitude, accuracy, altitude, bearing,
-                   speed, provider, battery_level, network_type, captured_at, created_at
+                   speed, provider, battery_level, network_type, captured_at, created_at,
+                   transportation_mode, detection_source, trip_id
             FROM locations
             WHERE device_id = $1
               AND ($2::timestamptz IS NULL OR captured_at >= $2)
@@ -285,7 +289,8 @@ impl LocationRepository {
         let result = sqlx::query_as::<_, LocationEntity>(
             r#"
             SELECT id, device_id, latitude, longitude, accuracy, altitude, bearing,
-                   speed, provider, battery_level, network_type, captured_at, created_at
+                   speed, provider, battery_level, network_type, captured_at, created_at,
+                   transportation_mode, detection_source, trip_id
             FROM locations
             WHERE device_id = $1
               AND ($2::timestamptz IS NULL OR captured_at >= $2)
