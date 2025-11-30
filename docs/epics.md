@@ -864,7 +864,608 @@ This document provides the detailed story breakdown for the Phone Manager backen
 
 ---
 
+---
+
+## Movement Tracking Extension (Epics 5-8)
+
+**Extension PRD:** PRD-movement-tracking.md
+**Date Added:** 2025-11-30
+**Author:** Martin Janci
+**Estimated Stories:** 22 stories across 4 epics
+**Timeline:** 4-6 weeks
+
+---
+
+### Epic 5: Movement Events API
+
+**Epic Goal**: Core movement event storage and retrieval with sensor telemetry support
+
+**Business Value**: Enables detailed trip analytics and movement pattern tracking for users
+
+**Success Criteria**:
+- Movement events stored with full sensor telemetry (accuracy, speed, bearing, altitude)
+- Events properly associated with trips via tripId
+- Batch upload supports 100 events with <500ms response time
+- Transportation mode and confidence metrics captured per event
+
+---
+
+#### Story 5.1: Movement Event Database Schema
+
+**As a** developer
+**I want** a PostGIS-enabled movement_events table
+**So that** I can store movement data with geospatial capabilities
+
+**Prerequisites**: Epic 1 complete (database infrastructure)
+
+**Acceptance Criteria**:
+1. Migration creates `movement_events` table with columns: id (UUID), device_id (UUID FK), trip_id (UUID FK nullable), timestamp (BIGINT), location (GEOGRAPHY(POINT, 4326)), accuracy (REAL), speed (REAL nullable), bearing (REAL nullable), altitude (DOUBLE PRECISION nullable), transportation_mode (VARCHAR), confidence (REAL), detection_source (VARCHAR), created_at (TIMESTAMPTZ)
+2. Foreign key constraint to devices table with ON DELETE CASCADE
+3. Foreign key constraint to trips table with ON DELETE SET NULL
+4. Index on (device_id, timestamp) for efficient queries
+5. Index on (trip_id) for trip-based lookups
+6. PostGIS GIST index on location column
+7. Check constraint: confidence BETWEEN 0.0 AND 1.0
+8. Check constraint: accuracy >= 0
+9. Migration runs successfully with `sqlx migrate run`
+
+**Technical Notes**:
+- Use GEOGRAPHY type for accurate distance calculations
+- SRID 4326 (WGS84) for GPS coordinates
+- Store timestamp as milliseconds epoch for client compatibility
+
+---
+
+#### Story 5.2: Create Movement Event Endpoint
+
+**As a** mobile app
+**I want** to upload a single movement event
+**So that** I can record movement data with full sensor context
+
+**Prerequisites**: Story 5.1
+
+**Acceptance Criteria**:
+1. `POST /api/v1/movement-events` accepts JSON: `{"deviceId": "<uuid>", "tripId": "<uuid-optional>", "timestamp": <ms-epoch>, "latitude": <float>, "longitude": <float>, "accuracy": <float>, "speed": <float-optional>, "bearing": <float-optional>, "altitude": <float-optional>, "transportationMode": "<mode>", "confidence": <float>, "detectionSource": "<source>"}`
+2. Validates: latitude (-90 to 90), longitude (-180 to 180), accuracy (>= 0), bearing (0-360 if present), speed (>= 0 if present), confidence (0.0-1.0), transportationMode (STATIONARY|WALKING|RUNNING|CYCLING|IN_VEHICLE|UNKNOWN), detectionSource (ACTIVITY_RECOGNITION|BLUETOOTH_CAR|ANDROID_AUTO|MULTIPLE|NONE)
+3. Returns 400 for validation errors with field-level details
+4. Returns 404 if device not registered
+5. Returns 404 if tripId provided but trip doesn't exist
+6. Returns 200 with: `{"id": "<uuid>", "createdAt": "<timestamp>"}`
+7. Stores location as PostGIS GEOGRAPHY point
+8. Response time <50ms for single event
+
+**Technical Notes**:
+- Domain model in `crates/domain/src/models/movement_event.rs`
+- Repository in `crates/persistence/src/repositories/movement_event.rs`
+- Use `ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography` for PostGIS
+
+---
+
+#### Story 5.3: Batch Movement Event Upload
+
+**As a** mobile app
+**I want** to upload multiple movement events at once
+**So that** I can efficiently sync events when coming back online
+
+**Prerequisites**: Story 5.2
+
+**Acceptance Criteria**:
+1. `POST /api/v1/movement-events/batch` accepts JSON: `{"deviceId": "<uuid>", "events": [<movement-event-objects>]}`
+2. Validates: 1-100 events per batch, max 2MB payload
+3. Each event validated same as single upload (Story 5.2)
+4. All events must belong to same deviceId
+5. Optional tripId can differ per event in batch
+6. Returns 400 if batch validation fails with details
+7. Returns 404 if device not registered
+8. Returns 200 with: `{"success": true, "processedCount": <count>}`
+9. All events inserted in single transaction (atomic)
+10. Request timeout: 30 seconds
+11. Response time <500ms for 100 events
+
+**Technical Notes**:
+- Use SQLx batch insert with UNNEST for PostgreSQL performance
+- Transaction ensures all-or-nothing semantics
+- Consider using `COPY` for larger batches (future optimization)
+
+---
+
+#### Story 5.4: Movement Events Retrieval by Device
+
+**As a** mobile app
+**I want** to retrieve movement events for a device
+**So that** I can display movement history and analytics
+
+**Prerequisites**: Story 5.2
+
+**Acceptance Criteria**:
+1. `GET /api/v1/devices/:deviceId/movement-events` returns paginated events
+2. Query parameters: cursor (string), limit (1-100, default 50), from (timestamp ms), to (timestamp ms), order (asc|desc, default desc)
+3. Response: `{"events": [<movement-event-objects>], "pagination": {"nextCursor": "<cursor>", "hasMore": <bool>}}`
+4. Each event includes: id, timestamp, latitude, longitude, accuracy, speed, bearing, altitude, transportationMode, confidence, detectionSource, tripId, createdAt
+5. Returns 404 if device not found
+6. Events sorted by timestamp in specified order
+7. Cursor-based pagination uses (timestamp, id) for stable pagination
+8. Query executes in <100ms for 100 events
+
+**Technical Notes**:
+- Use keyset pagination (timestamp, id) for efficiency
+- Extract lat/lon from GEOGRAPHY: `ST_Y(location::geometry), ST_X(location::geometry)`
+- Index on (device_id, timestamp DESC, id) supports pagination
+
+---
+
+#### Story 5.5: Movement Events Retrieval by Trip
+
+**As a** mobile app
+**I want** to retrieve all movement events for a specific trip
+**So that** I can display complete trip visualization
+
+**Prerequisites**: Story 5.2, Epic 6 (Trips)
+
+**Acceptance Criteria**:
+1. `GET /api/v1/trips/:tripId/movement-events` returns all events for trip
+2. Query parameters: order (asc|desc, default asc for trip visualization)
+3. Response: `{"events": [<movement-event-objects>], "count": <total>}`
+4. Returns 404 if trip not found
+5. Events sorted by timestamp in specified order
+6. No pagination (trips typically <10K events)
+7. Query executes in <200ms for 10K events
+
+**Technical Notes**:
+- Simple query on trip_id index
+- Consider adding limit parameter if trips grow very large
+
+---
+
+#### Story 5.6: Transportation Mode Enum and Validation
+
+**As a** backend system
+**I want** strict validation of transportation modes and detection sources
+**So that** only valid values enter the database
+
+**Prerequisites**: Story 5.1
+
+**Acceptance Criteria**:
+1. TransportationMode enum: STATIONARY, WALKING, RUNNING, CYCLING, IN_VEHICLE, UNKNOWN
+2. DetectionSource enum: ACTIVITY_RECOGNITION, BLUETOOTH_CAR, ANDROID_AUTO, MULTIPLE, NONE
+3. Enums implement Serialize/Deserialize with exact string matching
+4. Invalid mode/source returns 400 with: `{"field": "transportationMode", "message": "Invalid transportation mode. Must be one of: STATIONARY, WALKING, RUNNING, CYCLING, IN_VEHICLE, UNKNOWN"}`
+5. Database VARCHAR fields validated against enum values
+6. Unit tests cover all enum variants and invalid values
+
+**Technical Notes**:
+- Use serde rename_all = "SCREAMING_SNAKE_CASE" for API
+- Implement FromStr and Display traits for enums
+- Store as VARCHAR in database for flexibility
+
+---
+
+### Epic 6: Trip Lifecycle Management
+
+**Epic Goal**: Complete trip creation, state management, and statistics calculation
+
+**Business Value**: Enables users to track and review their journeys with accurate statistics
+
+**Success Criteria**:
+- Trips created with client-generated localTripId for idempotency
+- State transitions (ACTIVE → COMPLETED/CANCELLED) properly managed
+- Trip statistics calculated on completion (distance, duration, mode breakdown)
+- Trip history queryable with pagination and date filtering
+
+---
+
+#### Story 6.1: Trip Database Schema
+
+**As a** developer
+**I want** a trips table with proper constraints and indexes
+**So that** I can store trip data efficiently
+
+**Prerequisites**: Epic 1 complete
+
+**Acceptance Criteria**:
+1. Migration creates `trips` table with columns: id (UUID PK), device_id (UUID FK), local_trip_id (VARCHAR(100)), state (VARCHAR(20)), start_timestamp (BIGINT), end_timestamp (BIGINT nullable), start_location (GEOGRAPHY(POINT, 4326)), end_location (GEOGRAPHY(POINT, 4326) nullable), transportation_mode (VARCHAR(20)), detection_source (VARCHAR(30)), distance_meters (DOUBLE PRECISION nullable), duration_seconds (BIGINT nullable), created_at (TIMESTAMPTZ), updated_at (TIMESTAMPTZ)
+2. Unique constraint on (device_id, local_trip_id) for idempotency
+3. Foreign key to devices with ON DELETE CASCADE
+4. Index on (device_id, state) for active trip queries
+5. Index on (device_id, start_timestamp DESC) for history queries
+6. Check constraint: state IN ('ACTIVE', 'COMPLETED', 'CANCELLED')
+7. Check constraint: distance_meters >= 0 when not null
+8. Check constraint: duration_seconds >= 0 when not null
+9. Trigger updates updated_at on row modification
+
+**Technical Notes**:
+- local_trip_id from client ensures idempotent creation
+- Use GEOGRAPHY for accurate distance calculations on completion
+
+---
+
+#### Story 6.2: Create Trip Endpoint with Idempotency
+
+**As a** mobile app
+**I want** to create a trip with a client-generated ID
+**So that** retries don't create duplicate trips
+
+**Prerequisites**: Story 6.1
+
+**Acceptance Criteria**:
+1. `POST /api/v1/trips` accepts JSON: `{"deviceId": "<uuid>", "localTripId": "<client-id>", "startTimestamp": <ms-epoch>, "startLatitude": <float>, "startLongitude": <float>, "transportationMode": "<mode>", "detectionSource": "<source>"}`
+2. Validates all fields same as movement events
+3. Returns 200 (not 201) if trip with same (deviceId, localTripId) exists - idempotent
+4. Existing trip response includes all current data (may have been updated)
+5. New trip created with state=ACTIVE
+6. Returns 200/201 with: `{"id": "<uuid>", "localTripId": "<client-id>", "state": "ACTIVE", "startTimestamp": <ts>, "createdAt": "<timestamp>"}`
+7. Returns 404 if device not registered
+8. Returns 409 if device already has an ACTIVE trip with different localTripId
+9. Only one ACTIVE trip allowed per device
+
+**Technical Notes**:
+- Use INSERT ... ON CONFLICT (device_id, local_trip_id) DO UPDATE for idempotency
+- Check for existing ACTIVE trip before creating new one
+- Transaction ensures atomic state check and creation
+
+---
+
+#### Story 6.3: Update Trip State
+
+**As a** mobile app
+**I want** to update trip state to COMPLETED or CANCELLED
+**So that** I can properly end trips
+
+**Prerequisites**: Story 6.2
+
+**Acceptance Criteria**:
+1. `PATCH /api/v1/trips/:tripId` accepts JSON: `{"state": "<COMPLETED|CANCELLED>", "endTimestamp": <ms-epoch-optional>, "endLatitude": <float-optional>, "endLongitude": <float-optional>}`
+2. State transitions: ACTIVE → COMPLETED, ACTIVE → CANCELLED only
+3. Completed trips require endTimestamp, endLatitude, endLongitude
+4. Cancelled trips don't require end location (trip may be invalid)
+5. Returns 400 if invalid state transition (e.g., COMPLETED → ACTIVE)
+6. Returns 404 if trip not found
+7. Returns 200 with updated trip data
+8. Triggers statistics calculation for COMPLETED trips (async)
+9. updates updated_at timestamp
+
+**Technical Notes**:
+- State machine validation in domain layer
+- Use tokio::spawn for async statistics calculation
+- Consider event sourcing for complex state transitions (future)
+
+---
+
+#### Story 6.4: Trip Statistics Calculation
+
+**As a** backend system
+**I want** to calculate trip statistics on completion
+**So that** users see accurate trip summaries
+
+**Prerequisites**: Story 6.3, Story 5.2
+
+**Acceptance Criteria**:
+1. Statistics calculated when trip state changes to COMPLETED
+2. Calculates: distance_meters (sum of point-to-point distances), duration_seconds (end - start timestamp)
+3. Distance calculated using Haversine formula on all trip movement events
+4. Statistics stored in trips table
+5. Calculation runs async (doesn't block API response)
+6. Handles trips with 0-1 events (distance = 0)
+7. Handles large trips (10K+ events) in <5 seconds
+8. Failed calculation logged but doesn't affect trip state
+
+**Technical Notes**:
+- Use PostGIS ST_Distance for accurate geodetic distance
+- Sum distances between consecutive points ordered by timestamp
+- Consider background job queue for large trip processing
+
+---
+
+#### Story 6.5: Trip Retrieval by Device with Pagination
+
+**As a** mobile app
+**I want** to retrieve trip history for a device
+**So that** users can review their past trips
+
+**Prerequisites**: Story 6.2
+
+**Acceptance Criteria**:
+1. `GET /api/v1/devices/:deviceId/trips` returns paginated trips
+2. Query parameters: cursor (string), limit (1-50, default 20), state (optional filter), from (timestamp ms), to (timestamp ms)
+3. Response: `{"trips": [<trip-objects>], "pagination": {"nextCursor": "<cursor>", "hasMore": <bool>}}`
+4. Each trip includes: id, localTripId, state, startTimestamp, endTimestamp, startLocation, endLocation, transportationMode, detectionSource, distanceMeters, durationSeconds, createdAt
+5. Sorted by startTimestamp DESC (most recent first)
+6. Returns 404 if device not found
+7. Query executes in <100ms for 50 trips
+
+**Technical Notes**:
+- Cursor-based pagination using (start_timestamp, id)
+- Index on (device_id, start_timestamp DESC) supports query
+
+---
+
+#### Story 6.6: Trip Retrieval by Date Range
+
+**As a** mobile app
+**I want** to filter trips by date range
+**So that** users can find trips from specific time periods
+
+**Prerequisites**: Story 6.5
+
+**Acceptance Criteria**:
+1. Date range filtering via `from` and `to` query parameters (milliseconds)
+2. Filters trips where start_timestamp >= from AND start_timestamp <= to
+3. Both parameters optional (from defaults to 0, to defaults to MAX)
+4. Returns trips that started within range (regardless of end time)
+5. Combined with pagination for large result sets
+6. Query executes in <100ms for 30-day range with 100+ trips
+
+**Technical Notes**:
+- Add index on (device_id, start_timestamp) for range queries
+- Consider BRIN index for large tables with time-series data
+
+---
+
+### Epic 7: Enhanced Location Context
+
+**Epic Goal**: Extend existing location tracking with transportation and trip context
+
+**Business Value**: Enriches location data with movement context for better user insights
+
+**Success Criteria**:
+- Transportation mode stored with all location uploads
+- Detection source captured for data provenance
+- Locations optionally linked to active trips
+- Backward compatibility with existing location endpoints
+
+---
+
+#### Story 7.1: Location Schema Migration for Context Fields
+
+**As a** developer
+**I want** to add transportation mode and detection source to locations
+**So that** location data includes movement context
+
+**Prerequisites**: Epic 3 complete
+
+**Acceptance Criteria**:
+1. Migration adds columns: transportation_mode (VARCHAR(20) nullable), detection_source (VARCHAR(30) nullable), trip_id (UUID nullable FK)
+2. Foreign key to trips table with ON DELETE SET NULL
+3. Existing location records retain NULL for new columns (backward compatible)
+4. Index on trip_id for trip-based location queries
+5. Migration is non-blocking (ALTER TABLE ADD COLUMN is fast in PostgreSQL)
+6. Migration runs successfully without downtime
+
+**Technical Notes**:
+- Use ADD COLUMN with NULL default for non-blocking migration
+- No need to backfill existing data
+- FK constraint added after column creation
+
+---
+
+#### Story 7.2: Enhanced Location Upload with Context
+
+**As a** mobile app
+**I want** to include transportation mode in location uploads
+**So that** location data has movement context
+
+**Prerequisites**: Story 7.1
+
+**Acceptance Criteria**:
+1. `POST /api/v1/locations` enhanced to accept: `"transportationMode": "<mode-optional>", "detectionSource": "<source-optional>", "tripId": "<uuid-optional>"`
+2. Existing payload structure unchanged (new fields optional)
+3. Validates transportationMode and detectionSource same as movement events
+4. Returns 404 if tripId provided but trip doesn't exist
+5. Returns 404 if tripId's trip doesn't belong to deviceId
+6. Response unchanged: `{"success": true, "processedCount": 1}`
+7. Batch upload also supports new fields
+
+**Technical Notes**:
+- Maintain backward compatibility - all new fields optional
+- Validate tripId belongs to same device for security
+
+---
+
+#### Story 7.3: Batch Location Upload with Context
+
+**As a** mobile app
+**I want** to include context fields in batch uploads
+**So that** all location data has consistent context
+
+**Prerequisites**: Story 7.2
+
+**Acceptance Criteria**:
+1. `POST /api/v1/locations/batch` enhanced to accept context fields per location
+2. Each location in batch can have: transportationMode, detectionSource, tripId
+3. All tripIds in batch validated before insert
+4. Single transaction ensures atomic batch with context
+5. Response unchanged for backward compatibility
+6. Performance target maintained: <500ms for 50 locations
+
+**Technical Notes**:
+- Validate all tripIds in single query for efficiency
+- Consider allowing different tripIds per location in batch
+
+---
+
+#### Story 7.4: Location History with Context Fields
+
+**As a** mobile app
+**I want** to retrieve locations with their context fields
+**So that** I can display transportation mode with location data
+
+**Prerequisites**: Story 7.2
+
+**Acceptance Criteria**:
+1. `GET /api/v1/devices/:deviceId/locations` response enhanced
+2. Each location includes: transportationMode (nullable), detectionSource (nullable), tripId (nullable)
+3. Existing pagination and filtering unchanged
+4. Response size increase acceptable (<20% for typical response)
+5. Query performance unchanged (<100ms for 100 locations)
+
+**Technical Notes**:
+- Add columns to SELECT query
+- No new indexes needed (existing queries still efficient)
+
+---
+
+### Epic 8: Intelligent Path Detection
+
+**Epic Goal**: Map-snapping integration and path correction capabilities
+
+**Business Value**: Provides accurate, road-aligned paths for better trip visualization
+
+**Success Criteria**:
+- Integration with map-matching service (OSRM or Valhalla)
+- Both original and corrected coordinates stored
+- Correction quality metrics available
+- Graceful degradation when service unavailable
+
+---
+
+#### Story 8.1: Path Correction Database Schema
+
+**As a** developer
+**I want** to store corrected path coordinates
+**So that** users can view map-snapped trip paths
+
+**Prerequisites**: Story 6.1
+
+**Acceptance Criteria**:
+1. Migration creates `trip_path_corrections` table: id (UUID), trip_id (UUID FK UNIQUE), original_path (GEOGRAPHY(LINESTRING, 4326)), corrected_path (GEOGRAPHY(LINESTRING, 4326) nullable), correction_quality (REAL nullable), correction_status (VARCHAR(20)), created_at (TIMESTAMPTZ), updated_at (TIMESTAMPTZ)
+2. One-to-one relationship with trips (trip_id UNIQUE)
+3. correction_status enum: PENDING, COMPLETED, FAILED, SKIPPED
+4. correction_quality range: 0.0-1.0 (confidence metric)
+5. Foreign key with ON DELETE CASCADE
+6. Index on (correction_status) for processing queries
+
+**Technical Notes**:
+- Use LINESTRING to store ordered path points
+- Store original for comparison and fallback
+- Quality metric from map-matching service confidence
+
+---
+
+#### Story 8.2: Map-Matching Service Integration
+
+**As a** backend system
+**I want** to integrate with a map-matching service
+**So that** I can correct GPS traces to road networks
+
+**Prerequisites**: Story 8.1
+
+**Acceptance Criteria**:
+1. Service client for OSRM Match API or Valhalla Trace API
+2. Configuration: `PM__MAP_MATCHING__PROVIDER` (osrm|valhalla), `PM__MAP_MATCHING__URL`, `PM__MAP_MATCHING__TIMEOUT_MS`
+3. Accepts array of coordinates, returns snapped coordinates
+4. Handles service timeouts gracefully (30s default)
+5. Extracts confidence/quality metric from response
+6. Rate limiting to map-matching service (configurable)
+7. Circuit breaker for service failures (fails open)
+
+**Technical Notes**:
+- Use reqwest for HTTP client
+- OSRM: GET /match/v1/driving/{coordinates}
+- Valhalla: POST /trace_route with trace_options
+- Consider retry with exponential backoff
+
+---
+
+#### Story 8.3: Automatic Path Correction on Trip Completion
+
+**As a** backend system
+**I want** to automatically correct paths when trips complete
+**So that** users get accurate visualizations without manual action
+
+**Prerequisites**: Story 8.2, Story 6.3
+
+**Acceptance Criteria**:
+1. Path correction triggered async when trip state → COMPLETED
+2. Extracts all movement event coordinates for trip
+3. Creates original_path LINESTRING from coordinates
+4. Calls map-matching service with coordinates
+5. Stores corrected_path and quality metric
+6. Updates correction_status to COMPLETED or FAILED
+7. Handles trips with <2 points (skip correction, status = SKIPPED)
+8. Handles very long trips by chunking (>1000 points)
+9. Failed correction doesn't affect trip completion
+10. Processing time <10s for typical trips (<500 points)
+
+**Technical Notes**:
+- Use tokio::spawn for async processing
+- Chunk long trips to avoid service limits
+- Log failures for monitoring and retry
+
+---
+
+#### Story 8.4: Path Correction Retrieval Endpoint
+
+**As a** mobile app
+**I want** to retrieve corrected path for a trip
+**So that** I can display accurate trip visualization
+
+**Prerequisites**: Story 8.3
+
+**Acceptance Criteria**:
+1. `GET /api/v1/trips/:tripId/path` returns path data
+2. Response: `{"originalPath": [[lat,lon], ...], "correctedPath": [[lat,lon], ...], "correctionStatus": "<status>", "correctionQuality": <float-nullable>}`
+3. Returns 404 if trip not found
+4. Returns path data even if correction failed (original only)
+5. correctedPath is null if status != COMPLETED
+6. Query executes in <100ms
+
+**Technical Notes**:
+- Extract coordinates from LINESTRING: ST_AsGeoJSON or ST_DumpPoints
+- Return as array of [lat, lon] pairs for easy client parsing
+
+---
+
+#### Story 8.5: On-Demand Path Correction
+
+**As a** mobile app
+**I want** to request path correction for a specific trip
+**So that** I can retry failed corrections
+
+**Prerequisites**: Story 8.3
+
+**Acceptance Criteria**:
+1. `POST /api/v1/trips/:tripId/correct-path` triggers correction
+2. Returns 202 Accepted with: `{"status": "processing", "message": "Path correction queued"}`
+3. Returns 404 if trip not found
+4. Returns 400 if trip state != COMPLETED
+5. Returns 409 if correction already in progress (status = PENDING)
+6. Reprocesses even if previous correction failed
+7. Async processing (response doesn't wait for completion)
+8. Rate limited: 1 request per trip per hour
+
+**Technical Notes**:
+- Queue correction job (reuse Story 8.3 logic)
+- Track request timestamp for rate limiting
+- Consider webhook/polling for completion notification (future)
+
+---
+
+#### Story 8.6: Graceful Degradation Without Map Service
+
+**As a** backend system
+**I want** to handle map-service unavailability gracefully
+**So that** core functionality works without external dependencies
+
+**Prerequisites**: Story 8.2
+
+**Acceptance Criteria**:
+1. Circuit breaker opens after 5 consecutive failures
+2. Circuit remains open for 60 seconds before retry
+3. During open circuit, corrections set to status = SKIPPED with message
+4. Trip completion and statistics unaffected by correction failures
+5. Health check endpoint reports map-matching service status
+6. Metrics track: correction_success_total, correction_failure_total, circuit_state
+7. Logs include service name and failure reason
+8. Manual retry available via Story 8.5 endpoint
+
+**Technical Notes**:
+- Use `failsafe-rs` or implement custom circuit breaker
+- Add map_matching.status to health check response
+- Dashboard/alerting on circuit breaker state changes
+
+---
+
 ## Out of Scope
 
-_See PRD.md for complete out-of-scope features and future enhancements_
+_See PRD.md and PRD-movement-tracking.md for complete out-of-scope features and future enhancements_
 
