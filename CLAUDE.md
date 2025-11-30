@@ -156,6 +156,24 @@ PM__LIMITS__MAX_BATCH_SIZE=50
 | PATCH | `/api/v1/proximity-alerts/:alert_id` | Update alert |
 | DELETE | `/api/v1/proximity-alerts/:alert_id` | Delete alert |
 
+### Trips
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/trips` | Create trip with idempotency |
+| PATCH | `/api/v1/trips/:trip_id` | Update trip state (complete/cancel) |
+| GET | `/api/v1/devices/:device_id/trips` | List device trips (paginated) |
+| GET | `/api/v1/trips/:trip_id/movement-events` | Get trip movement events |
+| GET | `/api/v1/trips/:trip_id/path` | Get trip path correction data |
+| POST | `/api/v1/trips/:trip_id/correct-path` | Trigger path correction |
+
+### Movement Events
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/movement-events` | Create single movement event |
+| POST | `/api/v1/movement-events/batch` | Create batch movement events (max 100) |
+| GET | `/api/v1/devices/:device_id/movement-events` | Get device movement events (paginated) |
+| GET | `/api/v1/trips/:trip_id/movement-events` | Get trip movement events |
+
 ### Privacy (GDPR)
 | Method | Path | Description |
 |--------|------|-------------|

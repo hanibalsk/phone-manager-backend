@@ -296,6 +296,55 @@ impl MovementEventRepository {
         result
     }
 
+    /// Get all movement events for a trip with configurable sort order.
+    /// Used for trip visualization endpoints.
+    pub async fn get_events_for_trip_ordered(
+        &self,
+        trip_id: Uuid,
+        ascending: bool,
+    ) -> Result<Vec<MovementEventEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("get_events_for_trip_ordered");
+
+        let result = if ascending {
+            sqlx::query_as::<_, MovementEventEntity>(
+                r#"
+                SELECT
+                    id, device_id, trip_id, timestamp,
+                    ST_Y(location::geometry) as latitude,
+                    ST_X(location::geometry) as longitude,
+                    accuracy, speed, bearing, altitude,
+                    transportation_mode, confidence, detection_source, created_at
+                FROM movement_events
+                WHERE trip_id = $1
+                ORDER BY timestamp ASC, id ASC
+                "#,
+            )
+            .bind(trip_id)
+            .fetch_all(&self.pool)
+            .await
+        } else {
+            sqlx::query_as::<_, MovementEventEntity>(
+                r#"
+                SELECT
+                    id, device_id, trip_id, timestamp,
+                    ST_Y(location::geometry) as latitude,
+                    ST_X(location::geometry) as longitude,
+                    accuracy, speed, bearing, altitude,
+                    transportation_mode, confidence, detection_source, created_at
+                FROM movement_events
+                WHERE trip_id = $1
+                ORDER BY timestamp DESC, id DESC
+                "#,
+            )
+            .bind(trip_id)
+            .fetch_all(&self.pool)
+            .await
+        };
+
+        timer.record();
+        result
+    }
+
     /// Calculate total distance for a trip using PostGIS ST_Distance.
     /// Returns distance in meters, summing point-to-point distances.
     pub async fn calculate_trip_distance(&self, trip_id: Uuid) -> Result<f64, sqlx::Error> {

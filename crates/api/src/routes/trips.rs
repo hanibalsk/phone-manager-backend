@@ -17,7 +17,10 @@ use validator::Validate;
 use crate::app::AppState;
 use crate::error::ApiError;
 use crate::services::PathCorrectionService;
-use domain::models::movement_event::{DetectionSource, TransportationMode};
+use domain::models::movement_event::{
+    DetectionSource, GetTripMovementEventsQuery, GetTripMovementEventsResponse,
+    MovementEventResponse, TransportationMode,
+};
 use domain::models::trip::{
     CreateTripRequest, CreateTripResponse, GetTripsQuery, GetTripsResponse, TripPagination,
     TripResponse, TripState, UpdateTripRequest,
@@ -373,6 +376,80 @@ pub async fn get_device_trips(
             has_more,
         },
     }))
+}
+
+/// Get all movement events for a specific trip.
+///
+/// GET /api/v1/trips/:tripId/movement-events
+///
+/// Returns all movement events associated with a trip for visualization.
+/// Events are sorted by timestamp (default ascending for trip visualization).
+/// No pagination - trips typically contain <10K events.
+///
+/// Returns 404 if trip not found.
+pub async fn get_trip_movement_events(
+    State(state): State<AppState>,
+    Path(trip_id): Path<Uuid>,
+    Query(query): Query<GetTripMovementEventsQuery>,
+) -> Result<Json<GetTripMovementEventsResponse>, ApiError> {
+    // Verify trip exists
+    let trip_repo = TripRepository::new(state.pool.clone());
+    let _trip = trip_repo
+        .find_by_id(trip_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Trip not found".to_string()))?;
+
+    // Validate order parameter
+    let ascending = match query.order.to_lowercase().as_str() {
+        "asc" => true,
+        "desc" => false,
+        _ => {
+            return Err(ApiError::Validation(
+                "order must be 'asc' or 'desc'".to_string(),
+            ))
+        }
+    };
+
+    // Get movement events for the trip
+    let event_repo = MovementEventRepository::new(state.pool.clone());
+    let entities = event_repo.get_events_for_trip_ordered(trip_id, ascending).await?;
+
+    // Convert entities to response DTOs
+    let events: Vec<MovementEventResponse> = entities
+        .iter()
+        .map(|e| MovementEventResponse {
+            id: e.id,
+            trip_id: e.trip_id,
+            timestamp: e.timestamp,
+            latitude: e.latitude,
+            longitude: e.longitude,
+            accuracy: e.accuracy as f64,
+            speed: e.speed.map(|s| s as f64),
+            bearing: e.bearing.map(|b| b as f64),
+            altitude: e.altitude,
+            transportation_mode: e
+                .transportation_mode
+                .parse::<TransportationMode>()
+                .unwrap_or(TransportationMode::Unknown),
+            confidence: e.confidence as f64,
+            detection_source: e
+                .detection_source
+                .parse::<DetectionSource>()
+                .unwrap_or(DetectionSource::None),
+            created_at: e.created_at,
+        })
+        .collect();
+
+    let count = events.len();
+
+    info!(
+        trip_id = %trip_id,
+        event_count = count,
+        order = %query.order,
+        "Trip movement events retrieved"
+    );
+
+    Ok(Json(GetTripMovementEventsResponse { events, count }))
 }
 
 /// Get trip path correction data.
@@ -1051,5 +1128,86 @@ mod tests {
 
         assert_eq!(result.len(), 2);
         assert_eq!(result[0], [45.0, -120.0]); // Altitude is ignored
+    }
+
+    // =========================================================================
+    // Trip Movement Events Tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_trip_movement_events_query_defaults() {
+        use domain::models::movement_event::GetTripMovementEventsQuery;
+
+        let json = r#"{}"#;
+        let query: GetTripMovementEventsQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.order, "asc");
+    }
+
+    #[test]
+    fn test_get_trip_movement_events_query_with_order() {
+        use domain::models::movement_event::GetTripMovementEventsQuery;
+
+        let json = r#"{"order": "desc"}"#;
+        let query: GetTripMovementEventsQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.order, "desc");
+    }
+
+    #[test]
+    fn test_get_trip_movement_events_query_asc() {
+        use domain::models::movement_event::GetTripMovementEventsQuery;
+
+        let json = r#"{"order": "asc"}"#;
+        let query: GetTripMovementEventsQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.order, "asc");
+    }
+
+    #[test]
+    fn test_get_trip_movement_events_response_serialization() {
+        use domain::models::movement_event::{
+            GetTripMovementEventsResponse, MovementEventResponse,
+        };
+
+        let response = GetTripMovementEventsResponse {
+            events: vec![],
+            count: 0,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"events\":[]"));
+        assert!(json.contains("\"count\":0"));
+    }
+
+    #[test]
+    fn test_get_trip_movement_events_response_with_events() {
+        use domain::models::movement_event::{
+            DetectionSource, GetTripMovementEventsResponse, MovementEventResponse,
+            TransportationMode,
+        };
+
+        let event = MovementEventResponse {
+            id: Uuid::new_v4(),
+            trip_id: Some(Uuid::new_v4()),
+            timestamp: 1234567890000,
+            latitude: 45.0,
+            longitude: -120.0,
+            accuracy: 10.0,
+            speed: Some(5.5),
+            bearing: Some(180.0),
+            altitude: Some(100.0),
+            transportation_mode: TransportationMode::Walking,
+            confidence: 0.95,
+            detection_source: DetectionSource::ActivityRecognition,
+            created_at: chrono::Utc::now(),
+        };
+
+        let response = GetTripMovementEventsResponse {
+            events: vec![event],
+            count: 1,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"count\":1"));
+        assert!(json.contains("\"tripId\""));
+        assert!(json.contains("\"transportationMode\":\"WALKING\""));
     }
 }

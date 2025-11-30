@@ -318,6 +318,31 @@ impl From<MovementEvent> for MovementEventResponse {
 }
 
 // ============================================================================
+// Trip Movement Events DTOs
+// ============================================================================
+
+/// Query parameters for GET /api/v1/trips/:tripId/movement-events
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetTripMovementEventsQuery {
+    /// Sort order (asc or desc, default asc for trip visualization).
+    #[serde(default = "default_trip_order")]
+    pub order: String,
+}
+
+fn default_trip_order() -> String {
+    "asc".to_string()
+}
+
+/// Response for GET /api/v1/trips/:tripId/movement-events
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetTripMovementEventsResponse {
+    pub events: Vec<MovementEventResponse>,
+    pub count: usize,
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -685,5 +710,102 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("550e8400-e29b-41d4-a716-446655440000"));
         assert!(json.contains("createdAt"));
+    }
+
+    // =========================================================================
+    // GetTripMovementEventsQuery Tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_trip_movement_events_query_default_order() {
+        let json = r#"{}"#;
+        let query: GetTripMovementEventsQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.order, "asc");
+    }
+
+    #[test]
+    fn test_get_trip_movement_events_query_explicit_asc() {
+        let json = r#"{"order": "asc"}"#;
+        let query: GetTripMovementEventsQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.order, "asc");
+    }
+
+    #[test]
+    fn test_get_trip_movement_events_query_explicit_desc() {
+        let json = r#"{"order": "desc"}"#;
+        let query: GetTripMovementEventsQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.order, "desc");
+    }
+
+    // =========================================================================
+    // GetTripMovementEventsResponse Tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_trip_movement_events_response_empty() {
+        let response = GetTripMovementEventsResponse {
+            events: vec![],
+            count: 0,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"events\":[]"));
+        assert!(json.contains("\"count\":0"));
+    }
+
+    #[test]
+    fn test_get_trip_movement_events_response_with_events() {
+        let event = MovementEventResponse {
+            id: Uuid::new_v4(),
+            trip_id: Some(Uuid::new_v4()),
+            timestamp: current_timestamp_millis(),
+            latitude: 45.0,
+            longitude: -120.0,
+            accuracy: 10.0,
+            speed: Some(5.5),
+            bearing: Some(180.0),
+            altitude: Some(100.0),
+            transportation_mode: TransportationMode::Walking,
+            confidence: 0.95,
+            detection_source: DetectionSource::ActivityRecognition,
+            created_at: Utc::now(),
+        };
+
+        let response = GetTripMovementEventsResponse {
+            events: vec![event],
+            count: 1,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"count\":1"));
+        assert!(json.contains("\"transportationMode\":\"WALKING\""));
+        assert!(json.contains("\"detectionSource\":\"ACTIVITY_RECOGNITION\""));
+    }
+
+    #[test]
+    fn test_get_trip_movement_events_response_multiple_events() {
+        let events: Vec<MovementEventResponse> = (0..5)
+            .map(|i| MovementEventResponse {
+                id: Uuid::new_v4(),
+                trip_id: Some(Uuid::new_v4()),
+                timestamp: current_timestamp_millis() + i * 1000,
+                latitude: 45.0 + (i as f64 * 0.001),
+                longitude: -120.0 + (i as f64 * 0.001),
+                accuracy: 10.0,
+                speed: Some(5.5),
+                bearing: None,
+                altitude: None,
+                transportation_mode: TransportationMode::Walking,
+                confidence: 0.95,
+                detection_source: DetectionSource::ActivityRecognition,
+                created_at: Utc::now(),
+            })
+            .collect();
+
+        let count = events.len();
+        let response = GetTripMovementEventsResponse { events, count };
+
+        assert_eq!(response.count, 5);
+        assert_eq!(response.events.len(), 5);
     }
 }
