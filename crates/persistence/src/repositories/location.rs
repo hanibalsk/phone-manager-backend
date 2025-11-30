@@ -21,6 +21,10 @@ pub struct LocationInput {
     pub battery_level: Option<i32>,
     pub network_type: Option<String>,
     pub captured_at: DateTime<Utc>,
+    // Context fields (Epic 7)
+    pub transportation_mode: Option<String>,
+    pub detection_source: Option<String>,
+    pub trip_id: Option<Uuid>,
 }
 
 /// Repository for location-related database operations.
@@ -47,9 +51,10 @@ impl LocationRepository {
             r#"
             INSERT INTO locations (
                 device_id, latitude, longitude, accuracy, altitude, bearing,
-                speed, provider, battery_level, network_type, captured_at
+                speed, provider, battery_level, network_type, captured_at,
+                transportation_mode, detection_source, trip_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING id, device_id, latitude, longitude, accuracy, altitude, bearing,
                       speed, provider, battery_level, network_type, captured_at, created_at,
                       transportation_mode, detection_source, trip_id
@@ -66,6 +71,9 @@ impl LocationRepository {
         .bind(input.battery_level.map(|b| b as i16)) // battery_level is SMALLINT in schema
         .bind(&input.network_type)
         .bind(input.captured_at)
+        .bind(&input.transportation_mode)
+        .bind(&input.detection_source)
+        .bind(input.trip_id)
         .fetch_one(&self.pool)
         .await;
         timer.record();
@@ -87,9 +95,10 @@ impl LocationRepository {
                 r#"
                 INSERT INTO locations (
                     device_id, latitude, longitude, accuracy, altitude, bearing,
-                    speed, provider, battery_level, network_type, captured_at
+                    speed, provider, battery_level, network_type, captured_at,
+                    transportation_mode, detection_source, trip_id
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                 "#,
             )
             .bind(device_id)
@@ -103,6 +112,9 @@ impl LocationRepository {
             .bind(loc.battery_level.map(|b| b as i16)) // battery_level
             .bind(&loc.network_type) // network_type
             .bind(loc.captured_at) // captured_at
+            .bind(&loc.transportation_mode) // transportation_mode
+            .bind(&loc.detection_source) // detection_source
+            .bind(loc.trip_id) // trip_id
             .execute(&mut *tx)
             .await?;
         }
@@ -351,6 +363,9 @@ mod tests {
             battery_level: Some(85),
             network_type: Some("wifi".to_string()),
             captured_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
 
         assert!(input.latitude > 0.0);
@@ -373,6 +388,9 @@ mod tests {
             battery_level: None,
             network_type: None,
             captured_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
 
         assert!(input.altitude.is_none());
@@ -395,6 +413,9 @@ mod tests {
             battery_level: None,
             network_type: None,
             captured_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
 
         assert_eq!(input.latitude, 90.0);
@@ -415,6 +436,9 @@ mod tests {
             battery_level: None,
             network_type: None,
             captured_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
 
         assert_eq!(input.latitude, -90.0);
@@ -436,6 +460,9 @@ mod tests {
             battery_level: Some(85),
             network_type: Some("wifi".to_string()),
             captured_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
 
         let cloned = input.clone();
@@ -458,6 +485,9 @@ mod tests {
             battery_level: None,
             network_type: None,
             captured_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
 
         let debug = format!("{:?}", input);
@@ -481,6 +511,9 @@ mod tests {
             battery_level: Some(0),
             network_type: None,
             captured_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert_eq!(input_low.battery_level, Some(0));
 
@@ -496,6 +529,9 @@ mod tests {
             battery_level: Some(100),
             network_type: None,
             captured_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert_eq!(input_high.battery_level, Some(100));
     }
@@ -515,6 +551,9 @@ mod tests {
             battery_level: None,
             network_type: None,
             captured_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert_eq!(input_zero.bearing, Some(0.0));
 
@@ -530,6 +569,9 @@ mod tests {
             battery_level: None,
             network_type: None,
             captured_at: Utc::now(),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(input_max.bearing.unwrap() < 360.0);
     }
@@ -699,6 +741,9 @@ mod tests {
                 battery_level: None,
                 network_type: None,
                 captured_at: Utc::now(),
+                transportation_mode: None,
+                detection_source: None,
+                trip_id: None,
             };
             assert_eq!(input.provider, Some(provider.to_string()));
         }
@@ -721,6 +766,9 @@ mod tests {
                 battery_level: None,
                 network_type: Some(network_type.to_string()),
                 captured_at: Utc::now(),
+                transportation_mode: None,
+                detection_source: None,
+                trip_id: None,
             };
             assert_eq!(input.network_type, Some(network_type.to_string()));
         }
@@ -744,6 +792,9 @@ mod tests {
                 battery_level: None,
                 network_type: None,
                 captured_at: Utc::now(),
+                transportation_mode: None,
+                detection_source: None,
+                trip_id: None,
             };
             assert_eq!(input.speed, Some(speed));
         }
@@ -767,6 +818,9 @@ mod tests {
                 battery_level: None,
                 network_type: None,
                 captured_at: Utc::now(),
+                transportation_mode: None,
+                detection_source: None,
+                trip_id: None,
             };
             assert_eq!(input.accuracy, accuracy);
         }
@@ -790,6 +844,9 @@ mod tests {
                 battery_level: None,
                 network_type: None,
                 captured_at: Utc::now(),
+                transportation_mode: None,
+                detection_source: None,
+                trip_id: None,
             };
             assert_eq!(input.altitude, Some(altitude));
         }

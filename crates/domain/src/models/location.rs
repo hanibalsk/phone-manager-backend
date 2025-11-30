@@ -64,6 +64,16 @@ pub struct UploadLocationRequest {
     pub battery_level: Option<i32>,
 
     pub network_type: Option<String>,
+
+    // Context fields (Epic 7)
+    /// Transportation mode when location was captured (e.g., WALKING, IN_VEHICLE)
+    pub transportation_mode: Option<super::movement_event::TransportationMode>,
+
+    /// How the transportation mode was detected
+    pub detection_source: Option<super::movement_event::DetectionSource>,
+
+    /// Optional link to the active trip when this location was recorded
+    pub trip_id: Option<Uuid>,
 }
 
 /// Request payload for batch location upload.
@@ -106,6 +116,19 @@ pub struct LocationData {
     pub battery_level: Option<i32>,
 
     pub network_type: Option<String>,
+
+    // Context fields (Epic 7)
+    /// Transportation mode when location was captured (e.g., WALKING, IN_VEHICLE)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transportation_mode: Option<super::movement_event::TransportationMode>,
+
+    /// How the transportation mode was detected
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detection_source: Option<super::movement_event::DetectionSource>,
+
+    /// Optional link to the active trip when this location was recorded
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trip_id: Option<Uuid>,
 }
 
 /// Response payload for location upload.
@@ -399,6 +422,9 @@ mod tests {
             provider: None,
             battery_level: Some(50),
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(data.validate().is_ok());
     }
@@ -416,6 +442,9 @@ mod tests {
             provider: None,
             battery_level: None,
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(data.validate().is_err());
     }
@@ -433,6 +462,9 @@ mod tests {
             provider: None,
             battery_level: None,
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(data.validate().is_err());
     }
@@ -450,6 +482,9 @@ mod tests {
             provider: None,
             battery_level: None,
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(data.validate().is_err());
     }
@@ -467,6 +502,9 @@ mod tests {
             provider: None,
             battery_level: None,
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(data.validate().is_err());
     }
@@ -484,6 +522,9 @@ mod tests {
             provider: None,
             battery_level: None,
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(data.validate().is_err());
     }
@@ -501,6 +542,9 @@ mod tests {
             provider: None,
             battery_level: Some(150), // Invalid: > 100
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(data.validate().is_err());
     }
@@ -520,6 +564,9 @@ mod tests {
                 provider: None,
                 battery_level: None,
                 network_type: None,
+                transportation_mode: None,
+                detection_source: None,
+                trip_id: None,
             }],
         };
         assert!(request.validate().is_ok());
@@ -549,6 +596,9 @@ mod tests {
                 provider: None,
                 battery_level: None,
                 network_type: None,
+                transportation_mode: None,
+                detection_source: None,
+                trip_id: None,
             })
             .collect();
 
@@ -573,6 +623,9 @@ mod tests {
             provider: None,
             battery_level: Some(0), // Min valid
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(data.validate().is_ok());
     }
@@ -590,6 +643,9 @@ mod tests {
             provider: None,
             battery_level: Some(100), // Max valid
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(data.validate().is_ok());
     }
@@ -609,6 +665,9 @@ mod tests {
             provider: None,
             battery_level: None,
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(data.validate().is_err());
     }
@@ -628,6 +687,9 @@ mod tests {
             provider: None,
             battery_level: None,
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert!(data.validate().is_err());
     }

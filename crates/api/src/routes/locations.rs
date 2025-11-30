@@ -8,7 +8,7 @@ use chrono::{DateTime, TimeZone, Utc};
 use geo::{LineString, Simplify};
 use persistence::repositories::{
     DeviceRepository, IdempotencyKeyRepository, LocationHistoryQuery, LocationInput,
-    LocationRepository,
+    LocationRepository, TripRepository,
 };
 use std::collections::HashSet;
 use tracing::info;
@@ -82,6 +82,20 @@ pub async fn upload_location(
         .single()
         .ok_or_else(|| ApiError::Validation("Invalid timestamp".to_string()))?;
 
+    // Validate trip if provided
+    if let Some(trip_id) = request.trip_id {
+        let trip_repo = TripRepository::new(state.pool.clone());
+        let trip = trip_repo
+            .find_by_id(trip_id)
+            .await?
+            .ok_or_else(|| ApiError::NotFound("Trip not found".to_string()))?;
+
+        // Verify trip belongs to the same device
+        if trip.device_id != request.device_id {
+            return Err(ApiError::NotFound("Trip not found".to_string()));
+        }
+    }
+
     // Insert location
     let location_repo = LocationRepository::new(state.pool.clone());
     let input = LocationInput {
@@ -96,6 +110,9 @@ pub async fn upload_location(
         battery_level: request.battery_level,
         network_type: request.network_type.clone(),
         captured_at,
+        transportation_mode: request.transportation_mode.map(|m| m.as_str().to_string()),
+        detection_source: request.detection_source.map(|s| s.as_str().to_string()),
+        trip_id: request.trip_id,
     };
     location_repo.insert_location(input).await?;
 
@@ -203,6 +220,29 @@ pub async fn upload_batch(
         ));
     }
 
+    // Collect unique trip IDs from the batch for validation
+    let unique_trip_ids: std::collections::HashSet<Uuid> = request
+        .locations
+        .iter()
+        .filter_map(|loc| loc.trip_id)
+        .collect();
+
+    // Validate all referenced trips exist and belong to this device
+    if !unique_trip_ids.is_empty() {
+        let trip_repo = TripRepository::new(state.pool.clone());
+        for trip_id in &unique_trip_ids {
+            let trip = trip_repo
+                .find_by_id(*trip_id)
+                .await?
+                .ok_or_else(|| ApiError::NotFound(format!("Trip {} not found", trip_id)))?;
+
+            // Verify trip belongs to the same device
+            if trip.device_id != request.device_id {
+                return Err(ApiError::NotFound(format!("Trip {} not found", trip_id)));
+            }
+        }
+    }
+
     // Convert locations to repository format
     let mut locations_data = Vec::with_capacity(request.locations.len());
     for loc in &request.locations {
@@ -223,6 +263,9 @@ pub async fn upload_batch(
             battery_level: loc.battery_level,
             network_type: loc.network_type.clone(),
             captured_at,
+            transportation_mode: loc.transportation_mode.map(|m| m.as_str().to_string()),
+            detection_source: loc.detection_source.map(|s| s.as_str().to_string()),
+            trip_id: loc.trip_id,
         });
     }
 
@@ -639,6 +682,9 @@ mod tests {
             provider: Some("fused".to_string()),
             battery_level: Some(75),
             network_type: Some("5g".to_string()),
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         assert_eq!(data.latitude, 40.7128);
         assert_eq!(data.provider, Some("fused".to_string()));
@@ -657,6 +703,9 @@ mod tests {
             provider: None,
             battery_level: None,
             network_type: None,
+            transportation_mode: None,
+            detection_source: None,
+            trip_id: None,
         };
         let json = serde_json::to_string(&data).unwrap();
         assert!(json.contains("\"latitude\":45"));
