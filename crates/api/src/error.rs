@@ -24,8 +24,8 @@ pub enum ApiError {
     #[error("Validation error: {0}")]
     Validation(String),
 
-    #[error("Rate limited")]
-    RateLimited,
+    #[error("Rate limited: {0}")]
+    RateLimited(String),
 
     #[error("Payload too large: {0}")]
     PayloadTooLarge(String),
@@ -69,11 +69,11 @@ impl IntoResponse for ApiError {
             ApiError::Validation(msg) => {
                 (StatusCode::BAD_REQUEST, "validation_error", msg.clone(), None)
             }
-            ApiError::RateLimited => (
+            ApiError::RateLimited(msg) => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "rate_limited",
-                "Too many requests. Please try again later.".into(),
-                Some((header::RETRY_AFTER, "60")), // Retry after 60 seconds
+                msg.clone(),
+                Some((header::RETRY_AFTER, "3600")), // Retry after 1 hour
             ),
             ApiError::PayloadTooLarge(msg) => (
                 StatusCode::PAYLOAD_TOO_LARGE,
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_api_error_rate_limited() {
-        let error = ApiError::RateLimited;
+        let error = ApiError::RateLimited("Too many requests".to_string());
         let response = error.into_response();
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
     }
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_api_error_rate_limited_has_retry_after() {
-        let error = ApiError::RateLimited;
+        let error = ApiError::RateLimited("Rate limit exceeded".to_string());
         let response = error.into_response();
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert!(response.headers().contains_key(header::RETRY_AFTER));
@@ -277,7 +277,10 @@ mod tests {
             format!("{}", ApiError::Validation("test".to_string())),
             "Validation error: test"
         );
-        assert_eq!(format!("{}", ApiError::RateLimited), "Rate limited");
+        assert_eq!(
+            format!("{}", ApiError::RateLimited("test".to_string())),
+            "Rate limited: test"
+        );
         assert_eq!(
             format!("{}", ApiError::PayloadTooLarge("test".to_string())),
             "Payload too large: test"

@@ -550,7 +550,7 @@ pub async fn trigger_path_correction(
         )));
     }
 
-    // Check if correction already exists
+    // Check if correction already exists and enforce rate limiting (1 request per trip per hour)
     let correction_repo = TripPathCorrectionRepository::new(state.pool.clone());
     if let Some(existing) = correction_repo.find_by_trip_id(trip_id).await? {
         let status = existing
@@ -558,8 +558,27 @@ pub async fn trigger_path_correction(
             .parse::<CorrectionStatus>()
             .unwrap_or(CorrectionStatus::Pending);
 
+        // Rate limit: reject if correction was attempted within the last hour
+        let cooldown_period = chrono::Duration::hours(1);
+        let time_since_update = chrono::Utc::now() - existing.updated_at;
+
+        if time_since_update < cooldown_period {
+            let remaining_secs = (cooldown_period - time_since_update).num_seconds();
+            warn!(
+                trip_id = %trip_id,
+                status = %status,
+                remaining_secs = remaining_secs,
+                "Path correction rate limited - must wait before retry"
+            );
+            return Err(ApiError::RateLimited(format!(
+                "Path correction for this trip was attempted recently. Please wait {} seconds before retrying.",
+                remaining_secs
+            )));
+        }
+
         match status {
             CorrectionStatus::Pending => {
+                // Even if outside cooldown, pending means still in progress
                 return Err(ApiError::Conflict(
                     "Path correction is already in progress".to_string(),
                 ));
@@ -1134,9 +1153,7 @@ mod tests {
 
     #[test]
     fn test_get_trip_movement_events_response_serialization() {
-        use domain::models::movement_event::{
-            GetTripMovementEventsResponse, MovementEventResponse,
-        };
+        use domain::models::movement_event::GetTripMovementEventsResponse;
 
         let response = GetTripMovementEventsResponse {
             events: vec![],
