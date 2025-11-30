@@ -1,16 +1,51 @@
 //! Movement event endpoint handlers.
 
-use axum::{extract::State, http::StatusCode, Json};
-use persistence::repositories::{DeviceRepository, MovementEventInput, MovementEventRepository};
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+    Json,
+};
+use persistence::repositories::{
+    DeviceRepository, MovementEventInput, MovementEventQuery, MovementEventRepository,
+};
+use serde::Deserialize;
 use tracing::info;
+use uuid::Uuid;
 use validator::Validate;
 
 use crate::app::AppState;
 use crate::error::ApiError;
 use domain::models::movement_event::{
     BatchMovementEventRequest, BatchMovementEventResponse, CreateMovementEventRequest,
-    CreateMovementEventResponse,
+    CreateMovementEventResponse, DetectionSource, GetMovementEventsResponse,
+    MovementEventPagination, MovementEventResponse, TransportationMode,
 };
+
+/// Query parameters for GET /api/v1/devices/:deviceId/movement-events
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetMovementEventsQuery {
+    /// Pagination cursor (format: "timestamp_id")
+    pub cursor: Option<String>,
+    /// Number of results (1-100, default 50)
+    #[serde(default = "default_limit")]
+    pub limit: i32,
+    /// Start timestamp filter (milliseconds)
+    pub from: Option<i64>,
+    /// End timestamp filter (milliseconds)
+    pub to: Option<i64>,
+    /// Sort order (asc or desc, default desc)
+    #[serde(default = "default_order")]
+    pub order: String,
+}
+
+fn default_limit() -> i32 {
+    50
+}
+
+fn default_order() -> String {
+    "desc".to_string()
+}
 
 /// Create a single movement event.
 ///
@@ -170,6 +205,130 @@ pub async fn create_movement_events_batch(
     ))
 }
 
+/// Get movement events for a device with pagination.
+///
+/// GET /api/v1/devices/:deviceId/movement-events
+pub async fn get_device_movement_events(
+    State(state): State<AppState>,
+    Path(device_id): Path<Uuid>,
+    Query(query): Query<GetMovementEventsQuery>,
+) -> Result<Json<GetMovementEventsResponse>, ApiError> {
+    // Validate limit
+    let limit = query.limit.clamp(1, 100);
+
+    // Validate order
+    let ascending = match query.order.to_lowercase().as_str() {
+        "asc" => true,
+        "desc" => false,
+        _ => {
+            return Err(ApiError::Validation(
+                "order must be 'asc' or 'desc'".to_string(),
+            ))
+        }
+    };
+
+    // Verify device exists and is active
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    if !device.active {
+        return Err(ApiError::NotFound("Device not found".to_string()));
+    }
+
+    // Parse cursor if provided
+    let (cursor_timestamp, cursor_id) = if let Some(cursor) = &query.cursor {
+        parse_cursor(cursor)?
+    } else {
+        (None, None)
+    };
+
+    // Build repository query
+    let repo_query = MovementEventQuery {
+        device_id,
+        cursor_timestamp,
+        cursor_id,
+        from_timestamp: query.from,
+        to_timestamp: query.to,
+        limit,
+        ascending,
+    };
+
+    // Fetch events
+    let event_repo = MovementEventRepository::new(state.pool.clone());
+    let (entities, has_more) = event_repo.get_events_by_device(repo_query).await?;
+
+    // Convert entities to response DTOs
+    let events: Vec<MovementEventResponse> = entities
+        .iter()
+        .map(|e| MovementEventResponse {
+            id: e.id,
+            trip_id: e.trip_id,
+            timestamp: e.timestamp,
+            latitude: e.latitude,
+            longitude: e.longitude,
+            accuracy: e.accuracy as f64,
+            speed: e.speed.map(|s| s as f64),
+            bearing: e.bearing.map(|b| b as f64),
+            altitude: e.altitude,
+            transportation_mode: e
+                .transportation_mode
+                .parse::<TransportationMode>()
+                .unwrap_or(TransportationMode::Unknown),
+            confidence: e.confidence as f64,
+            detection_source: e
+                .detection_source
+                .parse::<DetectionSource>()
+                .unwrap_or(DetectionSource::None),
+            created_at: e.created_at,
+        })
+        .collect();
+
+    // Build next cursor if there are more results
+    let next_cursor = if has_more && !events.is_empty() {
+        let last = events.last().unwrap();
+        Some(format!("{}_{}", last.timestamp, last.id))
+    } else {
+        None
+    };
+
+    info!(
+        device_id = %device_id,
+        event_count = events.len(),
+        has_more = has_more,
+        "Movement events retrieved"
+    );
+
+    Ok(Json(GetMovementEventsResponse {
+        events,
+        pagination: MovementEventPagination {
+            next_cursor,
+            has_more,
+        },
+    }))
+}
+
+/// Parse cursor string into timestamp and UUID components.
+fn parse_cursor(cursor: &str) -> Result<(Option<i64>, Option<Uuid>), ApiError> {
+    let parts: Vec<&str> = cursor.splitn(2, '_').collect();
+    if parts.len() != 2 {
+        return Err(ApiError::Validation(
+            "Invalid cursor format. Expected 'timestamp_uuid'".to_string(),
+        ));
+    }
+
+    let timestamp = parts[0]
+        .parse::<i64>()
+        .map_err(|_| ApiError::Validation("Invalid cursor timestamp".to_string()))?;
+
+    let id = Uuid::parse_str(parts[1])
+        .map_err(|_| ApiError::Validation("Invalid cursor UUID".to_string()))?;
+
+    Ok((Some(timestamp), Some(id)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,5 +448,78 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"success\":true"));
         assert!(json.contains("\"processedCount\":5"));
+    }
+
+    #[test]
+    fn test_get_events_query_defaults() {
+        let json = r#"{}"#;
+        let query: GetMovementEventsQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.limit, 50);
+        assert_eq!(query.order, "desc");
+        assert!(query.cursor.is_none());
+        assert!(query.from.is_none());
+        assert!(query.to.is_none());
+    }
+
+    #[test]
+    fn test_get_events_query_with_params() {
+        let json = r#"{
+            "cursor": "1234567890000_550e8400-e29b-41d4-a716-446655440000",
+            "limit": 25,
+            "from": 1234567800000,
+            "to": 1234567900000,
+            "order": "asc"
+        }"#;
+        let query: GetMovementEventsQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.limit, 25);
+        assert_eq!(query.order, "asc");
+        assert!(query.cursor.is_some());
+        assert_eq!(query.from, Some(1234567800000));
+        assert_eq!(query.to, Some(1234567900000));
+    }
+
+    #[test]
+    fn test_parse_cursor_valid() {
+        let cursor = "1234567890000_550e8400-e29b-41d4-a716-446655440000";
+        let (ts, id) = parse_cursor(cursor).unwrap();
+        assert_eq!(ts, Some(1234567890000));
+        assert_eq!(
+            id,
+            Some(Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap())
+        );
+    }
+
+    #[test]
+    fn test_parse_cursor_invalid_format() {
+        let result = parse_cursor("invalid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_cursor_invalid_timestamp() {
+        let result = parse_cursor("abc_550e8400-e29b-41d4-a716-446655440000");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_cursor_invalid_uuid() {
+        let result = parse_cursor("1234567890000_invalid-uuid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_events_response_serialization() {
+        let response = GetMovementEventsResponse {
+            events: vec![],
+            pagination: MovementEventPagination {
+                next_cursor: Some("1234567890000_550e8400-e29b-41d4-a716-446655440000".to_string()),
+                has_more: true,
+            },
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"events\":[]"));
+        assert!(json.contains("\"hasMore\":true"));
+        assert!(json.contains("\"nextCursor\""));
     }
 }

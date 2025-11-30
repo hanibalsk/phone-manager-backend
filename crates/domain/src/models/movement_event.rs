@@ -257,6 +257,23 @@ pub struct BatchMovementEventResponse {
     pub processed_count: usize,
 }
 
+/// Pagination info for movement events list response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MovementEventPagination {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    pub has_more: bool,
+}
+
+/// Response for GET /api/v1/devices/:deviceId/movement-events
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetMovementEventsResponse {
+    pub events: Vec<MovementEventResponse>,
+    pub pagination: MovementEventPagination,
+}
+
 /// Response payload for movement event retrieval.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
