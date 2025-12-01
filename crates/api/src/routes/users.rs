@@ -1,0 +1,292 @@
+//! User profile routes for viewing and updating user information.
+
+use axum::{extract::State, Json};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+use validator::Validate;
+
+use crate::app::AppState;
+use crate::error::ApiError;
+use crate::extractors::UserAuth;
+
+/// User profile response.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileResponse {
+    pub id: String,
+    pub email: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub email_verified: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Database row for user profile query.
+#[derive(Debug, sqlx::FromRow)]
+struct UserProfileRow {
+    id: Uuid,
+    email: String,
+    display_name: String,
+    avatar_url: Option<String>,
+    email_verified: bool,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+/// Get current user profile.
+///
+/// GET /api/v1/users/me
+///
+/// Requires JWT authentication.
+pub async fn get_current_user(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+) -> Result<Json<ProfileResponse>, ApiError> {
+    // Fetch user from database
+    let user: Option<UserProfileRow> = sqlx::query_as(
+        r#"
+        SELECT id, email, display_name, avatar_url, email_verified, created_at, updated_at
+        FROM users
+        WHERE id = $1 AND is_active = true
+        "#,
+    )
+    .bind(user_auth.user_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(ApiError::from)?;
+
+    let user = user.ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+
+    Ok(Json(ProfileResponse {
+        id: user.id.to_string(),
+        email: user.email,
+        display_name: user.display_name,
+        avatar_url: user.avatar_url,
+        email_verified: user.email_verified,
+        created_at: user.created_at.to_rfc3339(),
+        updated_at: user.updated_at.to_rfc3339(),
+    }))
+}
+
+/// Request body for updating user profile.
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateProfileRequest {
+    /// User's display name (1-100 characters)
+    #[validate(length(min = 1, max = 100, message = "Display name must be 1-100 characters"))]
+    pub display_name: Option<String>,
+
+    /// User's avatar URL (optional, must be valid URL if provided)
+    #[validate(url(message = "Invalid avatar URL format"))]
+    pub avatar_url: Option<String>,
+}
+
+/// Update current user profile.
+///
+/// PUT /api/v1/users/me
+///
+/// Requires JWT authentication.
+pub async fn update_current_user(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Json(request): Json<UpdateProfileRequest>,
+) -> Result<Json<ProfileResponse>, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    // Check if user exists
+    let user_exists: Option<(bool,)> =
+        sqlx::query_as("SELECT is_active FROM users WHERE id = $1")
+            .bind(user_auth.user_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(ApiError::from)?;
+
+    match user_exists {
+        Some((is_active,)) if !is_active => {
+            return Err(ApiError::Forbidden("User account is disabled".to_string()))
+        }
+        None => return Err(ApiError::NotFound("User not found".to_string())),
+        _ => {}
+    }
+
+    // Build dynamic update query based on provided fields
+    let now = Utc::now();
+
+    if request.display_name.is_none() && request.avatar_url.is_none() {
+        // No fields to update, just return current profile
+        return get_current_user(State(state), user_auth).await;
+    }
+
+    // Build update query
+    let mut query_parts = vec!["updated_at = $1".to_string()];
+    let mut param_idx = 2;
+
+    if request.display_name.is_some() {
+        query_parts.push(format!("display_name = ${}", param_idx));
+        param_idx += 1;
+    }
+
+    if request.avatar_url.is_some() {
+        query_parts.push(format!("avatar_url = ${}", param_idx));
+        param_idx += 1;
+    }
+
+    let query = format!(
+        "UPDATE users SET {} WHERE id = ${} RETURNING id, email, display_name, avatar_url, email_verified, created_at, updated_at",
+        query_parts.join(", "),
+        param_idx
+    );
+
+    // Execute query with dynamic binding
+    let user: UserProfileRow = match (&request.display_name, &request.avatar_url) {
+        (Some(display_name), Some(avatar_url)) => {
+            sqlx::query_as(&query)
+                .bind(now)
+                .bind(display_name)
+                .bind(avatar_url)
+                .bind(user_auth.user_id)
+                .fetch_one(&state.pool)
+                .await
+                .map_err(ApiError::from)?
+        }
+        (Some(display_name), None) => {
+            sqlx::query_as(&query)
+                .bind(now)
+                .bind(display_name)
+                .bind(user_auth.user_id)
+                .fetch_one(&state.pool)
+                .await
+                .map_err(ApiError::from)?
+        }
+        (None, Some(avatar_url)) => {
+            sqlx::query_as(&query)
+                .bind(now)
+                .bind(avatar_url)
+                .bind(user_auth.user_id)
+                .fetch_one(&state.pool)
+                .await
+                .map_err(ApiError::from)?
+        }
+        (None, None) => {
+            // Already handled above, but satisfy the match
+            unreachable!()
+        }
+    };
+
+    Ok(Json(ProfileResponse {
+        id: user.id.to_string(),
+        email: user.email,
+        display_name: user.display_name,
+        avatar_url: user.avatar_url,
+        email_verified: user.email_verified,
+        created_at: user.created_at.to_rfc3339(),
+        updated_at: user.updated_at.to_rfc3339(),
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_update_profile_request_validation() {
+        let request = UpdateProfileRequest {
+            display_name: Some("Test User".to_string()),
+            avatar_url: None,
+        };
+
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_update_profile_request_display_name_too_long() {
+        let request = UpdateProfileRequest {
+            display_name: Some("A".repeat(101)),
+            avatar_url: None,
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_profile_request_display_name_empty() {
+        let request = UpdateProfileRequest {
+            display_name: Some("".to_string()),
+            avatar_url: None,
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_profile_request_valid_avatar_url() {
+        let request = UpdateProfileRequest {
+            display_name: None,
+            avatar_url: Some("https://example.com/avatar.png".to_string()),
+        };
+
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_update_profile_request_invalid_avatar_url() {
+        let request = UpdateProfileRequest {
+            display_name: None,
+            avatar_url: Some("not-a-url".to_string()),
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_profile_request_empty() {
+        let request = UpdateProfileRequest {
+            display_name: None,
+            avatar_url: None,
+        };
+
+        // Empty request should be valid (no-op)
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_profile_response_serialization() {
+        let response = ProfileResponse {
+            id: "123e4567-e89b-12d3-a456-426614174000".to_string(),
+            email: "test@example.com".to_string(),
+            display_name: "Test User".to_string(),
+            avatar_url: Some("https://example.com/avatar.png".to_string()),
+            email_verified: true,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-02T00:00:00Z".to_string(),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("displayName"));
+        assert!(json.contains("avatarUrl"));
+        assert!(json.contains("emailVerified"));
+        assert!(json.contains("createdAt"));
+        assert!(json.contains("updatedAt"));
+    }
+
+    #[test]
+    fn test_profile_response_serialization_no_avatar() {
+        let response = ProfileResponse {
+            id: "123e4567-e89b-12d3-a456-426614174000".to_string(),
+            email: "test@example.com".to_string(),
+            display_name: "Test User".to_string(),
+            avatar_url: None,
+            email_verified: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-02T00:00:00Z".to_string(),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"avatarUrl\":null"));
+    }
+}

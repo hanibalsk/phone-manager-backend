@@ -1,6 +1,6 @@
 use axum::{
     middleware,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 use sqlx::PgPool;
@@ -20,7 +20,7 @@ use crate::middleware::{
 };
 use crate::routes::{
     admin, auth, devices, geofences, health, locations, movement_events, openapi, privacy,
-    proximity_alerts, trips, versioning,
+    proximity_alerts, trips, users, versioning,
 };
 use crate::services::map_matching::MapMatchingClient;
 
@@ -241,6 +241,12 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             post(auth::request_verification),
         );
 
+    // User profile routes (require JWT authentication)
+    // The UserAuth extractor handles JWT validation directly
+    let user_routes = Router::new()
+        .route("/api/v1/users/me", get(users::get_current_user))
+        .route("/api/v1/users/me", put(users::update_current_user));
+
     // Public routes (no authentication required)
     let public_routes = Router::new()
         .route("/api/health", get(health::health_check))
@@ -259,6 +265,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
     Router::new()
         .merge(public_routes)
         .merge(auth_routes)
+        .merge(user_routes)
         .merge(openapi_routes)
         .merge(protected_routes)
         .merge(admin_routes)

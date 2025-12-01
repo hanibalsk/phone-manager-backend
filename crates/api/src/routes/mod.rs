@@ -11,4 +11,5 @@ pub mod openapi;
 pub mod privacy;
 pub mod proximity_alerts;
 pub mod trips;
+pub mod users;
 pub mod versioning;
