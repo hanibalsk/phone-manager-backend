@@ -29,7 +29,7 @@ impl UserRepository {
         let timer = QueryTimer::new("find_user_by_id");
         let result = sqlx::query_as::<_, UserEntity>(
             r#"
-            SELECT id, email, password_hash, display_name, is_active, email_verified,
+            SELECT id, email, password_hash, display_name, avatar_url, is_active, email_verified,
                    created_at, updated_at, last_login_at
             FROM users
             WHERE id = $1
@@ -47,7 +47,7 @@ impl UserRepository {
         let timer = QueryTimer::new("find_user_by_email");
         let result = sqlx::query_as::<_, UserEntity>(
             r#"
-            SELECT id, email, password_hash, display_name, is_active, email_verified,
+            SELECT id, email, password_hash, display_name, avatar_url, is_active, email_verified,
                    created_at, updated_at, last_login_at
             FROM users
             WHERE email = $1
@@ -72,7 +72,7 @@ impl UserRepository {
             r#"
             INSERT INTO users (email, password_hash, display_name, is_active, email_verified)
             VALUES ($1, $2, $3, true, false)
-            RETURNING id, email, password_hash, display_name, is_active, email_verified,
+            RETURNING id, email, password_hash, display_name, avatar_url, is_active, email_verified,
                       created_at, updated_at, last_login_at
             "#,
         )

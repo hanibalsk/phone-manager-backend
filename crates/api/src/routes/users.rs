@@ -53,7 +53,7 @@ pub async fn get_current_user(
     // Fetch user from database
     let user: Option<UserProfileRow> = sqlx::query_as(
         r#"
-        SELECT id, email, display_name, avatar_url, email_verified, created_at, updated_at
+        SELECT id, email, COALESCE(display_name, '') as display_name, avatar_url, email_verified, created_at, updated_at
         FROM users
         WHERE id = $1 AND is_active = true
         "#,
@@ -143,7 +143,7 @@ pub async fn update_current_user(
     }
 
     let query = format!(
-        "UPDATE users SET {} WHERE id = ${} RETURNING id, email, display_name, avatar_url, email_verified, created_at, updated_at",
+        "UPDATE users SET {} WHERE id = ${} RETURNING id, email, COALESCE(display_name, '') as display_name, avatar_url, email_verified, created_at, updated_at",
         query_parts.join(", "),
         param_idx
     );

@@ -61,7 +61,7 @@ impl FromRequestParts<AppState> for UserAuth {
 
         // Create JWT config
         let jwt_config = UserAuthData::create_jwt_config(&state.config.jwt)
-            .map_err(|e| ApiError::Internal(e))?;
+            .map_err(ApiError::Internal)?;
 
         // Validate the token
         let auth_data = UserAuthData::validate(&jwt_config, token)

@@ -122,9 +122,7 @@ pub async fn optional_user_auth(
         .and_then(|v| v.to_str().ok());
 
     if let Some(header) = auth_header {
-        if header.starts_with("Bearer ") {
-            let token = &header[7..];
-
+        if let Some(token) = header.strip_prefix("Bearer ") {
             // Try to create JWT config and validate
             if let Ok(jwt_config) = UserAuth::create_jwt_config(&state.config.jwt) {
                 if let Ok(auth) = UserAuth::validate(&jwt_config, token) {

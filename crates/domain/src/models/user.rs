@@ -15,6 +15,7 @@ pub struct User {
     #[serde(skip_serializing)] // Never serialize password hash to API responses
     pub password_hash: Option<String>,
     pub display_name: Option<String>,
+    pub avatar_url: Option<String>,
     pub is_active: bool,
     pub email_verified: bool,
     pub created_at: DateTime<Utc>,
@@ -125,6 +126,7 @@ mod tests {
             email: "test@example.com".to_string(),
             password_hash: Some("hashed_password".to_string()),
             display_name: Some("Test User".to_string()),
+            avatar_url: Some("https://example.com/avatar.png".to_string()),
             is_active: true,
             email_verified: false,
             created_at: Utc::now(),
@@ -143,6 +145,7 @@ mod tests {
             email: "test@example.com".to_string(),
             password_hash: Some("secret_hash".to_string()),
             display_name: Some("Test User".to_string()),
+            avatar_url: None,
             is_active: true,
             email_verified: false,
             created_at: Utc::now(),

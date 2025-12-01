@@ -38,12 +38,12 @@
 
 ## Implementation Tasks
 
-- [ ] Create migration 018_device_user_binding.sql
-- [ ] Add owner_user_id column with FK to users
-- [ ] Add organization_id column (no FK yet - organizations table not created)
-- [ ] Add is_primary and linked_at columns
-- [ ] Add indexes
-- [ ] Run migration and verify
+- [x] Create migration 018_device_user_binding.sql
+- [x] Add owner_user_id column with FK to users
+- [x] Add organization_id column (no FK yet - organizations table not created)
+- [x] Add is_primary and linked_at columns
+- [x] Add indexes
+- [x] Run migration and verify
 
 ---
 
