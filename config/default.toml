@@ -107,3 +107,41 @@ refresh_token_expiry_secs = 2592000
 # Allows tokens to be accepted if they expired within this many seconds
 # This compensates for minor clock differences between client and server
 leeway_secs = 30
+
+[email]
+# Whether email sending is enabled (set to true in production)
+enabled = false
+
+# Email provider: console (development), smtp, sendgrid, or ses
+# console: Logs emails to console (default for development)
+# smtp: Uses SMTP server
+# sendgrid: Uses SendGrid API
+# ses: Uses AWS SES (future)
+provider = "console"
+
+# SMTP configuration (for smtp provider)
+# smtp_host = "smtp.example.com"
+# smtp_port = 587
+# smtp_username = ""
+# smtp_password = ""
+# smtp_use_tls = true
+
+# SendGrid API key (for sendgrid provider)
+# Set via PM__EMAIL__SENDGRID_API_KEY environment variable
+# sendgrid_api_key = ""
+
+# AWS SES region (for ses provider)
+# ses_region = "us-east-1"
+
+# Sender email address (From header)
+sender_email = "noreply@phonemanager.app"
+
+# Sender name (From header)
+sender_name = "Phone Manager"
+
+# Base URL for email links (e.g., verification, password reset)
+# Set via PM__EMAIL__BASE_URL environment variable
+base_url = ""
+
+# Email template style: html or plain
+template_style = "html"

@@ -8,8 +8,9 @@ use axum::{
 };
 use chrono::Utc;
 use domain::models::setting::{
-    GetSettingsResponse, ListLocksResponse, LockInfo, LockSettingRequest, LockSettingResponse,
-    LockerInfo, SettingCategory, SettingDataType, SettingDefinition, SettingValue,
+    BulkUpdateLocksRequest, BulkUpdateLocksResponse, GetSettingsResponse, ListLocksResponse,
+    LockInfo, LockSettingRequest, LockSettingResponse, LockUpdateResult, LockerInfo,
+    SettingCategory, SettingDataType, SettingDefinition, SettingValue, SkippedLockUpdate,
     UnlockSettingResponse, UpdateSettingRequest, UpdateSettingsRequest, UpdateSettingsResponse,
 };
 use persistence::repositories::{DeviceRepository, GroupRepository, SettingRepository};
@@ -651,6 +652,131 @@ pub async fn unlock_setting(
         is_locked: false,
         unlocked_by: user_auth.user_id,
         unlocked_at: Utc::now(),
+    }))
+}
+
+/// Bulk update locks for multiple settings.
+///
+/// PUT /api/v1/devices/:device_id/settings/locks
+///
+/// Requires JWT authentication.
+/// Only group admin or owner can bulk update locks.
+pub async fn bulk_update_locks(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(device_id): Path<Uuid>,
+    Json(request): Json<BulkUpdateLocksRequest>,
+) -> Result<Json<BulkUpdateLocksResponse>, ApiError> {
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let setting_repo = SettingRepository::new(state.pool.clone());
+    let group_repo = GroupRepository::new(state.pool.clone());
+
+    // Get the device
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Authorization check - only admin can update locks
+    let is_admin = check_is_admin(&group_repo, &device, user_auth.user_id).await?;
+
+    if !is_admin {
+        return Err(ApiError::Forbidden(
+            "Only admins can update setting locks".to_string(),
+        ));
+    }
+
+    // Get all setting definitions to check lockability
+    let definitions = setting_repo.get_all_definitions().await?;
+    let definitions_map: HashMap<String, _> = definitions
+        .into_iter()
+        .map(|d| (d.key.clone(), d))
+        .collect();
+
+    let mut updated: Vec<LockUpdateResult> = Vec::new();
+    let mut skipped: Vec<SkippedLockUpdate> = Vec::new();
+
+    for (key, should_lock) in request.locks {
+        // Check if setting exists
+        let def = match definitions_map.get(&key) {
+            Some(d) => d,
+            None => {
+                skipped.push(SkippedLockUpdate {
+                    key: key.clone(),
+                    reason: "Setting not found".to_string(),
+                });
+                continue;
+            }
+        };
+
+        // Check if setting is lockable
+        if !def.is_lockable {
+            skipped.push(SkippedLockUpdate {
+                key: key.clone(),
+                reason: "Setting is not lockable".to_string(),
+            });
+            continue;
+        }
+
+        if should_lock {
+            // Lock the setting
+            let result = setting_repo
+                .lock_setting(
+                    device_id,
+                    &key,
+                    user_auth.user_id,
+                    request.reason.as_deref(),
+                    None, // No value override for bulk operations
+                )
+                .await?;
+
+            updated.push(LockUpdateResult {
+                key: key.clone(),
+                is_locked: result.is_locked,
+                locked_at: result.locked_at,
+                unlocked_at: None,
+            });
+        } else {
+            // Unlock the setting
+            let result = setting_repo
+                .unlock_setting(device_id, &key, user_auth.user_id)
+                .await?;
+
+            if let Some(_) = result {
+                updated.push(LockUpdateResult {
+                    key: key.clone(),
+                    is_locked: false,
+                    locked_at: None,
+                    unlocked_at: Some(Utc::now()),
+                });
+            } else {
+                // Setting wasn't locked, still count as success (idempotent)
+                updated.push(LockUpdateResult {
+                    key: key.clone(),
+                    is_locked: false,
+                    locked_at: None,
+                    unlocked_at: Some(Utc::now()),
+                });
+            }
+        }
+    }
+
+    // Push notification support is deferred to Story 12.8
+    let notification_sent = false;
+
+    info!(
+        device_id = %device_id,
+        user_id = %user_auth.user_id,
+        updated_count = updated.len(),
+        skipped_count = skipped.len(),
+        notify_requested = request.notify_user,
+        "Bulk updated device setting locks"
+    );
+
+    Ok(Json(BulkUpdateLocksResponse {
+        updated,
+        skipped,
+        notification_sent,
     }))
 }
 

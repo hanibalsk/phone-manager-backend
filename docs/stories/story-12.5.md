@@ -1,7 +1,7 @@
 # Story 12.5: Bulk Lock Update Endpoint
 
 **Epic**: Epic 12 - Settings Control
-**Status**: In Progress
+**Status**: Done
 **Created**: 2025-12-01
 
 ---
@@ -38,12 +38,12 @@
 
 ## Implementation Tasks
 
-- [ ] Add bulk_update_locks method to SettingRepository
-- [ ] Create BulkUpdateLocksRequest DTO
-- [ ] Create BulkUpdateLocksResponse DTO
-- [ ] Add bulk_update_locks handler
-- [ ] Add route to app.rs
-- [ ] Add unit tests
+- [x] Add bulk_update_locks method to SettingRepository
+- [x] Create BulkUpdateLocksRequest DTO
+- [x] Create BulkUpdateLocksResponse DTO
+- [x] Add bulk_update_locks handler
+- [x] Add route to app.rs
+- [x] Add unit tests
 
 ## API Request Example
 
@@ -103,6 +103,13 @@
 
 ### Completion Notes
 
+- Added bulk_update_locks handler for updating multiple lock states at once
+- Processes map of setting keys to boolean lock states
+- Non-lockable and non-existent settings are skipped with reason
+- Uses existing lock/unlock repository methods
+- Idempotent unlock behavior (success even if not locked)
+- Push notification support deferred to Story 12.8
+- All tests pass (73+ unit tests across workspace)
 
 ---
 

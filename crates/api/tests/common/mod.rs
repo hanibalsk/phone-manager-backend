@@ -179,6 +179,21 @@ dwIDAQAB
             refresh_token_expiry_secs: 86400 * 30,
             leeway_secs: 30,
         },
+        email: phone_manager_api::config::EmailConfig {
+            enabled: false,
+            provider: "console".to_string(),
+            smtp_host: String::new(),
+            smtp_port: 587,
+            smtp_username: String::new(),
+            smtp_password: String::new(),
+            smtp_use_tls: true,
+            sendgrid_api_key: String::new(),
+            ses_region: String::new(),
+            sender_email: "test@example.com".to_string(),
+            sender_name: "Test".to_string(),
+            base_url: "https://test.example.com".to_string(),
+            template_style: "html".to_string(),
+        },
     }
 }
 

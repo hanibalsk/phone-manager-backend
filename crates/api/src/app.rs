@@ -264,7 +264,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/users/:user_id/devices/:device_id/transfer",
             post(users::transfer_device),
         )
-        // Device settings endpoints (Story 12.2, 12.3, 12.4)
+        // Device settings endpoints (Story 12.2, 12.3, 12.4, 12.5)
         .route(
             "/api/v1/devices/:device_id/settings",
             get(device_settings::get_device_settings)
@@ -272,7 +272,8 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         )
         .route(
             "/api/v1/devices/:device_id/settings/locks",
-            get(device_settings::get_setting_locks),
+            get(device_settings::get_setting_locks)
+                .put(device_settings::bulk_update_locks),
         )
         .route(
             "/api/v1/devices/:device_id/settings/:key",
