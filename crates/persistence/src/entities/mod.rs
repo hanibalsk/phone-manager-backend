@@ -10,6 +10,7 @@ pub mod idempotency_key;
 pub mod invite;
 pub mod location;
 pub mod movement_event;
+pub mod org_user;
 pub mod organization;
 pub mod proximity_alert;
 pub mod setting;
@@ -28,6 +29,7 @@ pub use idempotency_key::IdempotencyKeyEntity;
 pub use invite::{GroupInviteEntity, InviteWithCreatorEntity, InviteWithGroupEntity};
 pub use location::LocationEntity;
 pub use movement_event::MovementEventEntity;
+pub use org_user::{OrgUserEntity, OrgUserRoleDb, OrgUserWithDetailsEntity};
 pub use organization::{OrganizationEntity, OrganizationWithUsageEntity, PlanTypeDb};
 pub use proximity_alert::ProximityAlertEntity;
 pub use setting::{

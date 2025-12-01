@@ -10,8 +10,10 @@ use axum::{
     Json,
 };
 use domain::models::{
-    CreateOrganizationRequest, CreateOrganizationResponse, ListOrganizationsQuery,
-    ListOrganizationsResponse, OrganizationPagination, PlanType, UpdateOrganizationRequest,
+    AddOrgUserRequest, CreateOrganizationRequest, CreateOrganizationResponse, ListOrganizationsQuery,
+    ListOrganizationsResponse, ListOrgUsersQuery, ListOrgUsersResponse, OrgUserPagination,
+    OrgUserResponse, OrgUserRole, OrganizationPagination, PlanType, UpdateOrganizationRequest,
+    UpdateOrgUserRequest, validate_permissions,
 };
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -20,7 +22,7 @@ use validator::Validate;
 use crate::app::AppState;
 use crate::error::ApiError;
 use crate::extractors::api_key::ApiKeyAuth;
-use persistence::repositories::OrganizationRepository;
+use persistence::repositories::{OrgUserRepository, OrganizationRepository, UserRepository};
 
 /// POST /api/admin/v1/organizations
 ///
@@ -252,6 +254,249 @@ pub async fn get_organization_usage(
             );
             Err(ApiError::NotFound("Organization not found".to_string()))
         }
+    }
+}
+
+// =============================================================================
+// Organization Users Endpoints (Story 13.2)
+// =============================================================================
+
+/// POST /api/admin/v1/organizations/:org_id/users
+///
+/// Add a user to an organization.
+pub async fn add_org_user(
+    State(state): State<AppState>,
+    Extension(auth): Extension<ApiKeyAuth>,
+    Path(org_id): Path<Uuid>,
+    Json(request): Json<AddOrgUserRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Validate request
+    request.validate().map_err(|e| {
+        ApiError::Validation(format!("Validation error: {}", e))
+    })?;
+
+    // Validate permissions if provided
+    if let Some(ref perms) = request.permissions {
+        validate_permissions(perms).map_err(ApiError::Validation)?;
+    }
+
+    let org_repo = OrganizationRepository::new(state.pool.clone());
+    let user_repo = UserRepository::new(state.pool.clone());
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+
+    // Check if organization exists
+    let org = org_repo.find_by_id(org_id).await?;
+    if org.is_none() {
+        return Err(ApiError::NotFound("Organization not found".to_string()));
+    }
+
+    // Find user by email
+    let user = user_repo.find_by_email(&request.email).await?;
+    let user = match user {
+        Some(u) => u,
+        None => {
+            return Err(ApiError::NotFound(format!(
+                "User with email '{}' not found. Invite flow not implemented yet.",
+                request.email
+            )));
+        }
+    };
+
+    // Check if user is already in organization
+    if org_user_repo.exists(org_id, user.id).await? {
+        return Err(ApiError::Conflict(
+            "User is already a member of this organization".to_string(),
+        ));
+    }
+
+    // Use provided permissions or default for role
+    let permissions = request.permissions.unwrap_or_else(|| {
+        request.role.default_permissions()
+    });
+
+    // Create org user
+    let org_user = org_user_repo
+        .create(org_id, user.id, request.role, &permissions, None)
+        .await?;
+
+    info!(
+        admin_key_id = auth.api_key_id,
+        organization_id = %org_id,
+        user_id = %user.id,
+        role = %request.role,
+        "Added user to organization"
+    );
+
+    Ok((StatusCode::CREATED, Json(OrgUserResponse { org_user })))
+}
+
+/// GET /api/admin/v1/organizations/:org_id/users
+///
+/// List organization users.
+pub async fn list_org_users(
+    State(state): State<AppState>,
+    Extension(auth): Extension<ApiKeyAuth>,
+    Path(org_id): Path<Uuid>,
+    Query(query): Query<ListOrgUsersQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    let org_repo = OrganizationRepository::new(state.pool.clone());
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+
+    // Check if organization exists
+    if org_repo.find_by_id(org_id).await?.is_none() {
+        return Err(ApiError::NotFound("Organization not found".to_string()));
+    }
+
+    let page = query.page.unwrap_or(1).max(1);
+    let per_page = query.per_page.unwrap_or(50).clamp(1, 100);
+
+    let (org_users, total) = org_user_repo.list(org_id, &query).await?;
+
+    let total_pages = ((total as f64) / (per_page as f64)).ceil() as i32;
+
+    info!(
+        admin_key_id = auth.api_key_id,
+        organization_id = %org_id,
+        count = org_users.len(),
+        total = total,
+        "Listed organization users"
+    );
+
+    Ok(Json(ListOrgUsersResponse {
+        data: org_users,
+        pagination: OrgUserPagination {
+            page,
+            per_page,
+            total,
+            total_pages,
+        },
+    }))
+}
+
+/// PUT /api/admin/v1/organizations/:org_id/users/:user_id
+///
+/// Update organization user role/permissions.
+pub async fn update_org_user(
+    State(state): State<AppState>,
+    Extension(auth): Extension<ApiKeyAuth>,
+    Path((org_id, user_id)): Path<(Uuid, Uuid)>,
+    Json(request): Json<UpdateOrgUserRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Validate request
+    request.validate().map_err(|e| {
+        ApiError::Validation(format!("Validation error: {}", e))
+    })?;
+
+    // Validate permissions if provided
+    if let Some(ref perms) = request.permissions {
+        validate_permissions(perms).map_err(ApiError::Validation)?;
+    }
+
+    let org_repo = OrganizationRepository::new(state.pool.clone());
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+
+    // Check if organization exists
+    if org_repo.find_by_id(org_id).await?.is_none() {
+        return Err(ApiError::NotFound("Organization not found".to_string()));
+    }
+
+    // Check if user is in organization
+    let existing = org_user_repo.find_by_org_and_user(org_id, user_id).await?;
+    let existing = match existing {
+        Some(e) => e,
+        None => {
+            return Err(ApiError::NotFound(
+                "User is not a member of this organization".to_string(),
+            ));
+        }
+    };
+
+    // Check if trying to demote the last owner
+    if existing.role == OrgUserRole::Owner {
+        if let Some(new_role) = request.role {
+            if new_role != OrgUserRole::Owner {
+                let owner_count = org_user_repo.count_owners(org_id).await?;
+                if owner_count <= 1 {
+                    return Err(ApiError::Validation(
+                        "Cannot demote the last owner of the organization".to_string(),
+                    ));
+                }
+            }
+        }
+    }
+
+    // Update org user
+    let org_user = org_user_repo
+        .update(org_id, user_id, request.role, request.permissions.as_deref())
+        .await?;
+
+    match org_user {
+        Some(user) => {
+            info!(
+                admin_key_id = auth.api_key_id,
+                organization_id = %org_id,
+                user_id = %user_id,
+                "Updated organization user"
+            );
+            Ok(Json(OrgUserResponse { org_user: user }))
+        }
+        None => Err(ApiError::NotFound(
+            "User is not a member of this organization".to_string(),
+        )),
+    }
+}
+
+/// DELETE /api/admin/v1/organizations/:org_id/users/:user_id
+///
+/// Remove user from organization.
+pub async fn remove_org_user(
+    State(state): State<AppState>,
+    Extension(auth): Extension<ApiKeyAuth>,
+    Path((org_id, user_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, ApiError> {
+    let org_repo = OrganizationRepository::new(state.pool.clone());
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+
+    // Check if organization exists
+    if org_repo.find_by_id(org_id).await?.is_none() {
+        return Err(ApiError::NotFound("Organization not found".to_string()));
+    }
+
+    // Check if user is in organization
+    let existing = org_user_repo.find_by_org_and_user(org_id, user_id).await?;
+    let existing = match existing {
+        Some(e) => e,
+        None => {
+            return Err(ApiError::NotFound(
+                "User is not a member of this organization".to_string(),
+            ));
+        }
+    };
+
+    // Cannot remove the last owner
+    if existing.role == OrgUserRole::Owner {
+        let owner_count = org_user_repo.count_owners(org_id).await?;
+        if owner_count <= 1 {
+            return Err(ApiError::Validation(
+                "Cannot remove the last owner of the organization".to_string(),
+            ));
+        }
+    }
+
+    let deleted = org_user_repo.delete(org_id, user_id).await?;
+
+    if deleted {
+        info!(
+            admin_key_id = auth.api_key_id,
+            organization_id = %org_id,
+            user_id = %user_id,
+            "Removed user from organization"
+        );
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound(
+            "User is not a member of this organization".to_string(),
+        ))
     }
 }
 

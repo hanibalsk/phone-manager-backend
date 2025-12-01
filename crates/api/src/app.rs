@@ -223,6 +223,17 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/admin/v1/organizations/:org_id/usage",
             get(organizations::get_organization_usage),
         )
+        // Organization user management routes (Story 13.2)
+        .route(
+            "/api/admin/v1/organizations/:org_id/users",
+            post(organizations::add_org_user)
+                .get(organizations::list_org_users),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/users/:user_id",
+            put(organizations::update_org_user)
+                .delete(organizations::remove_org_user),
+        )
         // Rate limiting for admin routes (separate, higher limit could be configured)
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

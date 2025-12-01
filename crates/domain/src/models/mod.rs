@@ -6,6 +6,7 @@ pub mod group;
 pub mod invite;
 pub mod location;
 pub mod movement_event;
+pub mod org_user;
 pub mod organization;
 pub mod proximity_alert;
 pub mod setting;
@@ -20,6 +21,11 @@ pub use group::{Group, GroupMembership, GroupRole};
 pub use invite::GroupInvite;
 pub use location::Location;
 pub use movement_event::MovementEvent;
+pub use org_user::{
+    AddOrgUserRequest, ListOrgUsersQuery, ListOrgUsersResponse, OrgUser, OrgUserInfo,
+    OrgUserPagination, OrgUserResponse, OrgUserRole, OrgUserWithDetails, UpdateOrgUserRequest,
+    PERMISSIONS, validate_permissions,
+};
 pub use organization::{
     CreateOrganizationRequest, CreateOrganizationResponse, DeviceStatusCounts, DeviceUsageMetric,
     ListOrganizationsQuery, ListOrganizationsResponse, Organization, OrganizationPagination,
