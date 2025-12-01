@@ -405,6 +405,70 @@ pub async fn list_user_devices(
     }))
 }
 
+/// Response for unlink device operation.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlinkDeviceResponse {
+    pub device_uuid: String,
+    pub unlinked: bool,
+}
+
+/// Unlink a device from the authenticated user.
+///
+/// DELETE /api/v1/users/:user_id/devices/:device_id/unlink
+///
+/// Requires JWT authentication. User can only unlink their own devices.
+pub async fn unlink_device(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(path): Path<DeviceBindingPath>,
+) -> Result<Json<UnlinkDeviceResponse>, ApiError> {
+    // Check that user is unlinking from themselves
+    if path.user_id != user_auth.user_id {
+        return Err(ApiError::Forbidden(
+            "You can only unlink devices from your own account".to_string(),
+        ));
+    }
+
+    let repo = DeviceRepository::new(state.pool.clone());
+
+    // Check if device exists and is owned by the user
+    let existing_device = repo.find_by_device_id(path.device_id).await?;
+    let device = existing_device
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Check if device is owned by the user
+    match device.owner_user_id {
+        Some(owner_id) if owner_id == user_auth.user_id => {
+            // User owns this device, proceed with unlink
+        }
+        Some(_) => {
+            return Err(ApiError::Forbidden(
+                "Device is owned by another user".to_string(),
+            ));
+        }
+        None => {
+            return Err(ApiError::Forbidden(
+                "Device is not linked to any user".to_string(),
+            ));
+        }
+    }
+
+    // Unlink the device
+    repo.unlink_device(path.device_id).await?;
+
+    info!(
+        device_id = %path.device_id,
+        user_id = %user_auth.user_id,
+        "Device unlinked from user"
+    );
+
+    Ok(Json(UnlinkDeviceResponse {
+        device_uuid: path.device_id.to_string(),
+        unlinked: true,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
