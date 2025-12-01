@@ -3,6 +3,7 @@
 //! Entities are direct mappings to database rows.
 
 pub mod api_key;
+pub mod audit_export_job;
 pub mod audit_log;
 pub mod device;
 pub mod device_command;
@@ -25,6 +26,7 @@ pub mod unlock_request;
 pub mod user;
 
 pub use api_key::ApiKeyEntity;
+pub use audit_export_job::AuditExportJobEntity;
 pub use audit_log::AuditLogEntity;
 pub use device::{DeviceEntity, DeviceWithLastLocationEntity};
 pub use device_command::DeviceCommandEntity;

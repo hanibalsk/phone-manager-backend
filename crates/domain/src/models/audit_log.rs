@@ -499,6 +499,134 @@ pub struct ListAuditLogsResponse {
     pub pagination: AuditLogPagination,
 }
 
+/// Export format options.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ExportFormat {
+    #[default]
+    Json,
+    Csv,
+}
+
+impl FromStr for ExportFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "json" => Ok(ExportFormat::Json),
+            "csv" => Ok(ExportFormat::Csv),
+            _ => Err(format!("Unknown export format: {}", s)),
+        }
+    }
+}
+
+/// Query parameters for exporting audit logs.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportAuditLogsQuery {
+    pub format: Option<ExportFormat>,
+    pub actor_id: Option<Uuid>,
+    pub action: Option<String>,
+    pub resource_type: Option<String>,
+    pub resource_id: Option<String>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+}
+
+impl ExportAuditLogsQuery {
+    /// Convert to list query for reuse.
+    pub fn to_list_query(&self) -> ListAuditLogsQuery {
+        ListAuditLogsQuery {
+            page: None,
+            per_page: None,
+            actor_id: self.actor_id,
+            action: self.action.clone(),
+            resource_type: self.resource_type.clone(),
+            resource_id: self.resource_id.clone(),
+            from: self.from,
+            to: self.to,
+        }
+    }
+}
+
+/// Export job status.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExportJobStatus {
+    Pending,
+    Processing,
+    Completed,
+    Failed,
+    Expired,
+}
+
+impl std::fmt::Display for ExportJobStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExportJobStatus::Pending => write!(f, "pending"),
+            ExportJobStatus::Processing => write!(f, "processing"),
+            ExportJobStatus::Completed => write!(f, "completed"),
+            ExportJobStatus::Failed => write!(f, "failed"),
+            ExportJobStatus::Expired => write!(f, "expired"),
+        }
+    }
+}
+
+impl FromStr for ExportJobStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "pending" => Ok(ExportJobStatus::Pending),
+            "processing" => Ok(ExportJobStatus::Processing),
+            "completed" => Ok(ExportJobStatus::Completed),
+            "failed" => Ok(ExportJobStatus::Failed),
+            "expired" => Ok(ExportJobStatus::Expired),
+            _ => Err(format!("Unknown export job status: {}", s)),
+        }
+    }
+}
+
+/// Sync export response (for small datasets).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncExportResponse {
+    pub format: ExportFormat,
+    pub record_count: i64,
+    pub download_url: String,
+}
+
+/// Async export response (for large datasets).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AsyncExportResponse {
+    pub job_id: String,
+    pub status: ExportJobStatus,
+    pub estimated_records: i64,
+    pub check_url: String,
+}
+
+/// Export job status response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportJobResponse {
+    pub job_id: String,
+    pub status: ExportJobStatus,
+    pub record_count: Option<i64>,
+    pub download_url: Option<String>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub error: Option<String>,
+}
+
+/// Maximum records for sync export.
+pub const MAX_SYNC_EXPORT_RECORDS: i64 = 1000;
+
+/// Maximum records for any export.
+pub const MAX_EXPORT_RECORDS: i64 = 10000;
+
+/// Export job expiry in hours.
+pub const EXPORT_JOB_EXPIRY_HOURS: i64 = 24;
+
 #[cfg(test)]
 mod tests {
     use super::*;

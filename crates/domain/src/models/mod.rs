@@ -78,9 +78,10 @@ pub use fleet::{
     UnassignDeviceResponse,
 };
 pub use audit_log::{
-    ActorType, AuditAction, AuditActor, AuditLog, AuditLogPagination, AuditMetadata,
-    AuditResource, CreateAuditLogInput, FieldChange, ListAuditLogsQuery, ListAuditLogsResponse,
-    ResourceType,
+    ActorType, AsyncExportResponse, AuditAction, AuditActor, AuditLog, AuditLogPagination, AuditMetadata,
+    AuditResource, CreateAuditLogInput, ExportAuditLogsQuery, ExportFormat, ExportJobResponse,
+    ExportJobStatus, FieldChange, ListAuditLogsQuery, ListAuditLogsResponse, ResourceType,
+    SyncExportResponse, MAX_EXPORT_RECORDS, MAX_SYNC_EXPORT_RECORDS, EXPORT_JOB_EXPIRY_HOURS,
 };
 pub use bulk_import::{
     BulkDeviceImportRequest, BulkDeviceImportResponse, BulkDeviceInput, BulkDeviceItem,
