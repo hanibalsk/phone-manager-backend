@@ -19,6 +19,11 @@ pub struct Device {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub last_seen_at: Option<DateTime<Utc>>,
+    // User binding fields
+    pub owner_user_id: Option<Uuid>,
+    pub organization_id: Option<Uuid>,
+    pub is_primary: bool,
+    pub linked_at: Option<DateTime<Utc>>,
 }
 
 /// Request payload for device registration.
@@ -138,6 +143,10 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             last_seen_at: Some(Utc::now()),
+            owner_user_id: None,
+            organization_id: None,
+            is_primary: false,
+            linked_at: None,
         }
     }
 

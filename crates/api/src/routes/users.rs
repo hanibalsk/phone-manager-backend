@@ -1,8 +1,14 @@
 //! User profile routes for viewing and updating user information.
+//! Also includes device binding endpoints for linking/unlinking devices to users.
 
-use axum::{extract::State, Json};
+use axum::{
+    extract::{Path, State},
+    Json,
+};
 use chrono::{DateTime, Utc};
+use persistence::repositories::DeviceRepository;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -186,6 +192,123 @@ pub async fn update_current_user(
         email_verified: user.email_verified,
         created_at: user.created_at.to_rfc3339(),
         updated_at: user.updated_at.to_rfc3339(),
+    }))
+}
+
+// ============================================================================
+// Device Binding Endpoints
+// ============================================================================
+
+/// Path parameters for device binding endpoints.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceBindingPath {
+    pub user_id: Uuid,
+    pub device_id: Uuid,
+}
+
+/// Request body for linking a device to a user.
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkDeviceRequest {
+    /// Override device display name (optional)
+    #[validate(length(min = 1, max = 50, message = "Display name must be 1-50 characters"))]
+    pub display_name: Option<String>,
+
+    /// Set as primary device
+    #[serde(default)]
+    pub is_primary: bool,
+}
+
+/// Response for device binding operations.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedDeviceResponse {
+    pub device: DeviceInfo,
+    pub linked: bool,
+}
+
+/// Device information in responses.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceInfo {
+    pub id: i64,
+    pub device_uuid: String,
+    pub display_name: String,
+    pub owner_user_id: String,
+    pub is_primary: bool,
+    pub linked_at: String,
+}
+
+/// Link a device to the authenticated user.
+///
+/// POST /api/v1/users/:user_id/devices/:device_id/link
+///
+/// Requires JWT authentication. User can only link to themselves.
+pub async fn link_device(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(path): Path<DeviceBindingPath>,
+    Json(request): Json<LinkDeviceRequest>,
+) -> Result<Json<LinkedDeviceResponse>, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    // Check that user is linking to themselves
+    if path.user_id != user_auth.user_id {
+        return Err(ApiError::Forbidden(
+            "You can only link devices to your own account".to_string(),
+        ));
+    }
+
+    let repo = DeviceRepository::new(state.pool.clone());
+
+    // Check if device exists
+    let existing_device = repo.find_by_device_id(path.device_id).await?;
+    let device = existing_device
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Check if device is already linked to another user
+    if let Some(owner_id) = device.owner_user_id {
+        if owner_id != user_auth.user_id {
+            return Err(ApiError::Conflict(
+                "Device is already linked to another user".to_string(),
+            ));
+        }
+    }
+
+    // Link the device
+    let updated_device = repo
+        .link_device_to_user(
+            path.device_id,
+            user_auth.user_id,
+            request.display_name.as_deref(),
+            request.is_primary,
+        )
+        .await?;
+
+    info!(
+        device_id = %path.device_id,
+        user_id = %user_auth.user_id,
+        is_primary = request.is_primary,
+        "Device linked to user"
+    );
+
+    Ok(Json(LinkedDeviceResponse {
+        device: DeviceInfo {
+            id: updated_device.id,
+            device_uuid: updated_device.device_id.to_string(),
+            display_name: updated_device.display_name,
+            owner_user_id: user_auth.user_id.to_string(),
+            is_primary: updated_device.is_primary,
+            linked_at: updated_device
+                .linked_at
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_default(),
+        },
+        linked: true,
     }))
 }
 

@@ -245,7 +245,12 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
     // The UserAuth extractor handles JWT validation directly
     let user_routes = Router::new()
         .route("/api/v1/users/me", get(users::get_current_user))
-        .route("/api/v1/users/me", put(users::update_current_user));
+        .route("/api/v1/users/me", put(users::update_current_user))
+        // Device binding endpoints
+        .route(
+            "/api/v1/users/:user_id/devices/:device_id/link",
+            post(users::link_device),
+        );
 
     // Public routes (no authentication required)
     let public_routes = Router::new()

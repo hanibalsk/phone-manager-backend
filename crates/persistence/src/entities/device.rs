@@ -17,6 +17,11 @@ pub struct DeviceEntity {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub last_seen_at: Option<DateTime<Utc>>,
+    // User binding fields (from migration 018)
+    pub owner_user_id: Option<Uuid>,
+    pub organization_id: Option<Uuid>,
+    pub is_primary: bool,
+    pub linked_at: Option<DateTime<Utc>>,
 }
 
 impl From<DeviceEntity> for domain::models::Device {
@@ -32,6 +37,10 @@ impl From<DeviceEntity> for domain::models::Device {
             created_at: entity.created_at,
             updated_at: entity.updated_at,
             last_seen_at: entity.last_seen_at,
+            owner_user_id: entity.owner_user_id,
+            organization_id: entity.organization_id,
+            is_primary: entity.is_primary,
+            linked_at: entity.linked_at,
         }
     }
 }
@@ -71,6 +80,10 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             last_seen_at: Some(Utc::now()),
+            owner_user_id: None,
+            organization_id: None,
+            is_primary: false,
+            linked_at: None,
         }
     }
 

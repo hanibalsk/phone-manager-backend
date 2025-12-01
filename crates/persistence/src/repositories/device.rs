@@ -33,7 +33,8 @@ impl DeviceRepository {
         let result = sqlx::query_as::<_, DeviceEntity>(
             r#"
             SELECT id, device_id, display_name, group_id, platform, fcm_token,
-                   active, created_at, updated_at, last_seen_at
+                   active, created_at, updated_at, last_seen_at,
+                   owner_user_id, organization_id, is_primary, linked_at
             FROM devices
             WHERE device_id = $1
             "#,
@@ -77,8 +78,8 @@ impl DeviceRepository {
 
         let result = sqlx::query_as::<_, DeviceEntity>(
             r#"
-            INSERT INTO devices (device_id, display_name, group_id, platform, fcm_token, active, created_at, updated_at, last_seen_at)
-            VALUES ($1, $2, $3, $4, $5, true, $6, $6, $6)
+            INSERT INTO devices (device_id, display_name, group_id, platform, fcm_token, active, created_at, updated_at, last_seen_at, is_primary)
+            VALUES ($1, $2, $3, $4, $5, true, $6, $6, $6, false)
             ON CONFLICT (device_id) DO UPDATE SET
                 display_name = EXCLUDED.display_name,
                 group_id = EXCLUDED.group_id,
@@ -87,7 +88,8 @@ impl DeviceRepository {
                 active = true,
                 updated_at = EXCLUDED.updated_at,
                 last_seen_at = EXCLUDED.last_seen_at
-            RETURNING id, device_id, display_name, group_id, platform, fcm_token, active, created_at, updated_at, last_seen_at
+            RETURNING id, device_id, display_name, group_id, platform, fcm_token, active, created_at, updated_at, last_seen_at,
+                      owner_user_id, organization_id, is_primary, linked_at
             "#,
         )
         .bind(device_id)
@@ -130,7 +132,8 @@ impl DeviceRepository {
         let result = sqlx::query_as::<_, DeviceEntity>(
             r#"
             SELECT id, device_id, display_name, group_id, platform, fcm_token,
-                   active, created_at, updated_at, last_seen_at
+                   active, created_at, updated_at, last_seen_at,
+                   owner_user_id, organization_id, is_primary, linked_at
             FROM devices
             WHERE group_id = $1 AND active = true
             ORDER BY display_name ASC
@@ -234,6 +237,174 @@ impl DeviceRepository {
         .execute(&self.pool)
         .await?;
         Ok(result.rows_affected())
+    }
+
+    /// Link a device to a user.
+    /// Returns the updated device entity.
+    pub async fn link_device_to_user(
+        &self,
+        device_id: Uuid,
+        user_id: Uuid,
+        display_name: Option<&str>,
+        is_primary: bool,
+    ) -> Result<DeviceEntity, sqlx::Error> {
+        let now = Utc::now();
+        let timer = QueryTimer::new("link_device_to_user");
+
+        // If setting as primary, first clear other primary devices for this user
+        if is_primary {
+            sqlx::query(
+                r#"
+                UPDATE devices
+                SET is_primary = false, updated_at = $2
+                WHERE owner_user_id = $1 AND is_primary = true
+                "#,
+            )
+            .bind(user_id)
+            .bind(now)
+            .execute(&self.pool)
+            .await?;
+        }
+
+        // Now link the device
+        let result = if let Some(name) = display_name {
+            sqlx::query_as::<_, DeviceEntity>(
+                r#"
+                UPDATE devices
+                SET owner_user_id = $2,
+                    linked_at = $3,
+                    display_name = $4,
+                    is_primary = $5,
+                    updated_at = $3
+                WHERE device_id = $1
+                RETURNING id, device_id, display_name, group_id, platform, fcm_token,
+                          active, created_at, updated_at, last_seen_at,
+                          owner_user_id, organization_id, is_primary, linked_at
+                "#,
+            )
+            .bind(device_id)
+            .bind(user_id)
+            .bind(now)
+            .bind(name)
+            .bind(is_primary)
+            .fetch_one(&self.pool)
+            .await
+        } else {
+            sqlx::query_as::<_, DeviceEntity>(
+                r#"
+                UPDATE devices
+                SET owner_user_id = $2,
+                    linked_at = $3,
+                    is_primary = $4,
+                    updated_at = $3
+                WHERE device_id = $1
+                RETURNING id, device_id, display_name, group_id, platform, fcm_token,
+                          active, created_at, updated_at, last_seen_at,
+                          owner_user_id, organization_id, is_primary, linked_at
+                "#,
+            )
+            .bind(device_id)
+            .bind(user_id)
+            .bind(now)
+            .bind(is_primary)
+            .fetch_one(&self.pool)
+            .await
+        };
+
+        timer.record();
+        result
+    }
+
+    /// Find all devices owned by a user.
+    pub async fn find_devices_by_user(
+        &self,
+        user_id: Uuid,
+        include_inactive: bool,
+    ) -> Result<Vec<DeviceEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("find_devices_by_user");
+        let result = if include_inactive {
+            sqlx::query_as::<_, DeviceEntity>(
+                r#"
+                SELECT id, device_id, display_name, group_id, platform, fcm_token,
+                       active, created_at, updated_at, last_seen_at,
+                       owner_user_id, organization_id, is_primary, linked_at
+                FROM devices
+                WHERE owner_user_id = $1
+                ORDER BY is_primary DESC, display_name ASC
+                "#,
+            )
+            .bind(user_id)
+            .fetch_all(&self.pool)
+            .await
+        } else {
+            sqlx::query_as::<_, DeviceEntity>(
+                r#"
+                SELECT id, device_id, display_name, group_id, platform, fcm_token,
+                       active, created_at, updated_at, last_seen_at,
+                       owner_user_id, organization_id, is_primary, linked_at
+                FROM devices
+                WHERE owner_user_id = $1 AND active = true
+                ORDER BY is_primary DESC, display_name ASC
+                "#,
+            )
+            .bind(user_id)
+            .fetch_all(&self.pool)
+            .await
+        };
+        timer.record();
+        result
+    }
+
+    /// Unlink a device from its owner.
+    pub async fn unlink_device(&self, device_id: Uuid) -> Result<u64, sqlx::Error> {
+        let now = Utc::now();
+        let timer = QueryTimer::new("unlink_device");
+        let result = sqlx::query(
+            r#"
+            UPDATE devices
+            SET owner_user_id = NULL,
+                linked_at = NULL,
+                is_primary = false,
+                updated_at = $2
+            WHERE device_id = $1 AND owner_user_id IS NOT NULL
+            "#,
+        )
+        .bind(device_id)
+        .bind(now)
+        .execute(&self.pool)
+        .await?;
+        timer.record();
+        Ok(result.rows_affected())
+    }
+
+    /// Transfer device ownership to a new user.
+    pub async fn transfer_device_ownership(
+        &self,
+        device_id: Uuid,
+        new_owner_id: Uuid,
+    ) -> Result<DeviceEntity, sqlx::Error> {
+        let now = Utc::now();
+        let timer = QueryTimer::new("transfer_device_ownership");
+        let result = sqlx::query_as::<_, DeviceEntity>(
+            r#"
+            UPDATE devices
+            SET owner_user_id = $2,
+                linked_at = $3,
+                is_primary = false,
+                updated_at = $3
+            WHERE device_id = $1
+            RETURNING id, device_id, display_name, group_id, platform, fcm_token,
+                      active, created_at, updated_at, last_seen_at,
+                      owner_user_id, organization_id, is_primary, linked_at
+            "#,
+        )
+        .bind(device_id)
+        .bind(new_owner_id)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await;
+        timer.record();
+        result
     }
 
     /// Get admin statistics about devices and locations.
