@@ -23,6 +23,7 @@ use crate::routes::{
     movement_events, openapi, privacy, proximity_alerts, trips, users, versioning,
 };
 use crate::services::map_matching::MapMatchingClient;
+use domain::services::{MockNotificationService, NotificationService};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -31,6 +32,8 @@ pub struct AppState {
     pub rate_limiter: Option<Arc<RateLimiterState>>,
     /// Shared map-matching client (None if disabled or failed to initialize)
     pub map_matching_client: Option<Arc<MapMatchingClient>>,
+    /// Notification service for push notifications
+    pub notification_service: Arc<dyn NotificationService>,
 }
 
 pub fn create_app(config: Config, pool: PgPool) -> Router {
@@ -60,11 +63,17 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         None
     };
 
+    // Create notification service (using mock for now, can be replaced with FCM client later)
+    let notification_service: Arc<dyn NotificationService> =
+        Arc::new(MockNotificationService::new());
+    tracing::info!("Notification service initialized (mock mode)");
+
     let state = AppState {
         pool,
         config: config.clone(),
         rate_limiter,
         map_matching_client,
+        notification_service,
     };
 
     // Build CORS layer based on configuration

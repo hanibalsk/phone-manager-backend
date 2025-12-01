@@ -2,4 +2,10 @@
 //!
 //! Services contain business logic that operates on domain models.
 
-// Services will be added in subsequent stories
+pub mod notification;
+
+pub use notification::{
+    MockNotificationService, NotificationPayload, NotificationResult, NotificationService,
+    NotificationType, SettingChangeAction, SettingChangeNotification, SettingsChangedPayload,
+    UnlockRequestResponsePayload,
+};

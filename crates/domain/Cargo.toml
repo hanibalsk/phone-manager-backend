@@ -16,6 +16,9 @@ thiserror.workspace = true
 rand.workspace = true
 regex.workspace = true
 lazy_static.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
 fake.workspace = true

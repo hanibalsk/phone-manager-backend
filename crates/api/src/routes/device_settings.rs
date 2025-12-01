@@ -19,13 +19,17 @@ use domain::models::unlock_request::{
     ListUnlockRequestsQuery, ListUnlockRequestsResponse, Pagination, RespondToUnlockRequestRequest,
     RespondToUnlockRequestResponse, UnlockRequestItem, UnlockRequestStatus, UserInfo,
 };
+use domain::services::{
+    NotificationType, SettingChangeAction, SettingChangeNotification, SettingsChangedPayload,
+    UnlockRequestResponsePayload,
+};
 use persistence::entities::UnlockRequestStatusDb;
 use persistence::repositories::{
-    DeviceRepository, GroupRepository, SettingRepository, UnlockRequestRepository,
+    DeviceRepository, GroupRepository, SettingRepository, UnlockRequestRepository, UserRepository,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::app::AppState;
@@ -579,7 +583,7 @@ pub async fn lock_setting(
             &key,
             user_auth.user_id,
             request.reason.as_deref(),
-            request.value,
+            request.value.clone(),
         )
         .await?;
 
@@ -590,6 +594,31 @@ pub async fn lock_setting(
         reason = ?request.reason,
         "Locked device setting"
     );
+
+    // Send notification if requested
+    if request.notify_user {
+        let user_repo = UserRepository::new(state.pool.clone());
+        let user_name = user_repo
+            .find_by_id(user_auth.user_id)
+            .await?
+            .map(|u| u.display_name.unwrap_or_else(|| "Admin".to_string()))
+            .unwrap_or_else(|| "Admin".to_string());
+
+        let changes = vec![SettingChangeNotification {
+            key: key.clone(),
+            action: SettingChangeAction::Locked,
+            new_value: request.value,
+        }];
+
+        send_settings_changed_notification(
+            &state,
+            device_id,
+            device.fcm_token.as_deref(),
+            changes,
+            user_name,
+        )
+        .await;
+    }
 
     Ok(Json(LockSettingResponse {
         key,
@@ -770,8 +799,40 @@ pub async fn bulk_update_locks(
         }
     }
 
-    // Push notification support is deferred to Story 12.8
-    let notification_sent = false;
+    // Send notification if requested and there were changes
+    let notification_sent = if request.notify_user && !updated.is_empty() {
+        let user_repo = UserRepository::new(state.pool.clone());
+        let user_name = user_repo
+            .find_by_id(user_auth.user_id)
+            .await?
+            .map(|u| u.display_name.unwrap_or_else(|| "Admin".to_string()))
+            .unwrap_or_else(|| "Admin".to_string());
+
+        let changes: Vec<SettingChangeNotification> = updated
+            .iter()
+            .map(|u| SettingChangeNotification {
+                key: u.key.clone(),
+                action: if u.is_locked {
+                    SettingChangeAction::Locked
+                } else {
+                    SettingChangeAction::Unlocked
+                },
+                new_value: None,
+            })
+            .collect();
+
+        send_settings_changed_notification(
+            &state,
+            device_id,
+            device.fcm_token.as_deref(),
+            changes,
+            user_name,
+        )
+        .await;
+        true
+    } else {
+        false
+    };
 
     info!(
         device_id = %device_id,
@@ -779,6 +840,7 @@ pub async fn bulk_update_locks(
         updated_count = updated.len(),
         skipped_count = skipped.len(),
         notify_requested = request.notify_user,
+        notification_sent = notification_sent,
         "Bulk updated device setting locks"
     );
 
@@ -901,6 +963,91 @@ fn db_status_to_domain(status: UnlockRequestStatusDb) -> UnlockRequestStatus {
         UnlockRequestStatusDb::Approved => UnlockRequestStatus::Approved,
         UnlockRequestStatusDb::Denied => UnlockRequestStatus::Denied,
         UnlockRequestStatusDb::Expired => UnlockRequestStatus::Expired,
+    }
+}
+
+/// Helper to send settings changed notification (fire-and-forget).
+async fn send_settings_changed_notification(
+    state: &AppState,
+    device_id: Uuid,
+    fcm_token: Option<&str>,
+    changes: Vec<SettingChangeNotification>,
+    changed_by: String,
+) {
+    let Some(token) = fcm_token else {
+        info!(
+            device_id = %device_id,
+            "Skipping notification - device has no FCM token"
+        );
+        return;
+    };
+
+    let payload = SettingsChangedPayload {
+        notification_type: NotificationType::SettingsChanged,
+        device_id,
+        changes,
+        changed_by,
+        timestamp: Utc::now(),
+    };
+
+    // Fire and forget - don't await or block on notification result
+    let result = state
+        .notification_service
+        .send_settings_changed(token, payload)
+        .await;
+
+    match result {
+        domain::services::NotificationResult::Sent => {
+            info!(device_id = %device_id, "Settings changed notification sent");
+        }
+        domain::services::NotificationResult::Failed(err) => {
+            warn!(device_id = %device_id, error = %err, "Failed to send notification");
+        }
+        _ => {}
+    }
+}
+
+/// Helper to send unlock request response notification (fire-and-forget).
+async fn send_unlock_request_response_notification(
+    state: &AppState,
+    fcm_token: Option<&str>,
+    request_id: Uuid,
+    setting_key: String,
+    status: String,
+    note: Option<String>,
+    decided_by: String,
+) {
+    let Some(token) = fcm_token else {
+        info!(
+            request_id = %request_id,
+            "Skipping notification - device has no FCM token"
+        );
+        return;
+    };
+
+    let payload = UnlockRequestResponsePayload {
+        notification_type: NotificationType::UnlockRequestResponse,
+        request_id,
+        setting_key,
+        status,
+        note,
+        decided_by,
+        timestamp: Utc::now(),
+    };
+
+    let result = state
+        .notification_service
+        .send_unlock_request_response(token, payload)
+        .await;
+
+    match result {
+        domain::services::NotificationResult::Sent => {
+            info!(request_id = %request_id, "Unlock request response notification sent");
+        }
+        domain::services::NotificationResult::Failed(err) => {
+            warn!(request_id = %request_id, error = %err, "Failed to send notification");
+        }
+        _ => {}
     }
 }
 
@@ -1175,6 +1322,25 @@ pub async fn respond_to_unlock_request(
         setting_unlocked = setting_unlocked,
         "Responded to unlock request"
     );
+
+    // Send notification to requester's device
+    let user_repo = UserRepository::new(state.pool.clone());
+    let decided_by = user_repo
+        .find_by_id(user_auth.user_id)
+        .await?
+        .map(|u| u.display_name.unwrap_or_else(|| "Admin".to_string()))
+        .unwrap_or_else(|| "Admin".to_string());
+
+    send_unlock_request_response_notification(
+        &state,
+        device.fcm_token.as_deref(),
+        request_id,
+        unlock_request.setting_key.clone(),
+        request.status.to_string(),
+        request.note.clone(),
+        decided_by,
+    )
+    .await;
 
     Ok(Json(RespondToUnlockRequestResponse {
         id: updated.id,
