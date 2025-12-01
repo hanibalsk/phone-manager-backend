@@ -430,6 +430,98 @@ pub async fn reset_password(
     }))
 }
 
+/// Response body for request verification.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestVerificationResponse {
+    pub message: String,
+}
+
+/// Request a new email verification token.
+///
+/// POST /api/v1/auth/request-verification
+///
+/// Requires authentication (JWT bearer token).
+pub async fn request_verification(
+    State(state): State<AppState>,
+    user_auth: crate::extractors::UserAuth,
+) -> Result<Json<RequestVerificationResponse>, ApiError> {
+    // Create auth service
+    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
+        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+
+    // Request verification
+    auth_service
+        .request_email_verification(user_auth.user_id)
+        .await
+        .map_err(|e| match e {
+            AuthError::UserNotFound => ApiError::NotFound("User not found".to_string()),
+            AuthError::EmailAlreadyVerified => {
+                ApiError::Conflict("Email is already verified".to_string())
+            }
+            AuthError::DatabaseError(db_err) => ApiError::from(db_err),
+            _ => ApiError::Internal(e.to_string()),
+        })?;
+
+    Ok(Json(RequestVerificationResponse {
+        message: "Verification email has been sent.".to_string(),
+    }))
+}
+
+/// Request body for verify email.
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifyEmailRequest {
+    /// The email verification token
+    #[validate(length(min = 1, message = "Verification token is required"))]
+    pub token: String,
+}
+
+/// Response body for verify email.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifyEmailResponse {
+    pub message: String,
+    pub email_verified: bool,
+}
+
+/// Verify email using a verification token.
+///
+/// POST /api/v1/auth/verify-email
+pub async fn verify_email(
+    State(state): State<AppState>,
+    Json(request): Json<VerifyEmailRequest>,
+) -> Result<Json<VerifyEmailResponse>, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    // Create auth service
+    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
+        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+
+    // Verify email
+    auth_service
+        .verify_email(&request.token)
+        .await
+        .map_err(|e| match e {
+            AuthError::InvalidVerificationToken => {
+                ApiError::Validation("Invalid or expired verification token".to_string())
+            }
+            AuthError::EmailAlreadyVerified => {
+                ApiError::Conflict("Email is already verified".to_string())
+            }
+            AuthError::DatabaseError(db_err) => ApiError::from(db_err),
+            _ => ApiError::Internal(e.to_string()),
+        })?;
+
+    Ok(Json(VerifyEmailResponse {
+        message: "Email has been verified successfully.".to_string(),
+        email_verified: true,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -647,5 +739,46 @@ mod tests {
         };
 
         assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_verify_email_request_validation() {
+        let request = VerifyEmailRequest {
+            token: "abc123".to_string(),
+        };
+
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_verify_email_request_empty_token() {
+        let request = VerifyEmailRequest {
+            token: "".to_string(),
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_verify_email_response_serialization() {
+        let response = VerifyEmailResponse {
+            message: "Email verified".to_string(),
+            email_verified: true,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("emailVerified"));
+        assert!(json.contains("true"));
+    }
+
+    #[test]
+    fn test_request_verification_response_serialization() {
+        let response = RequestVerificationResponse {
+            message: "Verification sent".to_string(),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("message"));
+        assert!(json.contains("Verification sent"));
     }
 }

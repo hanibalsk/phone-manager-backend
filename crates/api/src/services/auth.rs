@@ -41,6 +41,12 @@ pub enum AuthError {
     #[error("Invalid or expired reset token")]
     InvalidResetToken,
 
+    #[error("Invalid or expired verification token")]
+    InvalidVerificationToken,
+
+    #[error("Email already verified")]
+    EmailAlreadyVerified,
+
     #[error("Token error: {0}")]
     TokenError(#[from] JwtError),
 
@@ -598,6 +604,138 @@ impl AuthService {
         tracing::info!(user_id = %user_id, "Password reset successfully, all sessions invalidated");
 
         Ok(())
+    }
+
+    /// Request email verification by generating a verification token.
+    ///
+    /// Returns the verification token (to be logged in MVP, emailed in production).
+    /// Returns error if email is already verified.
+    pub async fn request_email_verification(
+        &self,
+        user_id: Uuid,
+    ) -> Result<String, AuthError> {
+        // Check if user exists and get email verification status
+        let user: Option<(String, bool)> = sqlx::query_as(
+            "SELECT email, email_verified FROM users WHERE id = $1 AND is_active = true",
+        )
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let (email, email_verified) = match user {
+            Some((e, v)) => (e, v),
+            None => return Err(AuthError::UserNotFound),
+        };
+
+        // Check if already verified
+        if email_verified {
+            return Err(AuthError::EmailAlreadyVerified);
+        }
+
+        // Generate secure verification token (32 bytes = 64 hex chars)
+        let verification_token = generate_secure_token();
+
+        // Hash the token for storage
+        let token_hash = sha256_hex(&verification_token);
+
+        // Set expiry to 24 hours from now
+        let expires_at = Utc::now() + chrono::Duration::hours(24);
+
+        // Store hashed token in database (replaces any existing token)
+        sqlx::query(
+            r#"
+            UPDATE users
+            SET email_verification_token = $1, email_verification_expires_at = $2
+            WHERE id = $3
+            "#,
+        )
+        .bind(&token_hash)
+        .bind(expires_at)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+
+        // In MVP, we log the token. In production, this would be emailed.
+        tracing::info!(
+            user_id = %user_id,
+            email = %email,
+            verification_token = %verification_token,
+            "Email verification token generated (MVP: logging token, production: would email)"
+        );
+
+        Ok(verification_token)
+    }
+
+    /// Verify email using a valid verification token.
+    ///
+    /// Validates the token, updates email_verified to true, and clears the token.
+    pub async fn verify_email(&self, token: &str) -> Result<Uuid, AuthError> {
+        // Hash the provided token to look up in database
+        let token_hash = sha256_hex(token);
+
+        // Find user with this verification token
+        let user: Option<(Uuid, chrono::DateTime<Utc>, bool)> = sqlx::query_as(
+            r#"
+            SELECT id, email_verification_expires_at, email_verified
+            FROM users
+            WHERE email_verification_token = $1 AND is_active = true
+            "#,
+        )
+        .bind(&token_hash)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let (user_id, expires_at, email_verified) = match user {
+            Some((id, exp, verified)) => (id, exp, verified),
+            None => return Err(AuthError::InvalidVerificationToken),
+        };
+
+        // Check if already verified (shouldn't happen if token exists, but be safe)
+        if email_verified {
+            // Clear the stale token
+            sqlx::query(
+                "UPDATE users SET email_verification_token = NULL, email_verification_expires_at = NULL WHERE id = $1",
+            )
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+
+            return Err(AuthError::EmailAlreadyVerified);
+        }
+
+        // Check if token has expired
+        if expires_at < Utc::now() {
+            // Clear the expired token
+            sqlx::query(
+                "UPDATE users SET email_verification_token = NULL, email_verification_expires_at = NULL WHERE id = $1",
+            )
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+
+            return Err(AuthError::InvalidVerificationToken);
+        }
+
+        // Mark email as verified and clear token
+        let now = Utc::now();
+        sqlx::query(
+            r#"
+            UPDATE users
+            SET email_verified = true,
+                email_verification_token = NULL,
+                email_verification_expires_at = NULL,
+                updated_at = $1
+            WHERE id = $2
+            "#,
+        )
+        .bind(now)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+
+        tracing::info!(user_id = %user_id, "Email verified successfully");
+
+        Ok(user_id)
     }
 }
 

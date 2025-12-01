@@ -233,6 +233,12 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/v1/auth/reset-password",
             post(auth::reset_password),
+        )
+        .route("/api/v1/auth/verify-email", post(auth::verify_email))
+        // Request verification requires JWT auth (user must be logged in)
+        .route(
+            "/api/v1/auth/request-verification",
+            post(auth::request_verification),
         );
 
     // Public routes (no authentication required)
