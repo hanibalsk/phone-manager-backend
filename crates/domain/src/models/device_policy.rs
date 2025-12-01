@@ -186,7 +186,7 @@ fn validate_locked_settings(settings: &[String]) -> Result<(), validator::Valida
 
 /// Validate optional locked settings array.
 fn validate_locked_settings_option(
-    settings: &Vec<String>,
+    settings: &[String],
 ) -> Result<(), validator::ValidationError> {
     validate_locked_settings(settings)
 }

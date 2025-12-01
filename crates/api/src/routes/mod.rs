@@ -4,6 +4,7 @@ pub mod admin;
 pub mod audit_logs;
 pub mod auth;
 pub mod bulk_import;
+pub mod dashboard;
 pub mod device_policies;
 pub mod device_settings;
 pub mod devices;

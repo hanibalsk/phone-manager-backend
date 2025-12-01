@@ -780,7 +780,7 @@ pub async fn bulk_update_locks(
                 .unlock_setting(device_id, &key, user_auth.user_id)
                 .await?;
 
-            if let Some(_) = result {
+            if result.is_some() {
                 updated.push(LockUpdateResult {
                     key: key.clone(),
                     is_locked: false,
@@ -1179,7 +1179,7 @@ pub async fn list_unlock_requests(
     });
 
     // Calculate pagination
-    let limit = query.per_page.min(100).max(1);
+    let limit = query.per_page.clamp(1, 100);
     let offset = (query.page.max(1) - 1) * limit;
 
     // Get unlock requests for the group

@@ -19,6 +19,7 @@ impl DevicePolicyRepository {
     }
 
     /// Create a new device policy.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
         organization_id: Uuid,
@@ -106,6 +107,7 @@ impl DevicePolicyRepository {
     }
 
     /// Update a device policy.
+    #[allow(clippy::too_many_arguments)]
     pub async fn update(
         &self,
         id: Uuid,

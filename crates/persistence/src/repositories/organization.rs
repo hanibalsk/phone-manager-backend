@@ -24,6 +24,7 @@ impl OrganizationRepository {
     }
 
     /// Create a new organization.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
         name: &str,
@@ -103,6 +104,7 @@ impl OrganizationRepository {
     }
 
     /// Update organization.
+    #[allow(clippy::too_many_arguments)]
     pub async fn update(
         &self,
         id: Uuid,

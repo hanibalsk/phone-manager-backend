@@ -99,7 +99,7 @@ impl EnrollmentStatus {
     }
 
     /// Parse from database string representation.
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(Self::Pending),
             "enrolled" => Some(Self::Enrolled),
@@ -223,11 +223,11 @@ mod tests {
 
     #[test]
     fn test_enrollment_status_from_str() {
-        assert_eq!(EnrollmentStatus::from_str("pending"), Some(EnrollmentStatus::Pending));
-        assert_eq!(EnrollmentStatus::from_str("enrolled"), Some(EnrollmentStatus::Enrolled));
-        assert_eq!(EnrollmentStatus::from_str("suspended"), Some(EnrollmentStatus::Suspended));
-        assert_eq!(EnrollmentStatus::from_str("retired"), Some(EnrollmentStatus::Retired));
-        assert_eq!(EnrollmentStatus::from_str("invalid"), None);
+        assert_eq!(EnrollmentStatus::parse("pending"), Some(EnrollmentStatus::Pending));
+        assert_eq!(EnrollmentStatus::parse("enrolled"), Some(EnrollmentStatus::Enrolled));
+        assert_eq!(EnrollmentStatus::parse("suspended"), Some(EnrollmentStatus::Suspended));
+        assert_eq!(EnrollmentStatus::parse("retired"), Some(EnrollmentStatus::Retired));
+        assert_eq!(EnrollmentStatus::parse("invalid"), None);
     }
 
     #[test]

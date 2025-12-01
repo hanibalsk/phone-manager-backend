@@ -20,6 +20,7 @@ impl EnrollmentTokenRepository {
     }
 
     /// Create a new enrollment token.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
         organization_id: Uuid,

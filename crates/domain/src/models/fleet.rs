@@ -147,19 +147,14 @@ pub struct FleetDeviceQuery {
 }
 
 /// Sort fields for fleet device listing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FleetSortField {
+    #[default]
     LastSeenAt,
     DisplayName,
     CreatedAt,
     EnrolledAt,
-}
-
-impl Default for FleetSortField {
-    fn default() -> Self {
-        Self::LastSeenAt
-    }
 }
 
 impl FleetSortField {
@@ -174,17 +169,12 @@ impl FleetSortField {
 }
 
 /// Sort order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SortOrder {
     Asc,
+    #[default]
     Desc,
-}
-
-impl Default for SortOrder {
-    fn default() -> Self {
-        Self::Desc
-    }
 }
 
 impl SortOrder {

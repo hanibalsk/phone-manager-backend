@@ -755,6 +755,7 @@ impl DeviceRepository {
     }
 
     /// Create a device via bulk import.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_bulk_device(
         &self,
         organization_id: Uuid,

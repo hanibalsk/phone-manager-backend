@@ -2,6 +2,7 @@
 
 pub mod audit_log;
 pub mod bulk_import;
+pub mod dashboard;
 pub mod device;
 pub mod device_policy;
 pub mod device_token;
@@ -87,4 +88,8 @@ pub use bulk_import::{
     BulkDeviceImportRequest, BulkDeviceImportResponse, BulkDeviceInput, BulkDeviceItem,
     BulkImportError, BulkImportJobStatus, BulkImportOptions, BulkImportResult,
     MAX_BULK_IMPORT_DEVICES, MAX_METADATA_SIZE,
+};
+pub use dashboard::{
+    ActivityPeriod, ActivitySummary, DashboardMetrics, DeviceMetrics, DeviceStatusBreakdown,
+    EnrollmentMetrics, GroupMetrics, PolicyMetrics, RoleBreakdown, TrendData, Trends, UserMetrics,
 };

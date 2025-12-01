@@ -334,7 +334,7 @@ impl AuditResource {
 }
 
 /// Metadata for audit log entry.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuditMetadata {
     pub ip_address: Option<String>,
@@ -342,17 +342,6 @@ pub struct AuditMetadata {
     pub request_id: Option<String>,
     #[serde(flatten)]
     pub extra: Option<JsonValue>,
-}
-
-impl Default for AuditMetadata {
-    fn default() -> Self {
-        Self {
-            ip_address: None,
-            user_agent: None,
-            request_id: None,
-            extra: None,
-        }
-    }
 }
 
 impl AuditMetadata {

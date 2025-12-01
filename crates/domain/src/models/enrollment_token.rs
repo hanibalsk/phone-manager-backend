@@ -65,7 +65,7 @@ impl EnrollmentToken {
 
     /// Check if the token is expired.
     pub fn is_expired(&self) -> bool {
-        self.expires_at.map_or(false, |exp| Utc::now() > exp)
+        self.expires_at.is_some_and(|exp| Utc::now() > exp)
     }
 
     /// Check if the token is revoked.
@@ -75,7 +75,7 @@ impl EnrollmentToken {
 
     /// Check if the token has reached its usage limit.
     pub fn is_exhausted(&self) -> bool {
-        self.max_uses.map_or(false, |max| self.current_uses >= max)
+        self.max_uses.is_some_and(|max| self.current_uses >= max)
     }
 
     /// Get remaining uses (None if unlimited).
