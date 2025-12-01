@@ -258,6 +258,10 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/v1/users/:user_id/devices/:device_id/unlink",
             delete(users::unlink_device),
+        )
+        .route(
+            "/api/v1/users/:user_id/devices/:device_id/transfer",
+            post(users::transfer_device),
         );
 
     // Public routes (no authentication required)

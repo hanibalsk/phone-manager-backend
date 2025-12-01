@@ -469,6 +469,126 @@ pub async fn unlink_device(
     }))
 }
 
+/// Request body for transferring device ownership.
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferDeviceRequest {
+    /// UUID of the user to transfer ownership to
+    pub new_owner_id: Uuid,
+}
+
+/// Response for transfer device operation.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferDeviceResponse {
+    pub device: DeviceInfo,
+    pub previous_owner_id: String,
+    pub new_owner_id: String,
+    pub transferred: bool,
+}
+
+/// Transfer device ownership to another user.
+///
+/// POST /api/v1/users/:user_id/devices/:device_id/transfer
+///
+/// Requires JWT authentication. Only the current device owner can transfer.
+pub async fn transfer_device(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(path): Path<DeviceBindingPath>,
+    Json(request): Json<TransferDeviceRequest>,
+) -> Result<Json<TransferDeviceResponse>, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    // Check that the user is transferring from themselves
+    if path.user_id != user_auth.user_id {
+        return Err(ApiError::Forbidden(
+            "You can only transfer devices from your own account".to_string(),
+        ));
+    }
+
+    // Cannot transfer to yourself
+    if request.new_owner_id == user_auth.user_id {
+        return Err(ApiError::Validation(
+            "Cannot transfer device to yourself".to_string(),
+        ));
+    }
+
+    let repo = DeviceRepository::new(state.pool.clone());
+
+    // Check if device exists and is owned by the user
+    let existing_device = repo.find_by_device_id(path.device_id).await?;
+    let device = existing_device
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Check if device is owned by the user
+    match device.owner_user_id {
+        Some(owner_id) if owner_id == user_auth.user_id => {
+            // User owns this device, proceed with transfer
+        }
+        Some(_) => {
+            return Err(ApiError::Forbidden(
+                "Device is owned by another user".to_string(),
+            ));
+        }
+        None => {
+            return Err(ApiError::Forbidden(
+                "Device is not linked to any user".to_string(),
+            ));
+        }
+    }
+
+    // Check if target user exists
+    let target_user_exists: Option<(bool,)> =
+        sqlx::query_as("SELECT is_active FROM users WHERE id = $1")
+            .bind(request.new_owner_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(ApiError::from)?;
+
+    match target_user_exists {
+        Some((is_active,)) if !is_active => {
+            return Err(ApiError::Validation(
+                "Target user account is disabled".to_string(),
+            ))
+        }
+        None => return Err(ApiError::NotFound("Target user not found".to_string())),
+        _ => {}
+    }
+
+    // Transfer the device
+    let updated_device = repo
+        .transfer_device_ownership(path.device_id, request.new_owner_id)
+        .await?;
+
+    info!(
+        device_id = %path.device_id,
+        previous_owner = %user_auth.user_id,
+        new_owner = %request.new_owner_id,
+        "Device ownership transferred"
+    );
+
+    Ok(Json(TransferDeviceResponse {
+        device: DeviceInfo {
+            id: updated_device.id,
+            device_uuid: updated_device.device_id.to_string(),
+            display_name: updated_device.display_name,
+            owner_user_id: request.new_owner_id.to_string(),
+            is_primary: updated_device.is_primary,
+            linked_at: updated_device
+                .linked_at
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_default(),
+        },
+        previous_owner_id: user_auth.user_id.to_string(),
+        new_owner_id: request.new_owner_id.to_string(),
+        transferred: true,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
