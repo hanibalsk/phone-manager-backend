@@ -302,7 +302,9 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/v1/groups/:group_id/invites/:invite_id",
             delete(invites::revoke_invite),
-        );
+        )
+        // Join group with invite code (Story 11.5)
+        .route("/api/v1/groups/join", post(groups::join_group));
 
     // Public routes (no authentication required)
     let public_routes = Router::new()

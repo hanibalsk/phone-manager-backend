@@ -74,6 +74,10 @@ geo = "0.28"
 # Rate limiting
 governor = "0.7"
 
+# Regex and lazy initialization
+regex = "1.10"
+lazy_static = "1.4"
+
 # HTTP client
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 

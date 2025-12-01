@@ -5,13 +5,15 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use chrono::Utc;
 use domain::models::group::{
     generate_slug, CreateGroupRequest, CreateGroupResponse, GroupDetail, GroupRole, GroupSummary,
     ListGroupsQuery, ListGroupsResponse, ListMembersQuery, ListMembersResponse, MemberResponse,
     MembershipInfo, Pagination, UpdateGroupRequest, UpdateRoleRequest, UpdateRoleResponse,
     UserPublic,
 };
-use persistence::repositories::GroupRepository;
+use domain::models::invite::{JoinGroupInfo, JoinGroupRequest, JoinGroupResponse, JoinMembershipInfo};
+use persistence::repositories::{GroupRepository, InviteRepository};
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
@@ -619,6 +621,103 @@ pub async fn update_member_role(
         group_id: updated.group_id,
         role: updated.role.into(),
         updated_at: updated.updated_at,
+    }))
+}
+
+// =============================================================================
+// Join Group with Invite Code (Story 11.5)
+// =============================================================================
+
+/// Join a group using an invite code.
+///
+/// POST /api/v1/groups/join
+///
+/// Requires JWT authentication.
+/// Returns 400 for invalid code format.
+/// Returns 404 if invite not found.
+/// Returns 409 if already a member.
+/// Returns 410 if invite expired or fully used.
+pub async fn join_group(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Json(request): Json<JoinGroupRequest>,
+) -> Result<Json<JoinGroupResponse>, ApiError> {
+    // Validate request
+    request.validate().map_err(|e| {
+        let errors: Vec<String> = e
+            .field_errors()
+            .iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |err| {
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
+                })
+            })
+            .collect();
+        ApiError::Validation(errors.join(", "))
+    })?;
+
+    let group_repo = GroupRepository::new(state.pool.clone());
+    let invite_repo = InviteRepository::new(state.pool.clone());
+
+    // Find the invite by code
+    let invite = invite_repo
+        .find_by_code_with_group(&request.code)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Invite not found".to_string()))?;
+
+    // Check if invite is still valid
+    let now = Utc::now();
+    if !invite.is_active {
+        return Err(ApiError::Gone("Invite has been revoked".to_string()));
+    }
+    if invite.expires_at <= now {
+        return Err(ApiError::Gone("Invite has expired".to_string()));
+    }
+    if invite.current_uses >= invite.max_uses {
+        return Err(ApiError::Gone("Invite has reached maximum uses".to_string()));
+    }
+
+    // Check if user is already a member
+    if group_repo
+        .get_membership(invite.group_id, user_auth.user_id)
+        .await?
+        .is_some()
+    {
+        return Err(ApiError::Conflict(
+            "You are already a member of this group".to_string(),
+        ));
+    }
+
+    // Convert preset_role from DB enum to domain enum
+    let preset_role: GroupRole = invite.preset_role.into();
+
+    // Add user as member with preset role
+    let membership = group_repo
+        .add_member(invite.group_id, user_auth.user_id, preset_role, None)
+        .await?;
+
+    // Increment invite use count
+    invite_repo.increment_use_count(invite.id).await?;
+
+    info!(
+        group_id = %invite.group_id,
+        user_id = %user_auth.user_id,
+        invite_code = %request.code,
+        role = %preset_role,
+        "User joined group via invite"
+    );
+
+    Ok(Json(JoinGroupResponse {
+        group: JoinGroupInfo {
+            id: invite.group_id,
+            name: invite.group_name,
+            member_count: invite.member_count + 1, // Include newly joined user
+        },
+        membership: JoinMembershipInfo {
+            id: membership.id,
+            role: membership.role.into(),
+            joined_at: membership.joined_at,
+        },
     }))
 }
 

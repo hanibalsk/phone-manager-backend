@@ -103,6 +103,50 @@ pub struct PublicGroupInfo {
     pub member_count: i64,
 }
 
+/// Request to join a group using an invite code.
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct JoinGroupRequest {
+    /// The invite code in XXX-XXX-XXX format.
+    #[validate(length(equal = 11, message = "Invalid invite code format"))]
+    #[validate(regex(
+        path = *INVITE_CODE_REGEX,
+        message = "Invalid invite code format. Expected XXX-XXX-XXX"
+    ))]
+    pub code: String,
+}
+
+lazy_static::lazy_static! {
+    static ref INVITE_CODE_REGEX: regex::Regex =
+        regex::Regex::new(r"^[A-Z0-9]{3}-[A-Z0-9]{3}-[A-Z0-9]{3}$").unwrap();
+}
+
+/// Summary of group info for join response.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JoinGroupInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub member_count: i64,
+}
+
+/// Summary of membership info for join response.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JoinMembershipInfo {
+    pub id: Uuid,
+    pub role: GroupRole,
+    pub joined_at: DateTime<Utc>,
+}
+
+/// Response after joining a group.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JoinGroupResponse {
+    pub group: JoinGroupInfo,
+    pub membership: JoinMembershipInfo,
+}
+
 /// Generate a random invite code in XXX-XXX-XXX format.
 pub fn generate_invite_code() -> String {
     use rand::Rng;

@@ -21,6 +21,9 @@ pub enum ApiError {
     #[error("Conflict: {0}")]
     Conflict(String),
 
+    #[error("Gone: {0}")]
+    Gone(String),
+
     #[error("Validation error: {0}")]
     Validation(String),
 
@@ -60,6 +63,7 @@ impl IntoResponse for ApiError {
             ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, "forbidden", msg.clone(), None),
             ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, "not_found", msg.clone(), None),
             ApiError::Conflict(msg) => (StatusCode::CONFLICT, "conflict", msg.clone(), None),
+            ApiError::Gone(msg) => (StatusCode::GONE, "gone", msg.clone(), None),
             ApiError::Validation(msg) => (
                 StatusCode::BAD_REQUEST,
                 "validation_error",
@@ -210,6 +214,13 @@ mod tests {
     }
 
     #[test]
+    fn test_api_error_gone() {
+        let error = ApiError::Gone("resource no longer available".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::GONE);
+    }
+
+    #[test]
     fn test_api_error_validation() {
         let error = ApiError::Validation("invalid input".to_string());
         let response = error.into_response();
@@ -269,6 +280,10 @@ mod tests {
         assert_eq!(
             format!("{}", ApiError::Conflict("test".to_string())),
             "Conflict: test"
+        );
+        assert_eq!(
+            format!("{}", ApiError::Gone("test".to_string())),
+            "Gone: test"
         );
         assert_eq!(
             format!("{}", ApiError::Validation("test".to_string())),
