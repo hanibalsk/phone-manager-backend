@@ -1,7 +1,7 @@
 # Story 11.1: Group Database Schema & CRUD Endpoints
 
 **Epic**: Epic 11 - Group Management API
-**Status**: In Progress
+**Status**: Done
 **Created**: 2025-12-01
 
 ---

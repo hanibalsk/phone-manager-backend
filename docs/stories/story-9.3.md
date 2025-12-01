@@ -43,7 +43,7 @@
 - [x] Implement access token generation
 - [x] Implement refresh token generation
 - [x] Implement token validation
-- [ ] Add JWT-related configuration to app config (deferred to Story 9.4)
+- [x] Add JWT-related configuration to app config (completed in Story 9.4)
 - [x] Add comprehensive unit tests
 
 ---

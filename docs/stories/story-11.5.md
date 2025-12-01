@@ -1,7 +1,7 @@
 # Story 11.5: Join Group with Invite Code
 
 **Epic**: Epic 11 - Group Management API
-**Status**: In Progress
+**Status**: Done
 **Priority**: High
 
 ## User Story
@@ -35,11 +35,11 @@
 - [x] Migration 020_group_invites.sql (completed in Story 11.4)
 - [x] Domain model invite.rs (completed in Story 11.4)
 - [x] InviteRepository (completed in Story 11.4)
-- [ ] Add JoinGroupRequest and JoinGroupResponse DTOs
-- [ ] Add join_group handler in groups.rs
-- [ ] Add POST /api/v1/groups/join route
-- [ ] Update GroupRepository with membership creation method if needed
-- [ ] Integration tests
+- [x] Add JoinGroupRequest and JoinGroupResponse DTOs
+- [x] Add join_group handler in groups.rs
+- [x] Add POST /api/v1/groups/join route
+- [x] Update GroupRepository with membership creation method if needed
+- [x] Integration tests
 
 ## API Specification
 

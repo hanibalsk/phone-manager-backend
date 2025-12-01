@@ -1,7 +1,7 @@
 # Story 11.6: Group Ownership Transfer
 
 **Epic**: Epic 11 - Group Management API
-**Status**: In Progress
+**Status**: Done
 **Priority**: High
 
 ## User Story
@@ -31,11 +31,11 @@
 
 ## Implementation Checklist
 
-- [ ] Add TransferOwnershipRequest and TransferOwnershipResponse DTOs
-- [ ] Add transfer_ownership method to GroupRepository
-- [ ] Create transfer_ownership handler in groups.rs
-- [ ] Add POST route for ownership transfer
-- [ ] Integration tests
+- [x] Add TransferOwnershipRequest and TransferOwnershipResponse DTOs
+- [x] Add transfer_ownership method to GroupRepository
+- [x] Create transfer_ownership handler in groups.rs
+- [x] Add POST route for ownership transfer
+- [x] Integration tests
 
 ## API Specification
 

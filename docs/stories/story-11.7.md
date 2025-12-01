@@ -1,7 +1,7 @@
 # Story 11.7: RBAC Middleware
 
 **Epic**: Epic 11 - Group Management API
-**Status**: In Progress
+**Status**: Done
 **Priority**: High
 
 ## User Story
@@ -31,12 +31,12 @@
 
 ## Implementation Checklist
 
-- [ ] Create `GroupMembershipExtension` struct for passing membership to handlers
-- [ ] Create `require_group_member` middleware (any role)
-- [ ] Create `require_group_role` middleware with minimum role parameter
-- [ ] Create convenience middlewares: require_group_admin, require_group_owner
-- [ ] Add middleware to appropriate existing routes
-- [ ] Integration tests
+- [x] Create `GroupMembershipExtension` struct for passing membership to handlers
+- [x] Create `require_group_member` middleware (any role)
+- [x] Create `require_group_role` middleware with minimum role parameter
+- [x] Create convenience middlewares: require_group_admin, require_group_owner
+- [x] Add middleware to appropriate existing routes
+- [x] Integration tests
 
 ## Middleware Usage Example
 

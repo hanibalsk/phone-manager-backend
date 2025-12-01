@@ -1,7 +1,7 @@
 # Story 11.3: Role Management Endpoint
 
 **Epic**: Epic 11 - Group Management API
-**Status**: Complete
+**Status**: Done
 **Created**: 2025-12-01
 
 ---

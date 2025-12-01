@@ -1,7 +1,7 @@
 # Story 11.2: Membership Management Endpoints
 
 **Epic**: Epic 11 - Group Management API
-**Status**: Complete
+**Status**: Done
 **Created**: 2025-12-01
 
 ---

@@ -1,7 +1,7 @@
 # Story 11.4: Invite CRUD Endpoints
 
 **Epic**: Epic 11 - Group Management API
-**Status**: In Progress
+**Status**: Done
 **Created**: 2025-12-01
 
 ---
@@ -39,12 +39,12 @@
 
 ## Implementation Tasks
 
-- [ ] Create migration 020_group_invites.sql
-- [ ] Add invite entity and DTOs
-- [ ] Add InviteRepository with CRUD methods
-- [ ] Create invite handlers
-- [ ] Add routes to app.rs
-- [ ] Add unit tests
+- [x] Create migration 020_group_invites.sql
+- [x] Add invite entity and DTOs
+- [x] Add InviteRepository with CRUD methods
+- [x] Create invite handlers
+- [x] Add routes to app.rs
+- [x] Add unit tests
 
 ---
 
