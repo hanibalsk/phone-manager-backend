@@ -14,6 +14,9 @@ pub struct Config {
     pub map_matching: MapMatchingConfig,
     /// JWT authentication configuration
     pub jwt: JwtAuthConfig,
+    /// Email service configuration
+    #[serde(default)]
+    pub email: EmailConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -218,6 +221,106 @@ fn default_jwt_leeway() -> u64 {
     30 // 30 seconds for clock skew tolerance
 }
 
+/// Email service configuration for sending verification and reset emails.
+#[derive(Debug, Clone, Deserialize)]
+pub struct EmailConfig {
+    /// Whether email sending is enabled
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Email provider: smtp, sendgrid, ses, or console (for development)
+    #[serde(default = "default_email_provider")]
+    pub provider: String,
+
+    /// SMTP server host (for smtp provider)
+    #[serde(default)]
+    pub smtp_host: String,
+
+    /// SMTP server port (for smtp provider)
+    #[serde(default = "default_smtp_port")]
+    pub smtp_port: u16,
+
+    /// SMTP username (for smtp provider)
+    #[serde(default)]
+    pub smtp_username: String,
+
+    /// SMTP password (for smtp provider)
+    #[serde(default)]
+    pub smtp_password: String,
+
+    /// Whether to use TLS for SMTP (default: true)
+    #[serde(default = "default_smtp_tls")]
+    pub smtp_use_tls: bool,
+
+    /// SendGrid API key (for sendgrid provider)
+    #[serde(default)]
+    pub sendgrid_api_key: String,
+
+    /// AWS SES region (for ses provider)
+    #[serde(default)]
+    pub ses_region: String,
+
+    /// Sender email address (From header)
+    #[serde(default = "default_sender_email")]
+    pub sender_email: String,
+
+    /// Sender name (From header)
+    #[serde(default = "default_sender_name")]
+    pub sender_name: String,
+
+    /// Base URL for email links (e.g., https://app.example.com)
+    #[serde(default)]
+    pub base_url: String,
+
+    /// Email template style: html or plain
+    #[serde(default = "default_template_style")]
+    pub template_style: String,
+}
+
+impl Default for EmailConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            provider: default_email_provider(),
+            smtp_host: String::new(),
+            smtp_port: default_smtp_port(),
+            smtp_username: String::new(),
+            smtp_password: String::new(),
+            smtp_use_tls: default_smtp_tls(),
+            sendgrid_api_key: String::new(),
+            ses_region: String::new(),
+            sender_email: default_sender_email(),
+            sender_name: default_sender_name(),
+            base_url: String::new(),
+            template_style: default_template_style(),
+        }
+    }
+}
+
+fn default_email_provider() -> String {
+    "console".to_string() // Default to console logging for development
+}
+
+fn default_smtp_port() -> u16 {
+    587 // TLS submission port
+}
+
+fn default_smtp_tls() -> bool {
+    true
+}
+
+fn default_sender_email() -> String {
+    "noreply@phonemanager.app".to_string()
+}
+
+fn default_sender_name() -> String {
+    "Phone Manager".to_string()
+}
+
+fn default_template_style() -> String {
+    "html".to_string()
+}
+
 /// Configuration validation error
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigValidationError {
@@ -299,6 +402,12 @@ impl Config {
             access_token_expiry_secs = 3600
             refresh_token_expiry_secs = 2592000
             leeway_secs = 30
+
+            [email]
+            enabled = false
+            provider = "console"
+            sender_email = "test@example.com"
+            sender_name = "Test"
         "#;
 
         let mut builder = config::Config::builder()

@@ -8,8 +8,9 @@ use axum::{
 };
 use chrono::Utc;
 use domain::models::setting::{
-    GetSettingsResponse, SettingCategory, SettingDataType, SettingDefinition, SettingValue,
-    UpdateSettingRequest, UpdateSettingsRequest, UpdateSettingsResponse,
+    GetSettingsResponse, ListLocksResponse, LockInfo, LockSettingRequest, LockSettingResponse,
+    LockerInfo, SettingCategory, SettingDataType, SettingDefinition, SettingValue,
+    UnlockSettingResponse, UpdateSettingRequest, UpdateSettingsRequest, UpdateSettingsResponse,
 };
 use persistence::repositories::{DeviceRepository, GroupRepository, SettingRepository};
 use serde::Deserialize;
@@ -429,6 +430,227 @@ pub async fn update_device_setting(
         updated_at: result.updated_at,
         updated_by: result.updated_by,
         error: None,
+    }))
+}
+
+/// Get all locks for a device's settings.
+///
+/// GET /api/v1/devices/:device_id/settings/locks
+///
+/// Requires JWT authentication.
+/// Device owner, group admin, or org admin can access.
+pub async fn get_setting_locks(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(device_id): Path<Uuid>,
+) -> Result<Json<ListLocksResponse>, ApiError> {
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let setting_repo = SettingRepository::new(state.pool.clone());
+    let group_repo = GroupRepository::new(state.pool.clone());
+
+    // Get the device
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Authorization check
+    let is_authorized = check_settings_authorization(
+        &device_repo,
+        &group_repo,
+        &device,
+        user_auth.user_id,
+    )
+    .await?;
+
+    if !is_authorized {
+        return Err(ApiError::Forbidden(
+            "Not authorized to access this device's settings".to_string(),
+        ));
+    }
+
+    // Get all locks for the device
+    let locks = setting_repo.get_device_locks(device_id).await?;
+
+    // Get total lockable settings count
+    let total_lockable = setting_repo.count_lockable_settings().await?;
+
+    // Build response
+    let lock_infos: Vec<LockInfo> = locks
+        .into_iter()
+        .map(|l| LockInfo {
+            key: l.setting_key,
+            is_locked: l.is_locked,
+            locked_by: l.locked_by.map(|id| LockerInfo {
+                id,
+                display_name: l.locker_display_name,
+            }),
+            locked_at: l.locked_at,
+            reason: l.lock_reason,
+        })
+        .collect();
+
+    let locked_count = lock_infos.len() as i64;
+
+    info!(
+        device_id = %device_id,
+        user_id = %user_auth.user_id,
+        locked_count = locked_count,
+        "Retrieved device setting locks"
+    );
+
+    Ok(Json(ListLocksResponse {
+        device_id,
+        locks: lock_infos,
+        locked_count,
+        total_lockable,
+    }))
+}
+
+/// Lock a device setting.
+///
+/// POST /api/v1/devices/:device_id/settings/:key/lock
+///
+/// Requires JWT authentication.
+/// Only group admin or owner can lock settings.
+pub async fn lock_setting(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path((device_id, key)): Path<(Uuid, String)>,
+    Json(request): Json<LockSettingRequest>,
+) -> Result<Json<LockSettingResponse>, ApiError> {
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let setting_repo = SettingRepository::new(state.pool.clone());
+    let group_repo = GroupRepository::new(state.pool.clone());
+
+    // Get the device
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Authorization check - only admin can lock
+    let is_admin = check_is_admin(&group_repo, &device, user_auth.user_id).await?;
+
+    if !is_admin {
+        return Err(ApiError::Forbidden(
+            "Only admins can lock settings".to_string(),
+        ));
+    }
+
+    // Get setting definition
+    let def = setting_repo
+        .get_definition(&key)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
+
+    // Check if setting is lockable
+    if !def.is_lockable {
+        return Err(ApiError::Validation(format!(
+            "Setting '{}' is not lockable",
+            key
+        )));
+    }
+
+    // Validate value type if provided
+    if let Some(ref value) = request.value {
+        if !validate_value_type(value, &db_data_type_to_domain(def.data_type)) {
+            return Err(ApiError::Validation(format!(
+                "Invalid value type, expected {}",
+                db_data_type_to_domain(def.data_type)
+            )));
+        }
+    }
+
+    // Lock the setting
+    let result = setting_repo
+        .lock_setting(
+            device_id,
+            &key,
+            user_auth.user_id,
+            request.reason.as_deref(),
+            request.value,
+        )
+        .await?;
+
+    info!(
+        device_id = %device_id,
+        user_id = %user_auth.user_id,
+        key = %key,
+        reason = ?request.reason,
+        "Locked device setting"
+    );
+
+    Ok(Json(LockSettingResponse {
+        key,
+        is_locked: result.is_locked,
+        value: result.value,
+        locked_by: result.locked_by.unwrap_or(user_auth.user_id),
+        locked_at: result.locked_at.unwrap_or_else(Utc::now),
+        reason: result.lock_reason,
+    }))
+}
+
+/// Unlock a device setting.
+///
+/// DELETE /api/v1/devices/:device_id/settings/:key/lock
+///
+/// Requires JWT authentication.
+/// Only group admin or owner can unlock settings.
+pub async fn unlock_setting(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path((device_id, key)): Path<(Uuid, String)>,
+) -> Result<Json<UnlockSettingResponse>, ApiError> {
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let setting_repo = SettingRepository::new(state.pool.clone());
+    let group_repo = GroupRepository::new(state.pool.clone());
+
+    // Get the device
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Authorization check - only admin can unlock
+    let is_admin = check_is_admin(&group_repo, &device, user_auth.user_id).await?;
+
+    if !is_admin {
+        return Err(ApiError::Forbidden(
+            "Only admins can unlock settings".to_string(),
+        ));
+    }
+
+    // Check if setting definition exists
+    let _def = setting_repo
+        .get_definition(&key)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
+
+    // Unlock the setting
+    let result = setting_repo
+        .unlock_setting(device_id, &key, user_auth.user_id)
+        .await?;
+
+    if result.is_none() {
+        return Err(ApiError::NotFound(format!(
+            "Setting '{}' is not locked or doesn't exist for this device",
+            key
+        )));
+    }
+
+    info!(
+        device_id = %device_id,
+        user_id = %user_auth.user_id,
+        key = %key,
+        "Unlocked device setting"
+    );
+
+    Ok(Json(UnlockSettingResponse {
+        key,
+        is_locked: false,
+        unlocked_by: user_auth.user_id,
+        unlocked_at: Utc::now(),
     }))
 }
 

@@ -1,7 +1,7 @@
 # Story 12.4: Lock/Unlock Settings Endpoints
 
 **Epic**: Epic 12 - Settings Control
-**Status**: In Progress
+**Status**: Done
 **Created**: 2025-12-01
 
 ---
@@ -41,17 +41,17 @@
 
 ## Implementation Tasks
 
-- [ ] Add list_setting_locks method to SettingRepository
-- [ ] Add lock_setting method to SettingRepository
-- [ ] Add unlock_setting method to SettingRepository
-- [ ] Create LockSettingRequest DTO
-- [ ] Create LockSettingResponse and UnlockSettingResponse DTOs
-- [ ] Create ListLocksResponse DTO
-- [ ] Add get_locks handler
-- [ ] Add lock_setting handler
-- [ ] Add unlock_setting handler
-- [ ] Add routes to app.rs
-- [ ] Add unit tests
+- [x] Add list_setting_locks method to SettingRepository
+- [x] Add lock_setting method to SettingRepository
+- [x] Add unlock_setting method to SettingRepository
+- [x] Create LockSettingRequest DTO
+- [x] Create LockSettingResponse and UnlockSettingResponse DTOs
+- [x] Create ListLocksResponse DTO
+- [x] Add get_locks handler
+- [x] Add lock_setting handler
+- [x] Add unlock_setting handler
+- [x] Add routes to app.rs
+- [x] Add unit tests
 
 ## API Request Example (Lock)
 
@@ -93,6 +93,14 @@
 
 ### Completion Notes
 
+- Added get_setting_locks handler to list all locked settings for a device
+- Added lock_setting handler with is_lockable validation
+- Added unlock_setting handler with admin-only authorization
+- Lock includes optional reason and forced value
+- Non-lockable settings return validation error (400)
+- Response includes locker info with display name
+- All routes added with proper JWT auth
+- All tests pass (73+ unit tests across workspace)
 
 ---
 
