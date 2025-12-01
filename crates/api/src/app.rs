@@ -16,7 +16,7 @@ use tower_http::{
 use crate::config::Config;
 use crate::middleware::{
     metrics_handler, metrics_middleware, rate_limit_middleware, require_admin, require_auth,
-    security_headers_middleware, trace_id, RateLimiterState,
+    security_headers_middleware, trace_id, ExportRateLimiterState, RateLimiterState,
 };
 use crate::routes::{
     admin, audit_logs, auth, bulk_import, device_policies, device_settings, devices, enrollment, enrollment_tokens,
@@ -31,6 +31,8 @@ pub struct AppState {
     pub pool: PgPool,
     pub config: Arc<Config>,
     pub rate_limiter: Option<Arc<RateLimiterState>>,
+    /// Export rate limiter for per-organization audit log exports
+    pub export_rate_limiter: Option<Arc<ExportRateLimiterState>>,
     /// Shared map-matching client (None if disabled or failed to initialize)
     pub map_matching_client: Option<Arc<MapMatchingClient>>,
     /// Notification service for push notifications
@@ -44,6 +46,15 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
     let rate_limiter = if config.security.rate_limit_per_minute > 0 {
         Some(Arc::new(RateLimiterState::new(
             config.security.rate_limit_per_minute,
+        )))
+    } else {
+        None
+    };
+
+    // Create export rate limiter for per-organization export limiting
+    let export_rate_limiter = if config.security.export_rate_limit_per_hour > 0 {
+        Some(Arc::new(ExportRateLimiterState::new(
+            config.security.export_rate_limit_per_hour,
         )))
     } else {
         None
@@ -73,6 +84,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         pool,
         config: config.clone(),
         rate_limiter,
+        export_rate_limiter,
         map_matching_client,
         notification_service,
     };

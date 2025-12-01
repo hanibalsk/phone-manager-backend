@@ -14,7 +14,7 @@ pub use auth::{optional_auth, require_admin, require_auth};
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use metrics::{init_metrics, metrics_handler, metrics_middleware};
 #[allow(unused_imports)] // Re-exports for downstream use
-pub use rate_limit::{rate_limit_middleware, RateLimiterState};
+pub use rate_limit::{rate_limit_middleware, ExportRateLimiterState, RateLimiterState};
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use rbac::{
     require_group_admin, require_group_member, require_group_owner, GroupMembership,

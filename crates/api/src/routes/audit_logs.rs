@@ -79,12 +79,26 @@ pub async fn get_audit_log(
 /// Export audit logs as CSV or JSON.
 /// For small datasets (<= 1000 records), returns the data directly.
 /// For larger datasets, creates an async job and returns the job ID.
+/// Rate limited to 10 exports per hour per organization.
 #[axum::debug_handler]
 pub async fn export_audit_logs(
     State(state): State<AppState>,
     Path(org_id): Path<Uuid>,
     Query(query): Query<ExportAuditLogsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    // Check export rate limit (10/hour/org)
+    if let Some(ref export_limiter) = state.export_rate_limiter {
+        if let Err(retry_after) = export_limiter.check(org_id) {
+            return Err(ApiError::RateLimitedWithRetry {
+                message: format!(
+                    "Export rate limit of {} exports/hour exceeded for this organization",
+                    export_limiter.rate_limit_per_hour()
+                ),
+                retry_after,
+            });
+        }
+    }
+
     let log_repo = AuditLogRepository::new(state.pool.clone());
     let job_repo = AuditExportJobRepository::new(state.pool.clone());
 
@@ -236,8 +250,12 @@ fn generate_export_data(logs: &[AuditLog], format: ExportFormat) -> Result<(Vec<
 }
 
 /// Generate CSV from audit logs.
+/// Includes UTF-8 BOM for Excel compatibility.
 fn generate_csv(logs: &[AuditLog]) -> Result<String, ApiError> {
     let mut csv = String::new();
+
+    // Add UTF-8 BOM for Excel compatibility
+    csv.push('\u{FEFF}');
 
     // Header
     csv.push_str("id,timestamp,actor_type,actor_id,actor_email,action,resource_type,resource_id,resource_name,ip_address,user_agent\n");
@@ -295,6 +313,20 @@ mod tests {
         assert_eq!(escape_csv("hello"), "hello");
         assert_eq!(escape_csv("hello,world"), "\"hello,world\"");
         assert_eq!(escape_csv("hello\"world"), "\"hello\"\"world\"");
+    }
+
+    #[test]
+    fn test_escape_csv_with_newline() {
+        assert_eq!(escape_csv("hello\nworld"), "\"hello\nworld\"");
+    }
+
+    #[test]
+    fn test_generate_csv_has_bom() {
+        let csv = generate_csv(&[]).unwrap();
+        // UTF-8 BOM is U+FEFF
+        assert!(csv.starts_with('\u{FEFF}'));
+        // Should contain header after BOM
+        assert!(csv.contains("id,timestamp,actor_type"));
     }
 
     #[test]

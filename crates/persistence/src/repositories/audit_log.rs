@@ -13,6 +13,91 @@ use uuid::Uuid;
 
 use crate::entities::AuditLogEntity;
 
+/// Helper struct for building dynamic WHERE clauses from audit log filters.
+/// Tracks conditions and parameter positions to avoid code duplication.
+struct AuditLogFilterBuilder {
+    conditions: Vec<String>,
+    param_count: i32,
+}
+
+impl AuditLogFilterBuilder {
+    /// Build filter conditions from a query.
+    /// Returns the builder with WHERE clause and parameter count.
+    fn build(query: &ListAuditLogsQuery) -> Self {
+        let mut conditions = vec!["organization_id = $1".to_string()];
+        let mut param_count = 1;
+
+        if query.actor_id.is_some() {
+            param_count += 1;
+            conditions.push(format!("actor_id = ${}", param_count));
+        }
+
+        if query.action.is_some() {
+            param_count += 1;
+            conditions.push(format!("action = ${}", param_count));
+        }
+
+        if query.resource_type.is_some() {
+            param_count += 1;
+            conditions.push(format!("resource_type = ${}", param_count));
+        }
+
+        if query.resource_id.is_some() {
+            param_count += 1;
+            conditions.push(format!("resource_id = ${}", param_count));
+        }
+
+        if query.from.is_some() {
+            param_count += 1;
+            conditions.push(format!("timestamp >= ${}", param_count));
+        }
+
+        if query.to.is_some() {
+            param_count += 1;
+            conditions.push(format!("timestamp <= ${}", param_count));
+        }
+
+        Self { conditions, param_count }
+    }
+
+    /// Get the WHERE clause as a string.
+    fn where_clause(&self) -> String {
+        self.conditions.join(" AND ")
+    }
+
+    /// Get the current parameter count.
+    fn param_count(&self) -> i32 {
+        self.param_count
+    }
+}
+
+/// Macro to bind query filter parameters to a SQLx builder.
+/// This avoids code duplication for binding optional query parameters.
+macro_rules! bind_query_filters {
+    ($builder:expr, $query:expr) => {{
+        let mut b = $builder;
+        if let Some(ref actor_id) = $query.actor_id {
+            b = b.bind(actor_id);
+        }
+        if let Some(ref action) = $query.action {
+            b = b.bind(action);
+        }
+        if let Some(ref resource_type) = $query.resource_type {
+            b = b.bind(resource_type);
+        }
+        if let Some(ref resource_id) = $query.resource_id {
+            b = b.bind(resource_id);
+        }
+        if let Some(ref from) = $query.from {
+            b = b.bind(from);
+        }
+        if let Some(ref to) = $query.to {
+            b = b.bind(to);
+        }
+        b
+    }};
+}
+
 /// Repository for audit log database operations.
 #[derive(Clone)]
 pub struct AuditLogRepository {
@@ -117,41 +202,10 @@ impl AuditLogRepository {
         let per_page = query.per_page.unwrap_or(50).clamp(1, 100);
         let offset = ((page - 1) * per_page) as i64;
 
-        // Build dynamic query based on filters
-        let mut conditions = vec!["organization_id = $1".to_string()];
-        let mut param_count = 1;
-
-        if query.actor_id.is_some() {
-            param_count += 1;
-            conditions.push(format!("actor_id = ${}", param_count));
-        }
-
-        if query.action.is_some() {
-            param_count += 1;
-            conditions.push(format!("action = ${}", param_count));
-        }
-
-        if query.resource_type.is_some() {
-            param_count += 1;
-            conditions.push(format!("resource_type = ${}", param_count));
-        }
-
-        if query.resource_id.is_some() {
-            param_count += 1;
-            conditions.push(format!("resource_id = ${}", param_count));
-        }
-
-        if query.from.is_some() {
-            param_count += 1;
-            conditions.push(format!("timestamp >= ${}", param_count));
-        }
-
-        if query.to.is_some() {
-            param_count += 1;
-            conditions.push(format!("timestamp <= ${}", param_count));
-        }
-
-        let where_clause = conditions.join(" AND ");
+        // Build filter conditions using helper
+        let filter = AuditLogFilterBuilder::build(query);
+        let where_clause = filter.where_clause();
+        let param_count = filter.param_count();
 
         // Get total count
         let count_query = format!(
@@ -159,28 +213,8 @@ impl AuditLogRepository {
             where_clause
         );
 
-        let mut count_builder = sqlx::query_scalar::<_, i64>(&count_query)
-            .bind(org_id);
-
-        if let Some(ref actor_id) = query.actor_id {
-            count_builder = count_builder.bind(actor_id);
-        }
-        if let Some(ref action) = query.action {
-            count_builder = count_builder.bind(action);
-        }
-        if let Some(ref resource_type) = query.resource_type {
-            count_builder = count_builder.bind(resource_type);
-        }
-        if let Some(ref resource_id) = query.resource_id {
-            count_builder = count_builder.bind(resource_id);
-        }
-        if let Some(ref from) = query.from {
-            count_builder = count_builder.bind(from);
-        }
-        if let Some(ref to) = query.to {
-            count_builder = count_builder.bind(to);
-        }
-
+        let count_builder = sqlx::query_scalar::<_, i64>(&count_query).bind(org_id);
+        let count_builder = bind_query_filters!(count_builder, query);
         let total: i64 = count_builder.fetch_one(&self.pool).await?;
 
         // Get audit logs
@@ -199,28 +233,8 @@ impl AuditLogRepository {
             param_count + 2
         );
 
-        let mut list_builder = sqlx::query_as::<_, AuditLogEntity>(&list_query)
-            .bind(org_id);
-
-        if let Some(ref actor_id) = query.actor_id {
-            list_builder = list_builder.bind(actor_id);
-        }
-        if let Some(ref action) = query.action {
-            list_builder = list_builder.bind(action);
-        }
-        if let Some(ref resource_type) = query.resource_type {
-            list_builder = list_builder.bind(resource_type);
-        }
-        if let Some(ref resource_id) = query.resource_id {
-            list_builder = list_builder.bind(resource_id);
-        }
-        if let Some(ref from) = query.from {
-            list_builder = list_builder.bind(from);
-        }
-        if let Some(ref to) = query.to {
-            list_builder = list_builder.bind(to);
-        }
-
+        let list_builder = sqlx::query_as::<_, AuditLogEntity>(&list_query).bind(org_id);
+        let list_builder = bind_query_filters!(list_builder, query);
         let entities = list_builder
             .bind(per_page as i64)
             .bind(offset)
@@ -251,41 +265,10 @@ impl AuditLogRepository {
         query: &ListAuditLogsQuery,
         max_records: i64,
     ) -> Result<Vec<AuditLog>, sqlx::Error> {
-        // Build dynamic query based on filters
-        let mut conditions = vec!["organization_id = $1".to_string()];
-        let mut param_count = 1;
-
-        if query.actor_id.is_some() {
-            param_count += 1;
-            conditions.push(format!("actor_id = ${}", param_count));
-        }
-
-        if query.action.is_some() {
-            param_count += 1;
-            conditions.push(format!("action = ${}", param_count));
-        }
-
-        if query.resource_type.is_some() {
-            param_count += 1;
-            conditions.push(format!("resource_type = ${}", param_count));
-        }
-
-        if query.resource_id.is_some() {
-            param_count += 1;
-            conditions.push(format!("resource_id = ${}", param_count));
-        }
-
-        if query.from.is_some() {
-            param_count += 1;
-            conditions.push(format!("timestamp >= ${}", param_count));
-        }
-
-        if query.to.is_some() {
-            param_count += 1;
-            conditions.push(format!("timestamp <= ${}", param_count));
-        }
-
-        let where_clause = conditions.join(" AND ");
+        // Build filter conditions using helper
+        let filter = AuditLogFilterBuilder::build(query);
+        let where_clause = filter.where_clause();
+        let param_count = filter.param_count();
 
         let list_query = format!(
             r#"
@@ -301,28 +284,8 @@ impl AuditLogRepository {
             param_count + 1
         );
 
-        let mut list_builder = sqlx::query_as::<_, AuditLogEntity>(&list_query)
-            .bind(org_id);
-
-        if let Some(ref actor_id) = query.actor_id {
-            list_builder = list_builder.bind(actor_id);
-        }
-        if let Some(ref action) = query.action {
-            list_builder = list_builder.bind(action);
-        }
-        if let Some(ref resource_type) = query.resource_type {
-            list_builder = list_builder.bind(resource_type);
-        }
-        if let Some(ref resource_id) = query.resource_id {
-            list_builder = list_builder.bind(resource_id);
-        }
-        if let Some(ref from) = query.from {
-            list_builder = list_builder.bind(from);
-        }
-        if let Some(ref to) = query.to {
-            list_builder = list_builder.bind(to);
-        }
-
+        let list_builder = sqlx::query_as::<_, AuditLogEntity>(&list_query).bind(org_id);
+        let list_builder = bind_query_filters!(list_builder, query);
         let entities = list_builder
             .bind(max_records)
             .fetch_all(&self.pool)

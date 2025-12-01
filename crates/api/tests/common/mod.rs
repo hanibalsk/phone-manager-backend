@@ -155,6 +155,7 @@ dwIDAQAB
         security: phone_manager_api::config::SecurityConfig {
             cors_origins: vec![],
             rate_limit_per_minute: 0, // Disable rate limiting for tests
+            export_rate_limit_per_hour: 0, // Disable export rate limiting for tests
         },
         limits: phone_manager_api::config::LimitsConfig {
             max_devices_per_group: 20,

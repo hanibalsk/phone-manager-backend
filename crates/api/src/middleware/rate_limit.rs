@@ -1,6 +1,7 @@
 //! Rate limiting middleware.
 //!
 //! Provides per-API-key rate limiting using a sliding window algorithm.
+//! Also provides per-organization export rate limiting for audit log exports.
 
 use axum::{
     body::Body,
@@ -21,12 +22,16 @@ use std::{
     num::NonZeroU32,
     sync::{Arc, RwLock},
 };
+use uuid::Uuid;
 
 use crate::app::AppState;
 use crate::extractors::api_key::ApiKeyAuth;
 
 /// Type alias for the rate limiter used per API key.
 type KeyRateLimiter = GovRateLimiter<NotKeyed, InMemoryState, DefaultClock>;
+
+/// Type alias for the rate limiter used per organization for exports.
+type OrgRateLimiter = GovRateLimiter<NotKeyed, InMemoryState, DefaultClock>;
 
 /// Rate limiter state shared across all requests.
 /// Uses a HashMap keyed by API key ID (i64) with individual rate limiters.
@@ -104,6 +109,92 @@ impl Clone for RateLimiterState {
         Self {
             limiters: RwLock::new(self.limiters.read().unwrap().clone()),
             rate_limit_per_minute: self.rate_limit_per_minute,
+        }
+    }
+}
+
+/// Export rate limiter state for per-organization export rate limiting.
+/// Uses a HashMap keyed by organization UUID with individual rate limiters.
+/// Configured for 10 exports per hour per organization.
+pub struct ExportRateLimiterState {
+    limiters: RwLock<HashMap<Uuid, Arc<OrgRateLimiter>>>,
+    rate_limit_per_hour: u32,
+}
+
+impl ExportRateLimiterState {
+    /// Create a new export rate limiter state with the specified limit per hour.
+    pub fn new(rate_limit_per_hour: u32) -> Self {
+        Self {
+            limiters: RwLock::new(HashMap::new()),
+            rate_limit_per_hour,
+        }
+    }
+
+    /// Get or create a rate limiter for the given organization ID.
+    fn get_or_create_limiter(&self, org_id: Uuid) -> Arc<OrgRateLimiter> {
+        // First try to get existing limiter with read lock
+        {
+            let limiters = self.limiters.read().unwrap();
+            if let Some(limiter) = limiters.get(&org_id) {
+                return limiter.clone();
+            }
+        }
+
+        // Create new limiter with write lock
+        let mut limiters = self.limiters.write().unwrap();
+
+        // Double-check in case another thread created it
+        if let Some(limiter) = limiters.get(&org_id) {
+            return limiter.clone();
+        }
+
+        // Create new limiter with rate limit per hour
+        let quota = Quota::per_hour(
+            NonZeroU32::new(self.rate_limit_per_hour).unwrap_or(NonZeroU32::new(10).unwrap()),
+        );
+        let limiter = Arc::new(GovRateLimiter::direct(quota));
+        limiters.insert(org_id, limiter.clone());
+        limiter
+    }
+
+    /// Check if an export request from the given organization should be allowed.
+    /// Returns Ok(()) if allowed, or Err with retry_after seconds if rate limited.
+    pub fn check(&self, org_id: Uuid) -> Result<(), u64> {
+        let limiter = self.get_or_create_limiter(org_id);
+
+        match limiter.check() {
+            Ok(_) => Ok(()),
+            Err(not_until) => {
+                let wait_time = not_until.wait_time_from(governor::clock::Clock::now(
+                    &governor::clock::DefaultClock::default(),
+                ));
+                // Return retry after in seconds, minimum 1 second
+                Err(wait_time.as_secs().max(1))
+            }
+        }
+    }
+
+    /// Get the configured rate limit per hour.
+    pub fn rate_limit_per_hour(&self) -> u32 {
+        self.rate_limit_per_hour
+    }
+}
+
+impl std::fmt::Debug for ExportRateLimiterState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExportRateLimiterState")
+            .field("rate_limit_per_hour", &self.rate_limit_per_hour)
+            .field("active_limiters", &self.limiters.read().unwrap().len())
+            .finish()
+    }
+}
+
+impl Clone for ExportRateLimiterState {
+    fn clone(&self) -> Self {
+        // Clone creates a new state that shares the same limiters
+        Self {
+            limiters: RwLock::new(self.limiters.read().unwrap().clone()),
+            rate_limit_per_hour: self.rate_limit_per_hour,
         }
     }
 }
@@ -385,6 +476,129 @@ mod tests {
 
         let limiter1 = state.get_or_create_limiter(1);
         let limiter2 = state.get_or_create_limiter(2);
+
+        // Should be different Arcs
+        assert!(!Arc::ptr_eq(&limiter1, &limiter2));
+    }
+
+    // ===========================================
+    // Export Rate Limiter Tests
+    // ===========================================
+
+    #[test]
+    fn test_export_rate_limiter_state_creation() {
+        let state = ExportRateLimiterState::new(10);
+        assert_eq!(state.rate_limit_per_hour(), 10);
+    }
+
+    #[test]
+    fn test_export_rate_limiter_allows_requests() {
+        let state = ExportRateLimiterState::new(10);
+        let org_id = Uuid::new_v4();
+
+        // First request should be allowed
+        assert!(state.check(org_id).is_ok());
+    }
+
+    #[test]
+    fn test_export_rate_limiter_exhaustion() {
+        // Use very low limit to test exhaustion
+        let state = ExportRateLimiterState::new(1);
+        let org_id = Uuid::new_v4();
+
+        // First request should be allowed
+        assert!(state.check(org_id).is_ok());
+
+        // Second request should be rate limited
+        let result = state.check(org_id);
+        assert!(result.is_err());
+        // Retry-after should be at least 1 second
+        assert!(result.unwrap_err() >= 1);
+    }
+
+    #[test]
+    fn test_export_rate_limiter_different_orgs_independent() {
+        let state = ExportRateLimiterState::new(1); // Very low limit
+        let org1 = Uuid::new_v4();
+        let org2 = Uuid::new_v4();
+        let org3 = Uuid::new_v4();
+
+        // Each org should have independent limits
+        assert!(state.check(org1).is_ok());
+        assert!(state.check(org2).is_ok());
+        assert!(state.check(org3).is_ok());
+
+        // Now org1 should be rate limited, but others still allowed for their first request
+        assert!(state.check(org1).is_err());
+        assert!(state.check(org2).is_err());
+        assert!(state.check(org3).is_err());
+    }
+
+    #[test]
+    fn test_export_rate_limiter_same_org_multiple_checks() {
+        let state = ExportRateLimiterState::new(5);
+        let org_id = Uuid::new_v4();
+
+        // Should allow 5 requests
+        for i in 0..5 {
+            let result = state.check(org_id);
+            assert!(result.is_ok(), "Request {} should be allowed", i);
+        }
+
+        // 6th request should be rate limited
+        assert!(state.check(org_id).is_err());
+    }
+
+    #[test]
+    fn test_export_rate_limiter_many_orgs() {
+        let state = ExportRateLimiterState::new(10);
+
+        // Test with 100 different organizations
+        for _ in 0..100 {
+            let org_id = Uuid::new_v4();
+            assert!(state.check(org_id).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_export_rate_limiter_state_debug() {
+        let state = ExportRateLimiterState::new(10);
+        let debug = format!("{:?}", state);
+        assert!(debug.contains("ExportRateLimiterState"));
+        assert!(debug.contains("rate_limit_per_hour"));
+        assert!(debug.contains("10"));
+        assert!(debug.contains("active_limiters"));
+    }
+
+    #[test]
+    fn test_export_rate_limiter_state_clone() {
+        let state = ExportRateLimiterState::new(10);
+        let org_id = Uuid::new_v4();
+        state.check(org_id).unwrap(); // Create a limiter
+
+        let cloned = state.clone();
+        assert_eq!(cloned.rate_limit_per_hour(), 10);
+    }
+
+    #[test]
+    fn test_export_rate_limiter_get_or_create_idempotent() {
+        let state = ExportRateLimiterState::new(10);
+        let org_id = Uuid::new_v4();
+
+        // Multiple calls should return the same limiter
+        let limiter1 = state.get_or_create_limiter(org_id);
+        let limiter2 = state.get_or_create_limiter(org_id);
+
+        // Should be the same Arc (same underlying object)
+        assert!(Arc::ptr_eq(&limiter1, &limiter2));
+    }
+
+    #[test]
+    fn test_export_rate_limiter_different_orgs_different_limiters() {
+        let state = ExportRateLimiterState::new(10);
+
+        let limiter1 = state.get_or_create_limiter(Uuid::new_v4());
+        let limiter2 = state.get_or_create_limiter(Uuid::new_v4());
 
         // Should be different Arcs
         assert!(!Arc::ptr_eq(&limiter1, &limiter2));

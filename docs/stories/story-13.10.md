@@ -212,4 +212,92 @@ Implementation completed with the following components:
 |------|--------|
 | 2025-12-01 | Story created |
 | 2025-12-01 | Story completed - Audit query and export endpoints implemented |
+| 2025-12-01 | Senior Developer Review notes appended |
+
+---
+
+## Senior Developer Review (AI)
+
+### Reviewer: Martin Janci
+### Date: 2025-12-01
+### Outcome: **Approve**
+
+### Summary
+
+Story 13.10 implements audit log querying and export functionality with support for both synchronous and asynchronous export workflows. The implementation correctly handles the threshold-based decision between sync (≤1000 records) and async (>1000 records) exports, includes proper job lifecycle management, and generates both CSV and JSON export formats.
+
+### Key Findings
+
+**Medium Severity:**
+1. **[Med] In-Memory Data URLs**: Large exports store base64-encoded data in the database `download_url` field. For exports approaching 10K records, this could result in very large strings (potentially >10MB). Consider:
+   - Using external object storage (S3, GCS) for completed exports
+   - Adding a file size limit warning in documentation
+   - Implementing streaming export to avoid memory pressure
+
+**Low Severity:**
+2. **[Low] CSV Special Character Handling**: The `escape_csv()` function handles commas, quotes, and newlines, but doesn't handle:
+   - Unicode characters outside basic ASCII
+   - BOM (Byte Order Mark) for Excel compatibility
+   - Null values that might contain "null" as a string
+
+3. **[Low] Rate Limiting**: Dev notes mention "Rate limit: 10 exports per hour per organization" but this isn't implemented. Consider adding before production use.
+
+4. **[Low] Background Task Error Propagation**: The `process_export_job()` background task properly marks jobs as failed, but there's no notification mechanism for export failures.
+
+### Acceptance Criteria Coverage
+
+| AC | Status | Evidence |
+|----|--------|----------|
+| AC1: GET returns paginated entries | ✅ Pass | list_audit_logs with AuditLogPagination |
+| AC2: Filtering by actor_id, action, etc. | ✅ Pass | ListAuditLogsQuery with all filter fields |
+| AC3: Export as CSV or JSON | ✅ Pass | ExportFormat enum, generate_export_data() |
+| AC4: Export supports same filters | ✅ Pass | ExportAuditLogsQuery.to_list_query() |
+| AC5: Export limited to 10,000 records | ✅ Pass | MAX_EXPORT_RECORDS = 10000 |
+| AC6: Large exports return job ID | ✅ Pass | >1000 triggers async with job_id |
+| AC7: Export downloadable via job endpoint | ✅ Pass | get_export_job_status endpoint |
+| AC8: Jobs expire after 24 hours | ✅ Pass | EXPORT_JOB_EXPIRY_HOURS = 24 |
+| AC9: Pagination metadata included | ✅ Pass | AuditLogPagination in response |
+
+### Test Coverage and Gaps
+
+**Covered:**
+- ListAuditLogsQuery defaults test
+- CSV escape function tests
+- ExportAuditLogsQuery to ListAuditLogsQuery conversion test
+- Export job repository job_id generation test
+
+**Gaps:**
+- [ ] Integration tests for export flow (requires database)
+- [ ] Tests for CSV generation with various data types
+- [ ] Tests for async export job state transitions
+- [ ] Load tests for large exports (memory usage)
+
+### Architectural Alignment
+
+✅ **Follows layered architecture**: Domain → Entity → Repository → Routes
+✅ **Proper async handling**: tokio::spawn for background export processing
+✅ **Clean separation**: Sync vs async export logic cleanly separated
+✅ **Consistent API design**: Matches existing pagination patterns
+
+### Security Notes
+
+✅ **Organization Isolation**: All queries filter by organization_id
+✅ **Export Size Limits**: 10K record limit prevents abuse
+✅ **Job Ownership**: Jobs validated against organization_id
+⚠️ **Data URL Security**: Base64 data URLs bypass any signed URL security - consider encrypting or using signed external storage
+⚠️ **No Rate Limiting**: Export endpoint should be rate-limited per organization
+
+### Best-Practices and References
+
+- [RFC 4180 - CSV Format](https://tools.ietf.org/html/rfc4180)
+- [Data URLs RFC 2397](https://datatracker.ietf.org/doc/html/rfc2397)
+- [Tokio Async Best Practices](https://tokio.rs/tokio/tutorial)
+
+### Action Items
+
+- [ ] **[Med]** Implement external storage for large export files (S3/GCS)
+- [ ] **[Med]** Add rate limiting for export endpoint (10/hour/org as documented)
+- [ ] **[Low]** Add BOM to CSV exports for Excel compatibility
+- [ ] **[Low]** Add integration tests when database test infrastructure is available
+- [ ] **[Low]** Consider adding export progress tracking for very large async exports
 

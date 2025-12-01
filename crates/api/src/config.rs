@@ -69,6 +69,10 @@ pub struct SecurityConfig {
 
     #[serde(default = "default_rate_limit")]
     pub rate_limit_per_minute: u32,
+
+    /// Export rate limit per hour per organization (default: 10)
+    #[serde(default = "default_export_rate_limit")]
+    pub export_rate_limit_per_hour: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -155,6 +159,9 @@ fn default_log_format() -> String {
 }
 fn default_rate_limit() -> u32 {
     100
+}
+fn default_export_rate_limit() -> u32 {
+    10 // 10 exports per hour per organization
 }
 fn default_max_devices_per_group() -> usize {
     20
@@ -379,6 +386,7 @@ impl Config {
             [security]
             cors_origins = []
             rate_limit_per_minute = 100
+            export_rate_limit_per_hour = 10
 
             [limits]
             max_devices_per_group = 20
