@@ -38,6 +38,9 @@ pub enum AuthError {
     #[error("Session not found")]
     SessionNotFound,
 
+    #[error("Invalid or expired reset token")]
+    InvalidResetToken,
+
     #[error("Token error: {0}")]
     TokenError(#[from] JwtError),
 
@@ -462,11 +465,169 @@ impl AuthService {
 
         Ok(())
     }
+
+    /// Initiate password reset by generating a reset token.
+    ///
+    /// Always succeeds to prevent email enumeration - if email doesn't exist,
+    /// we silently do nothing but return success.
+    ///
+    /// Returns the reset token (to be logged in MVP, emailed in production).
+    pub async fn forgot_password(&self, email: &str) -> Result<Option<String>, AuthError> {
+        // Check if user exists (case-insensitive)
+        let user: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM users WHERE email = $1 AND is_active = true")
+                .bind(email.to_lowercase())
+                .fetch_optional(&self.pool)
+                .await?;
+
+        let user_id = match user {
+            Some((id,)) => id,
+            None => {
+                // User not found - silently return success to prevent enumeration
+                tracing::debug!(email = %email, "Forgot password requested for non-existent email");
+                return Ok(None);
+            }
+        };
+
+        // Generate secure reset token (32 bytes = 64 hex chars)
+        let reset_token = generate_secure_token();
+
+        // Hash the token for storage
+        let token_hash = sha256_hex(&reset_token);
+
+        // Set expiry to 1 hour from now
+        let expires_at = Utc::now() + chrono::Duration::hours(1);
+
+        // Store hashed token in database
+        sqlx::query(
+            r#"
+            UPDATE users
+            SET password_reset_token = $1, password_reset_expires_at = $2
+            WHERE id = $3
+            "#,
+        )
+        .bind(&token_hash)
+        .bind(expires_at)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+
+        // In MVP, we log the token. In production, this would be emailed.
+        tracing::info!(
+            user_id = %user_id,
+            email = %email,
+            reset_token = %reset_token,
+            "Password reset token generated (MVP: logging token, production: would email)"
+        );
+
+        Ok(Some(reset_token))
+    }
+
+    /// Reset password using a valid reset token.
+    ///
+    /// Validates the token, updates the password, invalidates the token,
+    /// and clears all user sessions.
+    pub async fn reset_password(
+        &self,
+        token: &str,
+        new_password: &str,
+    ) -> Result<(), AuthError> {
+        // Validate new password requirements
+        self.validate_password(new_password)?;
+
+        // Hash the provided token to look up in database
+        let token_hash = sha256_hex(token);
+
+        // Find user with this reset token
+        let user: Option<(Uuid, chrono::DateTime<Utc>)> = sqlx::query_as(
+            r#"
+            SELECT id, password_reset_expires_at
+            FROM users
+            WHERE password_reset_token = $1 AND is_active = true
+            "#,
+        )
+        .bind(&token_hash)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let (user_id, expires_at) = match user {
+            Some((id, exp)) => (id, exp),
+            None => return Err(AuthError::InvalidResetToken),
+        };
+
+        // Check if token has expired
+        if expires_at < Utc::now() {
+            // Clear the expired token
+            sqlx::query(
+                "UPDATE users SET password_reset_token = NULL, password_reset_expires_at = NULL WHERE id = $1"
+            )
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+
+            return Err(AuthError::InvalidResetToken);
+        }
+
+        // Hash the new password
+        let password_hash = hash_password(new_password)?;
+
+        // Update password and clear reset token
+        let now = Utc::now();
+        sqlx::query(
+            r#"
+            UPDATE users
+            SET password_hash = $1,
+                password_reset_token = NULL,
+                password_reset_expires_at = NULL,
+                updated_at = $2
+            WHERE id = $3
+            "#,
+        )
+        .bind(&password_hash)
+        .bind(now)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+
+        // Invalidate all existing sessions for security
+        sqlx::query("DELETE FROM user_sessions WHERE user_id = $1")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+
+        tracing::info!(user_id = %user_id, "Password reset successfully, all sessions invalidated");
+
+        Ok(())
+    }
+}
+
+/// Generate a secure random token (32 bytes, hex encoded).
+fn generate_secure_token() -> String {
+    use rand::Rng;
+    let bytes: [u8; 32] = rand::thread_rng().gen();
+    hex::encode(bytes)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_generate_secure_token() {
+        let token = generate_secure_token();
+        // Should be 64 hex characters (32 bytes * 2)
+        assert_eq!(token.len(), 64);
+        // Should be valid hex
+        assert!(hex::decode(&token).is_ok());
+    }
+
+    #[test]
+    fn test_generate_secure_token_uniqueness() {
+        let token1 = generate_secure_token();
+        let token2 = generate_secure_token();
+        // Should be unique
+        assert_ne!(token1, token2);
+    }
 
     #[test]
     fn test_password_validation_too_short() {

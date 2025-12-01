@@ -325,6 +325,111 @@ pub async fn logout(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Request body for forgot password.
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct ForgotPasswordRequest {
+    /// User's email address
+    #[validate(email(message = "Invalid email format"))]
+    pub email: String,
+}
+
+/// Response body for forgot password (always success for security).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForgotPasswordResponse {
+    pub message: String,
+}
+
+/// Request password reset - initiates the password reset flow.
+///
+/// POST /api/v1/auth/forgot-password
+///
+/// Always returns 200 to prevent email enumeration attacks.
+pub async fn forgot_password(
+    State(state): State<AppState>,
+    Json(request): Json<ForgotPasswordRequest>,
+) -> Result<Json<ForgotPasswordResponse>, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    // Create auth service
+    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
+        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+
+    // Request password reset (silently ignores non-existent emails)
+    auth_service
+        .forgot_password(&request.email)
+        .await
+        .map_err(|e| match e {
+            AuthError::DatabaseError(db_err) => ApiError::from(db_err),
+            _ => ApiError::Internal(e.to_string()),
+        })?;
+
+    // Always return success to prevent email enumeration
+    Ok(Json(ForgotPasswordResponse {
+        message: "If your email is registered, you will receive a password reset link.".to_string(),
+    }))
+}
+
+/// Request body for reset password.
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct ResetPasswordRequest {
+    /// The password reset token from the email
+    #[validate(length(min = 1, message = "Reset token is required"))]
+    pub token: String,
+
+    /// The new password
+    #[validate(length(min = 1, message = "New password is required"))]
+    pub new_password: String,
+}
+
+/// Response body for reset password.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResetPasswordResponse {
+    pub message: String,
+}
+
+/// Reset password using a valid reset token.
+///
+/// POST /api/v1/auth/reset-password
+pub async fn reset_password(
+    State(state): State<AppState>,
+    Json(request): Json<ResetPasswordRequest>,
+) -> Result<Json<ResetPasswordResponse>, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    // Create auth service
+    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
+        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+
+    // Reset password
+    auth_service
+        .reset_password(&request.token, &request.new_password)
+        .await
+        .map_err(|e| match e {
+            AuthError::InvalidResetToken => {
+                ApiError::Validation("Invalid or expired reset token".to_string())
+            }
+            AuthError::WeakPassword(msg) => ApiError::Validation(msg),
+            AuthError::DatabaseError(db_err) => ApiError::from(db_err),
+            AuthError::PasswordError(e) => ApiError::Internal(format!("Password error: {}", e)),
+            _ => ApiError::Internal(e.to_string()),
+        })?;
+
+    Ok(Json(ResetPasswordResponse {
+        message: "Password has been reset successfully. Please log in with your new password."
+            .to_string(),
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -485,5 +590,62 @@ mod tests {
         let json = r#"{"refreshToken": "some.token"}"#;
         let request: LogoutRequest = serde_json::from_str(json).unwrap();
         assert!(!request.all_devices);
+    }
+
+    #[test]
+    fn test_forgot_password_request_validation() {
+        let request = ForgotPasswordRequest {
+            email: "test@example.com".to_string(),
+        };
+
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_forgot_password_request_invalid_email() {
+        let request = ForgotPasswordRequest {
+            email: "not-an-email".to_string(),
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_forgot_password_request_empty_email() {
+        let request = ForgotPasswordRequest {
+            email: "".to_string(),
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_reset_password_request_validation() {
+        let request = ResetPasswordRequest {
+            token: "abc123".to_string(),
+            new_password: "SecureP@ss1".to_string(),
+        };
+
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_reset_password_request_empty_token() {
+        let request = ResetPasswordRequest {
+            token: "".to_string(),
+            new_password: "SecureP@ss1".to_string(),
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_reset_password_request_empty_password() {
+        let request = ResetPasswordRequest {
+            token: "abc123".to_string(),
+            new_password: "".to_string(),
+        };
+
+        assert!(request.validate().is_err());
     }
 }
