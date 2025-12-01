@@ -68,11 +68,11 @@ Movement events are sent from the app when the user's transportation mode change
 ```json
 {
   "eventId": "550e8400-e29b-41d4-a716-446655440000",
-  "deviceId": "device-uuid-123",
+  "device_id": "device-uuid-123",
   "timestamp": "2025-11-30T10:30:00.000Z",
   "previousMode": "STATIONARY",
   "newMode": "IN_VEHICLE",
-  "detectionSource": {
+  "detection_source": {
     "primary": "BLUETOOTH_CAR",
     "contributing": ["ACTIVITY_RECOGNITION", "BLUETOOTH_CAR"]
   },
@@ -146,8 +146,8 @@ Trips represent journeys from one location to another.
 ```json
 {
   "tripId": "server-generated-uuid",
-  "localTripId": "client-generated-uuid",
-  "deviceId": "device-uuid-123",
+  "local_trip_id": "client-generated-uuid",
+  "device_id": "device-uuid-123",
   "startTime": "2025-11-30T10:00:00.000Z",
   "endTime": "2025-11-30T10:45:00.000Z",
   "status": "COMPLETED",
@@ -176,8 +176,8 @@ Trips represent journeys from one location to another.
     "start": "MODE_CHANGE",
     "end": "STATIONARY"
   },
-  "createdAt": "2025-11-30T10:00:00.000Z",
-  "updatedAt": "2025-11-30T10:45:00.000Z"
+  "created_at": "2025-11-30T10:00:00.000Z",
+  "updated_at": "2025-11-30T10:45:00.000Z"
 }
 ```
 
@@ -215,7 +215,7 @@ Location data with transportation mode context.
 
 ```json
 {
-  "deviceId": "device-uuid-123",
+  "device_id": "device-uuid-123",
   "timestamp": "2025-11-30T10:30:00.000Z",
   "latitude": 48.1234567,
   "longitude": 17.5678901,
@@ -226,8 +226,8 @@ Location data with transportation mode context.
   "provider": "fused",
   "batteryLevel": 75,
   "networkType": "WIFI",
-  "transportationMode": "IN_VEHICLE",
-  "detectionSource": "BLUETOOTH_CAR",
+  "transportation_mode": "IN_VEHICLE",
+  "detection_source": "BLUETOOTH_CAR",
   "modeConfidence": 0.92,
   "tripId": "trip-uuid-456"
 }
@@ -384,8 +384,8 @@ POST /trips
 **Request Body:**
 ```json
 {
-  "localTripId": "client-uuid",
-  "deviceId": "device-uuid",
+  "local_trip_id": "client-uuid",
+  "device_id": "device-uuid",
   "startTime": "2025-11-30T10:00:00.000Z",
   "status": "ACTIVE",
   "startLocation": {
@@ -405,8 +405,8 @@ POST /trips
 ```json
 {
   "tripId": "server-uuid",
-  "localTripId": "client-uuid",
-  "createdAt": "2025-11-30T10:00:00.000Z"
+  "local_trip_id": "client-uuid",
+  "created_at": "2025-11-30T10:00:00.000Z"
 }
 ```
 
@@ -493,7 +493,7 @@ GET /trips/{tripId}/locations
       "longitude": 17.5678901,
       "accuracy": 10.5,
       "speed": 12.3,
-      "transportationMode": "IN_VEHICLE"
+      "transportation_mode": "IN_VEHICLE"
     }
   ],
   "count": 54
@@ -544,7 +544,7 @@ POST /locations/batch
 **Request Body:**
 ```json
 {
-  "deviceId": "device-uuid",
+  "device_id": "device-uuid",
   "locations": [
     { /* LocationPayload with new fields */ }
   ]

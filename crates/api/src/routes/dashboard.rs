@@ -57,6 +57,6 @@ mod tests {
         let json = serde_json::to_string(&metrics).unwrap();
         assert!(json.contains("devices"));
         assert!(json.contains("users"));
-        assert!(json.contains("generatedAt"));
+        assert!(json.contains("generated_at"));
     }
 }

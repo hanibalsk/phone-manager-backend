@@ -10,7 +10,7 @@ use crate::services::auth::{AuthError, AuthService};
 
 /// Request body for user registration.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RegisterRequest {
     /// User's email address
     #[validate(email(message = "Invalid email format"))]
@@ -35,7 +35,7 @@ pub struct RegisterRequest {
 
 /// User information in response.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UserResponse {
     pub id: String,
     pub email: String,
@@ -49,7 +49,7 @@ pub struct UserResponse {
 
 /// Token information in response.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct TokensResponse {
     pub access_token: String,
     pub refresh_token: String,
@@ -59,7 +59,7 @@ pub struct TokensResponse {
 
 /// Response body for successful registration.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RegisterResponse {
     pub user: UserResponse,
     pub tokens: TokensResponse,
@@ -126,7 +126,7 @@ pub async fn register(
 
 /// Request body for user login.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LoginRequest {
     /// User's email address
     #[validate(email(message = "Invalid email format"))]
@@ -147,7 +147,7 @@ pub struct LoginRequest {
 
 /// Request body for OAuth sign-in.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct OAuthLoginRequest {
     /// OAuth provider (google or apple)
     #[validate(length(min = 1, message = "Provider is required"))]
@@ -168,7 +168,7 @@ pub struct OAuthLoginRequest {
 
 /// Response body for successful login.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LoginResponse {
     pub user: UserResponse,
     pub tokens: TokensResponse,
@@ -296,7 +296,7 @@ pub async fn oauth_login(
 
 /// Request body for token refresh.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RefreshRequest {
     /// The refresh token to use
     #[validate(length(min = 1, message = "Refresh token is required"))]
@@ -305,7 +305,7 @@ pub struct RefreshRequest {
 
 /// Response body for successful token refresh.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RefreshResponse {
     pub tokens: TokensResponse,
 }
@@ -362,7 +362,7 @@ pub async fn refresh(
 
 /// Request body for logout.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LogoutRequest {
     /// The refresh token to invalidate
     #[validate(length(min = 1, message = "Refresh token is required"))]
@@ -410,7 +410,7 @@ pub async fn logout(
 
 /// Request body for forgot password.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ForgotPasswordRequest {
     /// User's email address
     #[validate(email(message = "Invalid email format"))]
@@ -419,7 +419,7 @@ pub struct ForgotPasswordRequest {
 
 /// Response body for forgot password (always success for security).
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ForgotPasswordResponse {
     pub message: String,
 }
@@ -459,7 +459,7 @@ pub async fn forgot_password(
 
 /// Request body for reset password.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ResetPasswordRequest {
     /// The password reset token from the email
     #[validate(length(min = 1, message = "Reset token is required"))]
@@ -472,7 +472,7 @@ pub struct ResetPasswordRequest {
 
 /// Response body for reset password.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ResetPasswordResponse {
     pub message: String,
 }
@@ -515,7 +515,7 @@ pub async fn reset_password(
 
 /// Response body for request verification.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RequestVerificationResponse {
     pub message: String,
 }
@@ -553,7 +553,7 @@ pub async fn request_verification(
 
 /// Request body for verify email.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct VerifyEmailRequest {
     /// The email verification token
     #[validate(length(min = 1, message = "Verification token is required"))]
@@ -562,7 +562,7 @@ pub struct VerifyEmailRequest {
 
 /// Response body for verify email.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct VerifyEmailResponse {
     pub message: String,
     pub email_verified: bool,
@@ -762,7 +762,7 @@ mod tests {
     #[test]
     fn test_logout_request_default_all_devices() {
         // Test that all_devices defaults to false when not provided
-        let json = r#"{"refreshToken": "some.token"}"#;
+        let json = r#"{"refresh_token": "some.token"}"#;
         let request: LogoutRequest = serde_json::from_str(json).unwrap();
         assert!(!request.all_devices);
     }
@@ -850,7 +850,7 @@ mod tests {
         };
 
         let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("emailVerified"));
+        assert!(json.contains("email_verified"));
         assert!(json.contains("true"));
     }
 
@@ -916,7 +916,7 @@ mod tests {
 
     #[test]
     fn test_oauth_login_request_deserialization() {
-        let json = r#"{"provider": "google", "idToken": "abc.def.ghi"}"#;
+        let json = r#"{"provider": "google", "id_token": "abc.def.ghi"}"#;
         let request: OAuthLoginRequest = serde_json::from_str(json).unwrap();
         assert_eq!(request.provider, "google");
         assert_eq!(request.id_token, "abc.def.ghi");

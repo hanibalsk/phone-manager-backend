@@ -12,7 +12,7 @@
 
 ## Acceptance Criteria
 
-1. [x] `POST /api/v1/locations/batch` accepts JSON: `{"deviceId": "<uuid>", "locations": [<location-objects>]}`
+1. [x] `POST /api/v1/locations/batch` accepts JSON: `{"device_id": "<uuid>", "locations": [<location-objects>]}`
 2. [x] Validates: 1-50 locations per batch, max 1MB payload
 3. [x] Each location validated same as single upload
 4. [x] Returns 400 if batch validation fails with details

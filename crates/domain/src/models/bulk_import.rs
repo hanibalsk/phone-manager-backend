@@ -14,7 +14,7 @@ pub const MAX_METADATA_SIZE: usize = 10 * 1024;
 
 /// Request to bulk import devices.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BulkDeviceImportRequest {
     /// List of devices to import.
     #[validate(length(min = 1, max = 200, message = "devices must contain 1-200 items"))]
@@ -28,7 +28,7 @@ pub struct BulkDeviceImportRequest {
 
 /// Single device item in bulk import.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BulkDeviceItem {
     /// External identifier (unique within organization).
     #[validate(length(max = 255, message = "external_id must be at most 255 characters"))]
@@ -58,7 +58,7 @@ pub struct BulkDeviceItem {
 
 /// Options for bulk import operation.
 #[derive(Debug, Clone, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BulkImportOptions {
     /// Update existing devices matched by external_id.
     #[serde(default)]
@@ -75,7 +75,7 @@ pub struct BulkImportOptions {
 
 /// Response from bulk device import.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BulkDeviceImportResponse {
     /// Total number of devices processed.
     pub processed: u32,
@@ -95,7 +95,7 @@ pub struct BulkDeviceImportResponse {
 
 /// Error encountered during bulk import.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BulkImportError {
     /// Row number (1-indexed) where error occurred.
     pub row: usize,
@@ -191,17 +191,17 @@ mod tests {
         let json = json!({
             "devices": [
                 {
-                    "externalId": "ASSET-001",
-                    "displayName": "Field Tablet 1",
-                    "groupId": "550e8400-e29b-41d4-a716-446655440001",
+                    "external_id": "ASSET-001",
+                    "display_name": "Field Tablet 1",
+                    "group_id": "550e8400-e29b-41d4-a716-446655440001",
                     "metadata": {
-                        "assetTag": "AT001"
+                        "asset_tag": "AT001"
                     }
                 }
             ],
             "options": {
-                "updateExisting": true,
-                "createMissingUsers": false
+                "update_existing": true,
+                "create_missing_users": false
             }
         });
 

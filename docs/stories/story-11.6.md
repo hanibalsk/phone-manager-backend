@@ -55,7 +55,7 @@ Content-Type: application/json
 
 ```json
 {
-  "groupId": "grp_01HXYZABC123",
+  "group_id": "grp_01HXYZABC123",
   "previousOwnerId": "user_01HXYZABC123",
   "newOwnerId": "user_01NEWOWNER456",
   "transferredAt": "2025-12-01T10:30:00Z"

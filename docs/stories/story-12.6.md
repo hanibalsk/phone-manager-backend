@@ -68,17 +68,17 @@
       "id": "req_01...",
       "device": {
         "id": "dev_01...",
-        "displayName": "John's Phone"
+        "display_name": "John's Phone"
       },
       "settingKey": "tracking_interval_minutes",
       "settingDisplayName": "Tracking Interval",
       "status": "pending",
       "requestedBy": {
         "id": "user_01...",
-        "displayName": "John Doe"
+        "display_name": "John Doe"
       },
       "reason": "Battery saving",
-      "createdAt": "2025-12-01T10:35:00Z"
+      "created_at": "2025-12-01T10:35:00Z"
     }
   ],
   "pagination": {

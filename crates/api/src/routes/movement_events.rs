@@ -24,7 +24,7 @@ use domain::models::movement_event::{
 
 /// Query parameters for GET /api/v1/devices/:deviceId/movement-events
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GetMovementEventsQuery {
     /// Pagination cursor (format: "timestamp_id")
     pub cursor: Option<String>,
@@ -368,14 +368,14 @@ mod tests {
     #[test]
     fn test_create_request_serialization() {
         let json = r#"{
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
             "timestamp": 1234567890000,
             "latitude": 45.0,
             "longitude": -120.0,
             "accuracy": 10.0,
-            "transportationMode": "WALKING",
+            "transportation_mode": "WALKING",
             "confidence": 0.95,
-            "detectionSource": "ACTIVITY_RECOGNITION"
+            "detection_source": "ACTIVITY_RECOGNITION"
         }"#;
 
         let request: CreateMovementEventRequest = serde_json::from_str(json).unwrap();
@@ -394,8 +394,8 @@ mod tests {
     #[test]
     fn test_create_request_with_optional_fields() {
         let json = r#"{
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
-            "tripId": "660e8400-e29b-41d4-a716-446655440000",
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
+            "trip_id": "660e8400-e29b-41d4-a716-446655440000",
             "timestamp": 1234567890000,
             "latitude": 45.0,
             "longitude": -120.0,
@@ -403,9 +403,9 @@ mod tests {
             "speed": 5.5,
             "bearing": 180.0,
             "altitude": 100.0,
-            "transportationMode": "IN_VEHICLE",
+            "transportation_mode": "IN_VEHICLE",
             "confidence": 0.85,
-            "detectionSource": "BLUETOOTH_CAR"
+            "detection_source": "BLUETOOTH_CAR"
         }"#;
 
         let request: CreateMovementEventRequest = serde_json::from_str(json).unwrap();
@@ -426,33 +426,33 @@ mod tests {
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("550e8400-e29b-41d4-a716-446655440000"));
-        assert!(json.contains("createdAt"));
+        assert!(json.contains("created_at"));
     }
 
     #[test]
     fn test_batch_request_serialization() {
         let json = r#"{
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
             "events": [
                 {
                     "timestamp": 1234567890000,
                     "latitude": 45.0,
                     "longitude": -120.0,
                     "accuracy": 10.0,
-                    "transportationMode": "WALKING",
+                    "transportation_mode": "WALKING",
                     "confidence": 0.95,
-                    "detectionSource": "ACTIVITY_RECOGNITION"
+                    "detection_source": "ACTIVITY_RECOGNITION"
                 },
                 {
-                    "tripId": "660e8400-e29b-41d4-a716-446655440000",
+                    "trip_id": "660e8400-e29b-41d4-a716-446655440000",
                     "timestamp": 1234567891000,
                     "latitude": 45.001,
                     "longitude": -120.001,
                     "accuracy": 8.0,
                     "speed": 1.5,
-                    "transportationMode": "WALKING",
+                    "transportation_mode": "WALKING",
                     "confidence": 0.90,
-                    "detectionSource": "ACTIVITY_RECOGNITION"
+                    "detection_source": "ACTIVITY_RECOGNITION"
                 }
             ]
         }"#;
@@ -477,7 +477,7 @@ mod tests {
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"success\":true"));
-        assert!(json.contains("\"processedCount\":5"));
+        assert!(json.contains("\"processed_count\":5"));
     }
 
     #[test]
@@ -549,7 +549,7 @@ mod tests {
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"events\":[]"));
-        assert!(json.contains("\"hasMore\":true"));
-        assert!(json.contains("\"nextCursor\""));
+        assert!(json.contains("\"has_more\":true"));
+        assert!(json.contains("\"next_cursor\""));
     }
 }

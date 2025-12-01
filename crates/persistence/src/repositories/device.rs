@@ -1029,7 +1029,7 @@ impl DeviceRepository {
 
 /// Admin statistics about the system.
 #[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminStats {
     pub total_devices: i64,
     pub active_devices: i64,
@@ -1040,7 +1040,7 @@ pub struct AdminStats {
 
 /// Fleet summary counts for an organization.
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct FleetSummaryCounts {
     pub enrolled: i64,
     pub pending: i64,
@@ -1172,12 +1172,12 @@ mod tests {
 
         let json = serde_json::to_string(&stats).unwrap();
 
-        // Should use camelCase
-        assert!(json.contains("\"totalDevices\":100"));
-        assert!(json.contains("\"activeDevices\":75"));
-        assert!(json.contains("\"inactiveDevices\":25"));
-        assert!(json.contains("\"totalLocations\":10000"));
-        assert!(json.contains("\"totalGroups\":10"));
+        // Should use snake_case
+        assert!(json.contains("\"total_devices\":100"));
+        assert!(json.contains("\"active_devices\":75"));
+        assert!(json.contains("\"inactive_devices\":25"));
+        assert!(json.contains("\"total_locations\":10000"));
+        assert!(json.contains("\"total_groups\":10"));
     }
 
     #[test]
@@ -1191,8 +1191,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&stats).unwrap();
-        assert!(json.contains("\"totalDevices\":0"));
-        assert!(json.contains("\"totalGroups\":0"));
+        assert!(json.contains("\"total_devices\":0"));
+        assert!(json.contains("\"total_groups\":0"));
     }
 
     // ===========================================

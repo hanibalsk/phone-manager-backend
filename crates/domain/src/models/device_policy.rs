@@ -8,7 +8,7 @@ use validator::Validate;
 
 /// Device policy domain model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DevicePolicy {
     pub id: Uuid,
     pub organization_id: Uuid,
@@ -25,7 +25,7 @@ pub struct DevicePolicy {
 
 /// Response format for device policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DevicePolicyResponse {
     pub id: Uuid,
     pub organization_id: Uuid,
@@ -61,7 +61,7 @@ impl From<DevicePolicy> for DevicePolicyResponse {
 
 /// Request to create a new device policy.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateDevicePolicyRequest {
     #[validate(length(min = 1, max = 255, message = "Name must be 1-255 characters"))]
     pub name: String,
@@ -81,7 +81,7 @@ pub struct CreateDevicePolicyRequest {
 
 /// Request to update a device policy.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateDevicePolicyRequest {
     #[validate(length(min = 1, max = 255, message = "Name must be 1-255 characters"))]
     pub name: Option<String>,
@@ -97,7 +97,7 @@ pub struct UpdateDevicePolicyRequest {
 
 /// Query parameters for listing policies.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListDevicePoliciesQuery {
     pub page: Option<u32>,
     pub per_page: Option<u32>,
@@ -106,7 +106,7 @@ pub struct ListDevicePoliciesQuery {
 
 /// Response for listing device policies.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListDevicePoliciesResponse {
     pub data: Vec<DevicePolicyResponse>,
     pub pagination: DevicePolicyPagination,
@@ -114,7 +114,7 @@ pub struct ListDevicePoliciesResponse {
 
 /// Pagination metadata for device policies.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DevicePolicyPagination {
     pub page: u32,
     pub per_page: u32,
@@ -123,7 +123,7 @@ pub struct DevicePolicyPagination {
 
 /// Target for policy application.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct PolicyTarget {
     #[serde(rename = "type")]
     pub target_type: PolicyTargetType,
@@ -140,7 +140,7 @@ pub enum PolicyTargetType {
 
 /// Request to apply a policy to targets.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ApplyPolicyRequest {
     #[validate(length(min = 1, max = 100, message = "Must specify 1-100 targets"))]
     pub targets: Vec<PolicyTarget>,
@@ -150,7 +150,7 @@ pub struct ApplyPolicyRequest {
 
 /// Response for policy application.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ApplyPolicyResponse {
     pub policy_id: Uuid,
     pub applied_to: AppliedToCount,
@@ -159,7 +159,7 @@ pub struct ApplyPolicyResponse {
 
 /// Count of applied targets.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AppliedToCount {
     pub devices: i64,
     pub groups: i64,
@@ -167,7 +167,7 @@ pub struct AppliedToCount {
 
 /// Request to unapply a policy from targets.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UnapplyPolicyRequest {
     #[validate(length(min = 1, max = 100, message = "Must specify 1-100 targets"))]
     pub targets: Vec<PolicyTarget>,
@@ -175,7 +175,7 @@ pub struct UnapplyPolicyRequest {
 
 /// Response for policy unapplication.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UnapplyPolicyResponse {
     pub policy_id: Uuid,
     pub unapplied_from: AppliedToCount,
@@ -291,7 +291,7 @@ mod tests {
                 {"type": "device", "id": "550e8400-e29b-41d4-a716-446655440000"},
                 {"type": "group", "id": "550e8400-e29b-41d4-a716-446655440001"}
             ],
-            "replaceExisting": true
+            "replace_existing": true
         }"#;
         let request: ApplyPolicyRequest = serde_json::from_str(json).unwrap();
         assert_eq!(request.targets.len(), 2);

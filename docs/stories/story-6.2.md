@@ -18,12 +18,12 @@
 
 ## Acceptance Criteria
 
-1. `POST /api/v1/trips` accepts JSON: `{"deviceId": "<uuid>", "localTripId": "<client-id>", "startTimestamp": <ms-epoch>, "startLatitude": <float>, "startLongitude": <float>, "transportationMode": "<mode>", "detectionSource": "<source>"}`
+1. `POST /api/v1/trips` accepts JSON: `{"device_id": "<uuid>", "local_trip_id": "<client-id>", "start_timestamp": <ms-epoch>, "start_latitude": <float>, "start_longitude": <float>, "transportation_mode": "<mode>", "detection_source": "<source>"}`
 2. Validates all fields same as movement events
 3. Returns 200 (not 201) if trip with same (deviceId, localTripId) exists - idempotent
 4. Existing trip response includes all current data (may have been updated)
 5. New trip created with state=ACTIVE
-6. Returns 200/201 with: `{"id": "<uuid>", "localTripId": "<client-id>", "state": "ACTIVE", "startTimestamp": <ts>, "createdAt": "<timestamp>"}`
+6. Returns 200/201 with: `{"id": "<uuid>", "local_trip_id": "<client-id>", "state": "ACTIVE", "start_timestamp": <ts>, "created_at": "<timestamp>"}`
 7. Returns 404 if device not registered
 8. Returns 409 if device already has an ACTIVE trip with different localTripId
 9. Only one ACTIVE trip allowed per device

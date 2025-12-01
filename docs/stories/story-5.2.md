@@ -18,12 +18,12 @@
 
 ## Acceptance Criteria
 
-1. `POST /api/v1/movement-events` accepts JSON: `{"deviceId": "<uuid>", "tripId": "<uuid-optional>", "timestamp": <ms-epoch>, "latitude": <float>, "longitude": <float>, "accuracy": <float>, "speed": <float-optional>, "bearing": <float-optional>, "altitude": <float-optional>, "transportationMode": "<mode>", "confidence": <float>, "detectionSource": "<source>"}`
+1. `POST /api/v1/movement-events` accepts JSON: `{"device_id": "<uuid>", "tripId": "<uuid-optional>", "timestamp": <ms-epoch>, "latitude": <float>, "longitude": <float>, "accuracy": <float>, "speed": <float-optional>, "bearing": <float-optional>, "altitude": <float-optional>, "transportation_mode": "<mode>", "confidence": <float>, "detection_source": "<source>"}`
 2. Validates: latitude (-90 to 90), longitude (-180 to 180), accuracy (>= 0), bearing (0-360 if present), speed (>= 0 if present), confidence (0.0-1.0), transportationMode (STATIONARY|WALKING|RUNNING|CYCLING|IN_VEHICLE|UNKNOWN), detectionSource (ACTIVITY_RECOGNITION|BLUETOOTH_CAR|ANDROID_AUTO|MULTIPLE|NONE)
 3. Returns 400 for validation errors with field-level details
 4. Returns 404 if device not registered
 5. Returns 404 if tripId provided but trip doesn't exist
-6. Returns 200 with: `{"id": "<uuid>", "createdAt": "<timestamp>"}`
+6. Returns 200 with: `{"id": "<uuid>", "created_at": "<timestamp>"}`
 7. Stores location as PostGIS GEOGRAPHY point
 8. Response time <50ms for single event
 

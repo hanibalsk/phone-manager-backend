@@ -18,7 +18,7 @@
 
 ## Acceptance Criteria
 
-1. `POST /api/v1/locations` enhanced to accept: `"transportationMode": "<mode-optional>", "detectionSource": "<source-optional>", "tripId": "<uuid-optional>"`
+1. `POST /api/v1/locations` enhanced to accept: `"transportation_mode": "<mode-optional>", "detection_source": "<source-optional>", "tripId": "<uuid-optional>"`
 2. Existing payload structure unchanged (new fields optional)
 3. Validates transportationMode and detectionSource same as movement events
 4. Returns 404 if tripId provided but trip doesn't exist

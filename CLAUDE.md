@@ -44,7 +44,7 @@ phone-manager-backend/
 ## Key Design Decisions
 
 ### API Design
-- REST JSON API with camelCase field names
+- REST JSON API with snake_case field names
 - API key authentication via `X-API-Key` header
 - Request tracing via `X-Request-ID` header
 - CORS support for cross-origin requests
@@ -263,7 +263,7 @@ cargo run --bin phone-manager
 
 ### Naming
 - Snake case for Rust identifiers
-- CamelCase for JSON serialization (`#[serde(rename_all = "camelCase")]`)
+- snake_case for JSON serialization (`#[serde(rename_all = "snake_case")]`)
 - Prefix environment vars with `PM__`
 
 ### Testing

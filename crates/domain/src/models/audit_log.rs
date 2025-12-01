@@ -261,7 +261,7 @@ impl FieldChange {
 
 /// Audit log entry domain model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AuditLog {
     pub id: Uuid,
     pub organization_id: Uuid,
@@ -275,7 +275,7 @@ pub struct AuditLog {
 
 /// Actor information for audit log.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AuditActor {
     pub id: Option<Uuid>,
     #[serde(rename = "type")]
@@ -314,7 +314,7 @@ impl AuditActor {
 
 /// Resource information for audit log.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AuditResource {
     #[serde(rename = "type")]
     pub resource_type: String,
@@ -335,7 +335,7 @@ impl AuditResource {
 
 /// Metadata for audit log entry.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AuditMetadata {
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
@@ -458,7 +458,7 @@ impl CreateAuditLogInput {
 
 /// Query parameters for listing audit logs.
 #[derive(Debug, Clone, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListAuditLogsQuery {
     pub page: Option<i32>,
     pub per_page: Option<i32>,
@@ -472,7 +472,7 @@ pub struct ListAuditLogsQuery {
 
 /// Pagination info for audit log list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AuditLogPagination {
     pub page: i32,
     pub per_page: i32,
@@ -482,7 +482,7 @@ pub struct AuditLogPagination {
 
 /// Response for audit log list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListAuditLogsResponse {
     pub data: Vec<AuditLog>,
     pub pagination: AuditLogPagination,
@@ -511,7 +511,7 @@ impl FromStr for ExportFormat {
 
 /// Query parameters for exporting audit logs.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ExportAuditLogsQuery {
     pub format: Option<ExportFormat>,
     pub actor_id: Option<Uuid>,
@@ -578,7 +578,7 @@ impl FromStr for ExportJobStatus {
 
 /// Sync export response (for small datasets).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SyncExportResponse {
     pub format: ExportFormat,
     pub record_count: i64,
@@ -587,7 +587,7 @@ pub struct SyncExportResponse {
 
 /// Async export response (for large datasets).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AsyncExportResponse {
     pub job_id: String,
     pub status: ExportJobStatus,
@@ -597,7 +597,7 @@ pub struct AsyncExportResponse {
 
 /// Export job status response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ExportJobResponse {
     pub job_id: String,
     pub status: ExportJobStatus,

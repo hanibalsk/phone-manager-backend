@@ -595,7 +595,7 @@ mod tests {
     #[test]
     fn test_upload_location_request_serialization() {
         let json = r#"{
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
             "timestamp": 1700000000000,
             "latitude": 37.7749,
             "longitude": -122.4194,
@@ -604,8 +604,8 @@ mod tests {
             "bearing": 180.0,
             "speed": 5.5,
             "provider": "gps",
-            "batteryLevel": 85,
-            "networkType": "wifi"
+            "battery_level": 85,
+            "network_type": "wifi"
         }"#;
         let request: UploadLocationRequest = serde_json::from_str(json).unwrap();
         assert_eq!(
@@ -620,7 +620,7 @@ mod tests {
     #[test]
     fn test_upload_location_request_minimal() {
         let json = r#"{
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
             "timestamp": 1700000000000,
             "latitude": 37.7749,
             "longitude": -122.4194,
@@ -638,7 +638,7 @@ mod tests {
     #[test]
     fn test_batch_upload_request_serialization() {
         let json = r#"{
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
             "locations": [
                 {
                     "timestamp": 1700000000000,
@@ -668,7 +668,7 @@ mod tests {
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"success\":true"));
-        assert!(json.contains("\"processedCount\":5"));
+        assert!(json.contains("\"processed_count\":5"));
     }
 
     #[test]

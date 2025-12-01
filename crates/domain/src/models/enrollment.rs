@@ -10,7 +10,7 @@ use super::device_token::EnrollmentStatus;
 
 /// Request to enroll a device with an organization.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct EnrollDeviceRequest {
     /// The enrollment token for authentication
     #[validate(length(min = 10, message = "Invalid enrollment token"))]
@@ -45,7 +45,7 @@ fn default_platform() -> String {
 
 /// Device information provided during enrollment.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceInfo {
     pub manufacturer: Option<String>,
     pub model: Option<String>,
@@ -54,7 +54,7 @@ pub struct DeviceInfo {
 
 /// Enrolled device information in the response.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct EnrolledDevice {
     pub id: i64,
     pub device_uuid: Uuid,
@@ -67,7 +67,7 @@ pub struct EnrolledDevice {
 
 /// Policy information in enrollment response.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct EnrollmentPolicyInfo {
     pub id: Uuid,
     pub name: String,
@@ -77,7 +77,7 @@ pub struct EnrollmentPolicyInfo {
 
 /// Group information in enrollment response.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct EnrollmentGroupInfo {
     pub id: String,
     pub name: Option<String>,
@@ -85,7 +85,7 @@ pub struct EnrollmentGroupInfo {
 
 /// Response for successful device enrollment.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct EnrollDeviceResponse {
     /// The enrolled device information
     pub device: EnrolledDevice,
@@ -172,8 +172,8 @@ mod tests {
             enrolled_at: Utc::now(),
         };
         let json = serde_json::to_string(&device).unwrap();
-        assert!(json.contains("\"isManaged\":true"));
-        assert!(json.contains("\"enrollmentStatus\":\"enrolled\""));
+        assert!(json.contains("\"is_managed\":true"));
+        assert!(json.contains("\"enrollment_status\":\"enrolled\""));
     }
 
     #[test]
@@ -194,7 +194,7 @@ mod tests {
             group: None,
         };
         let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("\"deviceToken\":\"dt_testtoken123\""));
+        assert!(json.contains("\"device_token\":\"dt_testtoken123\""));
         // policy and group should be omitted when None
         assert!(!json.contains("\"policy\":null"));
         assert!(!json.contains("\"group\":null"));

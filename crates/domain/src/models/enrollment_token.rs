@@ -15,7 +15,7 @@ const TOKEN_RANDOM_BYTES: usize = 45;
 
 /// Enrollment token domain model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct EnrollmentToken {
     pub id: Uuid,
     pub organization_id: Uuid,
@@ -86,7 +86,7 @@ impl EnrollmentToken {
 
 /// Response format for enrollment token.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct EnrollmentTokenResponse {
     pub id: Uuid,
     pub token: String,
@@ -136,7 +136,7 @@ impl From<EnrollmentToken> for EnrollmentTokenResponse {
 
 /// Request to create a new enrollment token.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateEnrollmentTokenRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group_id: Option<String>,
@@ -154,7 +154,7 @@ pub struct CreateEnrollmentTokenRequest {
 
 /// Query parameters for listing enrollment tokens.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListEnrollmentTokensQuery {
     pub page: Option<u32>,
     pub per_page: Option<u32>,
@@ -164,7 +164,7 @@ pub struct ListEnrollmentTokensQuery {
 
 /// Response for listing enrollment tokens.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListEnrollmentTokensResponse {
     pub data: Vec<EnrollmentTokenResponse>,
     pub pagination: EnrollmentTokenPagination,
@@ -172,7 +172,7 @@ pub struct ListEnrollmentTokensResponse {
 
 /// Pagination metadata for enrollment tokens.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct EnrollmentTokenPagination {
     pub page: u32,
     pub per_page: u32,
@@ -181,7 +181,7 @@ pub struct EnrollmentTokenPagination {
 
 /// Response for QR code generation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct QrCodeResponse {
     pub qr_data: String,
     pub enrollment_url: String,

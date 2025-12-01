@@ -7,7 +7,7 @@ use crate::app::AppState;
 
 /// Health check response.
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct HealthResponse {
     pub status: String,
     pub version: String,
@@ -18,7 +18,7 @@ pub struct HealthResponse {
 
 /// Database health status.
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DatabaseHealth {
     pub connected: bool,
     pub latency_ms: Option<u64>,
@@ -26,14 +26,14 @@ pub struct DatabaseHealth {
 
 /// External services health status.
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ExternalServicesHealth {
     pub map_matching: MapMatchingHealth,
 }
 
 /// Map-matching service health status.
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct MapMatchingHealth {
     /// Whether map-matching is configured and enabled.
     pub enabled: bool,
@@ -306,9 +306,9 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&health).unwrap();
-        assert!(json.contains("\"mapMatching\""));
+        assert!(json.contains("\"map_matching\""));
         assert!(json.contains("\"enabled\":true"));
         assert!(json.contains("\"available\":true"));
-        assert!(json.contains("\"circuitState\":\"closed\""));
+        assert!(json.contains("\"circuit_state\":\"closed\""));
     }
 }

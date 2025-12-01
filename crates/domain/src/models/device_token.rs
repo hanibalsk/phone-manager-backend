@@ -17,7 +17,7 @@ pub const DEFAULT_TOKEN_EXPIRY_DAYS: i64 = 90;
 
 /// Device token domain model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceToken {
     pub id: Uuid,
     pub device_id: i64,

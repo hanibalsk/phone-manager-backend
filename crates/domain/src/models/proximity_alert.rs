@@ -7,7 +7,7 @@ use validator::Validate;
 
 /// Represents a proximity alert between two devices.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ProximityAlert {
     pub id: i64,
     pub alert_id: Uuid,
@@ -25,7 +25,7 @@ pub struct ProximityAlert {
 
 /// Request payload for creating a proximity alert.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateProximityAlertRequest {
     pub source_device_id: Uuid,
     pub target_device_id: Uuid,
@@ -53,7 +53,7 @@ fn default_active() -> bool {
 
 /// Request payload for updating a proximity alert (partial update).
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateProximityAlertRequest {
     #[validate(length(max = 100, message = "Name must be at most 100 characters"))]
     pub name: Option<String>,
@@ -72,7 +72,7 @@ pub struct UpdateProximityAlertRequest {
 
 /// Response payload for proximity alert operations.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ProximityAlertResponse {
     pub alert_id: Uuid,
     pub source_device_id: Uuid,
@@ -110,7 +110,7 @@ impl From<ProximityAlert> for ProximityAlertResponse {
 
 /// Response for listing proximity alerts.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListProximityAlertsResponse {
     pub alerts: Vec<ProximityAlertResponse>,
     pub total: usize,
@@ -118,7 +118,7 @@ pub struct ListProximityAlertsResponse {
 
 /// Query parameters for listing proximity alerts.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListProximityAlertsQuery {
     /// Filter by source device ID
     pub source_device_id: Uuid,
@@ -134,9 +134,9 @@ mod tests {
     #[test]
     fn test_create_proximity_alert_request_deserialization() {
         let json = r#"{
-            "sourceDeviceId": "550e8400-e29b-41d4-a716-446655440000",
-            "targetDeviceId": "550e8400-e29b-41d4-a716-446655440001",
-            "radiusMeters": 500
+            "source_device_id": "550e8400-e29b-41d4-a716-446655440000",
+            "target_device_id": "550e8400-e29b-41d4-a716-446655440001",
+            "radius_meters": 500
         }"#;
 
         let request: CreateProximityAlertRequest = serde_json::from_str(json).unwrap();
@@ -148,11 +148,11 @@ mod tests {
     #[test]
     fn test_create_proximity_alert_request_with_all_fields() {
         let json = r#"{
-            "sourceDeviceId": "550e8400-e29b-41d4-a716-446655440000",
-            "targetDeviceId": "550e8400-e29b-41d4-a716-446655440001",
+            "source_device_id": "550e8400-e29b-41d4-a716-446655440000",
+            "target_device_id": "550e8400-e29b-41d4-a716-446655440001",
             "name": "Near Mom",
-            "radiusMeters": 1000,
-            "isActive": false,
+            "radius_meters": 1000,
+            "is_active": false,
             "metadata": {"color": "red"}
         }"#;
 
@@ -193,17 +193,17 @@ mod tests {
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"name\":\"Test Alert\""));
-        assert!(json.contains("\"radiusMeters\":500"));
-        assert!(json.contains("\"isActive\":true"));
-        assert!(json.contains("\"isTriggered\":false"));
+        assert!(json.contains("\"radius_meters\":500"));
+        assert!(json.contains("\"is_active\":true"));
+        assert!(json.contains("\"is_triggered\":false"));
         // Should skip None fields
-        assert!(!json.contains("\"lastTriggeredAt\":null"));
+        assert!(!json.contains("\"last_triggered_at\":null"));
         assert!(!json.contains("\"metadata\":null"));
     }
 
     #[test]
     fn test_list_proximity_alerts_query_defaults() {
-        let json = r#"{"sourceDeviceId": "550e8400-e29b-41d4-a716-446655440000"}"#;
+        let json = r#"{"source_device_id": "550e8400-e29b-41d4-a716-446655440000"}"#;
         let query: ListProximityAlertsQuery = serde_json::from_str(json).unwrap();
         assert!(!query.include_inactive);
     }

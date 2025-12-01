@@ -13,7 +13,7 @@ use std::collections::{HashMap, HashSet};
 
 /// Resolved settings for a device with locked key information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ResolvedSettings {
     /// Merged settings from all policy levels
     pub settings: HashMap<String, serde_json::Value>,

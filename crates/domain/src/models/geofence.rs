@@ -7,7 +7,7 @@ use validator::Validate;
 
 /// Represents a geofence in the system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct Geofence {
     pub id: i64,
     pub geofence_id: Uuid,
@@ -65,7 +65,7 @@ fn default_active() -> bool {
 
 /// Request payload for creating a geofence.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateGeofenceRequest {
     pub device_id: Uuid,
 
@@ -96,7 +96,7 @@ pub struct CreateGeofenceRequest {
 
 /// Request payload for updating a geofence (partial update).
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateGeofenceRequest {
     #[validate(length(min = 1, max = 100, message = "Name must be 1-100 characters"))]
     pub name: Option<String>,
@@ -123,7 +123,7 @@ pub struct UpdateGeofenceRequest {
 
 /// Response payload for geofence operations.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GeofenceResponse {
     pub geofence_id: Uuid,
     pub device_id: Uuid,
@@ -159,7 +159,7 @@ impl From<Geofence> for GeofenceResponse {
 
 /// Response for listing geofences.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListGeofencesResponse {
     pub geofences: Vec<GeofenceResponse>,
     pub total: usize,
@@ -167,7 +167,7 @@ pub struct ListGeofencesResponse {
 
 /// Query parameters for listing geofences.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListGeofencesQuery {
     pub device_id: Uuid,
     #[serde(default)]
@@ -240,11 +240,11 @@ mod tests {
     #[test]
     fn test_create_geofence_request_deserialization() {
         let json = r#"{
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
             "name": "Home",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radiusMeters": 100.0
+            "radius_meters": 100.0
         }"#;
 
         let request: CreateGeofenceRequest = serde_json::from_str(json).unwrap();
@@ -260,12 +260,12 @@ mod tests {
     #[test]
     fn test_create_geofence_request_with_all_fields() {
         let json = r#"{
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
             "name": "Office",
             "latitude": 40.7128,
             "longitude": -74.0060,
-            "radiusMeters": 500.0,
-            "eventTypes": ["enter", "exit", "dwell"],
+            "radius_meters": 500.0,
+            "event_types": ["enter", "exit", "dwell"],
             "active": false,
             "metadata": {"color": "blue", "icon": "work"}
         }"#;
@@ -296,14 +296,14 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"name\":\"Test\""));
         assert!(json.contains("\"latitude\":45"));
-        assert!(json.contains("\"radiusMeters\":100"));
+        assert!(json.contains("\"radius_meters\":100"));
         // metadata should be skipped when None
         assert!(!json.contains("\"metadata\":null"));
     }
 
     #[test]
     fn test_list_geofences_query_defaults() {
-        let json = r#"{"deviceId": "550e8400-e29b-41d4-a716-446655440000"}"#;
+        let json = r#"{"device_id": "550e8400-e29b-41d4-a716-446655440000"}"#;
         let query: ListGeofencesQuery = serde_json::from_str(json).unwrap();
         assert!(!query.include_inactive);
     }

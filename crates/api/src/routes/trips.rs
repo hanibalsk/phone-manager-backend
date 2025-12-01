@@ -808,13 +808,13 @@ mod tests {
     #[test]
     fn test_create_trip_request_serialization() {
         let json = r#"{
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
-            "localTripId": "trip-abc-123",
-            "startTimestamp": 1234567890000,
-            "startLatitude": 45.0,
-            "startLongitude": -120.0,
-            "transportationMode": "WALKING",
-            "detectionSource": "ACTIVITY_RECOGNITION"
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
+            "local_trip_id": "trip-abc-123",
+            "start_timestamp": 1234567890000,
+            "start_latitude": 45.0,
+            "start_longitude": -120.0,
+            "transportation_mode": "WALKING",
+            "detection_source": "ACTIVITY_RECOGNITION"
         }"#;
 
         let request: CreateTripRequest = serde_json::from_str(json).unwrap();
@@ -834,13 +834,13 @@ mod tests {
     #[test]
     fn test_create_trip_request_with_in_vehicle() {
         let json = r#"{
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
-            "localTripId": "drive-2024-001",
-            "startTimestamp": 1234567890000,
-            "startLatitude": 37.7749,
-            "startLongitude": -122.4194,
-            "transportationMode": "IN_VEHICLE",
-            "detectionSource": "BLUETOOTH_CAR"
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
+            "local_trip_id": "drive-2024-001",
+            "start_timestamp": 1234567890000,
+            "start_latitude": 37.7749,
+            "start_longitude": -122.4194,
+            "transportation_mode": "IN_VEHICLE",
+            "detection_source": "BLUETOOTH_CAR"
         }"#;
 
         let request: CreateTripRequest = serde_json::from_str(json).unwrap();
@@ -862,7 +862,7 @@ mod tests {
         assert!(json.contains("550e8400-e29b-41d4-a716-446655440000"));
         assert!(json.contains("trip-123"));
         assert!(json.contains("ACTIVE"));
-        assert!(json.contains("createdAt"));
+        assert!(json.contains("created_at"));
     }
 
     #[test]
@@ -883,9 +883,9 @@ mod tests {
     fn test_update_trip_request_completed() {
         let json = r#"{
             "state": "COMPLETED",
-            "endTimestamp": 1234567899000,
-            "endLatitude": 45.5,
-            "endLongitude": -120.5
+            "end_timestamp": 1234567899000,
+            "end_latitude": 45.5,
+            "end_longitude": -120.5
         }"#;
 
         let request: UpdateTripRequest = serde_json::from_str(json).unwrap();
@@ -929,8 +929,8 @@ mod tests {
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("COMPLETED"));
-        assert!(json.contains("distanceMeters"));
-        assert!(json.contains("durationSeconds"));
+        assert!(json.contains("distance_meters"));
+        assert!(json.contains("duration_seconds"));
     }
 
     #[test]
@@ -955,8 +955,8 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("ACTIVE"));
         // Optional fields should not appear when None (skip_serializing_if)
-        assert!(!json.contains("endTimestamp"));
-        assert!(!json.contains("distanceMeters"));
+        assert!(!json.contains("end_timestamp"));
+        assert!(!json.contains("distance_meters"));
     }
 
     #[test]
@@ -1052,8 +1052,8 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"trips\""));
         assert!(json.contains("\"pagination\""));
-        assert!(json.contains("\"nextCursor\""));
-        assert!(json.contains("\"hasMore\":true"));
+        assert!(json.contains("\"next_cursor\""));
+        assert!(json.contains("\"has_more\":true"));
     }
 
     // =========================================================================
@@ -1194,7 +1194,7 @@ mod tests {
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"count\":1"));
-        assert!(json.contains("\"tripId\""));
-        assert!(json.contains("\"transportationMode\":\"WALKING\""));
+        assert!(json.contains("\"trip_id\""));
+        assert!(json.contains("\"transportation_mode\":\"WALKING\""));
     }
 }

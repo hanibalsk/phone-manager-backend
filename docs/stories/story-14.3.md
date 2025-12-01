@@ -60,7 +60,7 @@ Response (200):
     {
       "id": "123e4567-e89b-12d3-a456-426614174000",
       "email": "john@acme.com",
-      "displayName": "John Smith",
+      "display_name": "John Smith",
       "avatarUrl": "https://example.com/avatar.png",
       "role": "admin",
       "permissions": ["device:read", "device:manage", "user:read"],
@@ -94,7 +94,7 @@ Response (200):
   "user": {
     "id": "123e4567-e89b-12d3-a456-426614174000",
     "email": "john@acme.com",
-    "displayName": "John Smith",
+    "display_name": "John Smith",
     "avatarUrl": "https://example.com/avatar.png",
     "emailVerified": true,
     "role": "admin",
@@ -102,13 +102,13 @@ Response (200):
     "grantedAt": "2025-11-01T09:00:00Z",
     "grantedBy": "admin@acme.com",
     "lastLoginAt": "2025-12-01T08:00:00Z",
-    "createdAt": "2025-10-15T12:00:00Z"
+    "created_at": "2025-10-15T12:00:00Z"
   },
   "devices": [
     {
       "id": 42,
       "deviceUuid": "550e8400-e29b-41d4-a716-446655440000",
-      "displayName": "Field Tablet #42",
+      "display_name": "Field Tablet #42",
       "platform": "android",
       "lastSeenAt": "2025-12-01T10:25:00Z"
     }
@@ -149,10 +149,10 @@ Response (200):
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
   "email": "john@acme.com",
-  "displayName": "John Smith",
+  "display_name": "John Smith",
   "role": "member",
   "permissions": ["device:read", "user:read"],
-  "updatedAt": "2025-12-01T11:00:00Z"
+  "updated_at": "2025-12-01T11:00:00Z"
 }
 ```
 

@@ -115,7 +115,7 @@ impl std::str::FromStr for DetectionSource {
 
 /// Represents a movement event record in the system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct MovementEvent {
     pub id: Uuid,
     pub device_id: Uuid,
@@ -143,7 +143,7 @@ pub struct MovementEvent {
 
 /// Request payload for single movement event upload.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateMovementEventRequest {
     pub device_id: Uuid,
 
@@ -196,7 +196,7 @@ pub fn validate_confidence(confidence: f64) -> Result<(), validator::ValidationE
 
 /// Response payload for movement event creation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateMovementEventResponse {
     pub id: Uuid,
     pub created_at: DateTime<Utc>,
@@ -204,7 +204,7 @@ pub struct CreateMovementEventResponse {
 
 /// A single event within a batch upload request.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BatchMovementEventItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trip_id: Option<Uuid>,
@@ -240,7 +240,7 @@ pub struct BatchMovementEventItem {
 
 /// Request payload for batch movement event upload.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BatchMovementEventRequest {
     pub device_id: Uuid,
 
@@ -251,7 +251,7 @@ pub struct BatchMovementEventRequest {
 
 /// Response payload for batch movement event upload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BatchMovementEventResponse {
     pub success: bool,
     pub processed_count: usize,
@@ -259,7 +259,7 @@ pub struct BatchMovementEventResponse {
 
 /// Pagination info for movement events list response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct MovementEventPagination {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<String>,
@@ -268,7 +268,7 @@ pub struct MovementEventPagination {
 
 /// Response for GET /api/v1/devices/:deviceId/movement-events
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GetMovementEventsResponse {
     pub events: Vec<MovementEventResponse>,
     pub pagination: MovementEventPagination,
@@ -276,7 +276,7 @@ pub struct GetMovementEventsResponse {
 
 /// Response payload for movement event retrieval.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct MovementEventResponse {
     pub id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -323,7 +323,7 @@ impl From<MovementEvent> for MovementEventResponse {
 
 /// Query parameters for GET /api/v1/trips/:tripId/movement-events
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GetTripMovementEventsQuery {
     /// Sort order (asc or desc, default asc for trip visualization).
     #[serde(default = "default_trip_order")]
@@ -336,7 +336,7 @@ fn default_trip_order() -> String {
 
 /// Response for GET /api/v1/trips/:tripId/movement-events
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GetTripMovementEventsResponse {
     pub events: Vec<MovementEventResponse>,
     pub count: usize,
@@ -709,7 +709,7 @@ mod tests {
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("550e8400-e29b-41d4-a716-446655440000"));
-        assert!(json.contains("createdAt"));
+        assert!(json.contains("created_at"));
     }
 
     // =========================================================================
@@ -778,8 +778,8 @@ mod tests {
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"count\":1"));
-        assert!(json.contains("\"transportationMode\":\"WALKING\""));
-        assert!(json.contains("\"detectionSource\":\"ACTIVITY_RECOGNITION\""));
+        assert!(json.contains("\"transportation_mode\":\"WALKING\""));
+        assert!(json.contains("\"detection_source\":\"ACTIVITY_RECOGNITION\""));
     }
 
     #[test]

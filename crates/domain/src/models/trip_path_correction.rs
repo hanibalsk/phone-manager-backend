@@ -66,7 +66,7 @@ impl std::str::FromStr for CorrectionStatus {
 ///
 /// Stores the original GPS trace and optionally the map-matched corrected path.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct TripPathCorrection {
     pub id: Uuid,
     pub trip_id: Uuid,
@@ -90,7 +90,7 @@ pub struct TripPathCorrection {
 
 /// Response for GET /api/v1/trips/:tripId/path
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct TripPathResponse {
     /// Original path as array of [lat, lon] pairs
     pub original_path: Vec<[f64; 2]>,
@@ -106,7 +106,7 @@ pub struct TripPathResponse {
 
 /// Response for POST /api/v1/trips/:tripId/correct-path
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CorrectPathResponse {
     pub status: String,
     pub message: String,
@@ -193,11 +193,11 @@ mod tests {
         };
 
         let json = serde_json::to_string(&correction).unwrap();
-        assert!(json.contains("originalPath"));
+        assert!(json.contains("original_path"));
         assert!(json.contains("PENDING"));
         // Skip serializing None fields
-        assert!(!json.contains("correctedPath"));
-        assert!(!json.contains("correctionQuality"));
+        assert!(!json.contains("corrected_path"));
+        assert!(!json.contains("correction_quality"));
     }
 
     #[test]
@@ -218,7 +218,7 @@ mod tests {
         };
 
         let json = serde_json::to_string(&correction).unwrap();
-        assert!(json.contains("correctedPath"));
+        assert!(json.contains("corrected_path"));
         assert!(json.contains("0.95"));
         assert!(json.contains("COMPLETED"));
     }
@@ -237,9 +237,9 @@ mod tests {
         };
 
         let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("originalPath"));
+        assert!(json.contains("original_path"));
         assert!(json.contains("PENDING"));
-        assert!(!json.contains("correctedPath"));
+        assert!(!json.contains("corrected_path"));
     }
 
     #[test]
@@ -252,7 +252,7 @@ mod tests {
         };
 
         let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("correctedPath"));
+        assert!(json.contains("corrected_path"));
         assert!(json.contains("0.92"));
         assert!(json.contains("COMPLETED"));
     }

@@ -93,11 +93,11 @@ All protected endpoints require the `X-API-Key` header.
 **Register Device Request:**
 ```json
 {
-  "deviceId": "550e8400-e29b-41d4-a716-446655440000",
-  "displayName": "John's Phone",
-  "groupId": "family-smith",
+  "device_id": "550e8400-e29b-41d4-a716-446655440000",
+  "display_name": "John's Phone",
+  "group_id": "family-smith",
   "platform": "android",
-  "fcmToken": "optional-firebase-token"
+  "fcm_token": "optional-firebase-token"
 }
 ```
 
@@ -111,7 +111,7 @@ All protected endpoints require the `X-API-Key` header.
 **Single Location Request:**
 ```json
 {
-  "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+  "device_id": "550e8400-e29b-41d4-a716-446655440000",
   "latitude": 37.7749,
   "longitude": -122.4194,
   "accuracy": 10.0,
@@ -129,8 +129,8 @@ All protected endpoints require the `X-API-Key` header.
 ```json
 {
   "locations": [
-    { "deviceId": "...", "latitude": 37.7749, "longitude": -122.4194, ... },
-    { "deviceId": "...", "latitude": 37.7750, "longitude": -122.4195, ... }
+    { "device_id": "...", "latitude": 37.7749, "longitude": -122.4194, ... },
+    { "device_id": "...", "latitude": 37.7750, "longitude": -122.4195, ... }
   ]
 }
 ```

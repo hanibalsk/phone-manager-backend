@@ -83,7 +83,7 @@ impl std::fmt::Display for OrgUserRole {
 
 /// Organization user domain model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct OrgUser {
     pub id: Uuid,
     pub organization_id: Uuid,
@@ -116,7 +116,7 @@ impl OrgUser {
 
 /// User info for organization user responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct OrgUserInfo {
     pub id: Uuid,
     pub email: String,
@@ -125,7 +125,7 @@ pub struct OrgUserInfo {
 
 /// Organization user with user details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct OrgUserWithDetails {
     pub id: Uuid,
     pub organization_id: Uuid,
@@ -137,7 +137,7 @@ pub struct OrgUserWithDetails {
 
 /// Request to add a user to an organization.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AddOrgUserRequest {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
@@ -148,7 +148,7 @@ pub struct AddOrgUserRequest {
 
 /// Request to update an organization user.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateOrgUserRequest {
     pub role: Option<OrgUserRole>,
     pub permissions: Option<Vec<String>>,
@@ -156,7 +156,7 @@ pub struct UpdateOrgUserRequest {
 
 /// Response for add/update organization user.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct OrgUserResponse {
     #[serde(flatten)]
     pub org_user: OrgUserWithDetails,
@@ -164,7 +164,7 @@ pub struct OrgUserResponse {
 
 /// Response for list organization users.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListOrgUsersResponse {
     pub data: Vec<OrgUserWithDetails>,
     pub pagination: OrgUserPagination,
@@ -172,7 +172,7 @@ pub struct ListOrgUsersResponse {
 
 /// Pagination info for organization users list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct OrgUserPagination {
     pub page: i32,
     pub per_page: i32,
@@ -182,7 +182,7 @@ pub struct OrgUserPagination {
 
 /// Query parameters for listing organization users.
 #[derive(Debug, Clone, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListOrgUsersQuery {
     pub page: Option<i32>,
     pub per_page: Option<i32>,

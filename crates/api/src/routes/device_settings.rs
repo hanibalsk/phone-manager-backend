@@ -38,7 +38,7 @@ use crate::extractors::UserAuth;
 
 /// Query parameters for get settings endpoint.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GetSettingsQuery {
     /// Include setting definitions in response.
     #[serde(default)]
@@ -47,7 +47,7 @@ pub struct GetSettingsQuery {
 
 /// Query parameters for update settings endpoints.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateSettingsQuery {
     /// Force update even if setting is locked (admin only).
     #[serde(default)]
@@ -1509,7 +1509,7 @@ mod tests {
     #[test]
     fn test_get_settings_query_with_definitions() {
         let query: GetSettingsQuery =
-            serde_json::from_str(r#"{"includeDefinitions": true}"#).unwrap();
+            serde_json::from_str(r#"{"include_definitions": true}"#).unwrap();
         assert!(query.include_definitions);
     }
 

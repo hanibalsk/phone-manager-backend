@@ -49,12 +49,12 @@
 
 ```json
 {
-  "deviceId": "...",
+  "device_id": "...",
   "settings": {
     "tracking_enabled": {
       "value": true,
       "isLocked": false,
-      "updatedAt": "2025-12-01T10:30:00Z"
+      "updated_at": "2025-12-01T10:30:00Z"
     },
     "tracking_interval_minutes": {
       "value": 5,

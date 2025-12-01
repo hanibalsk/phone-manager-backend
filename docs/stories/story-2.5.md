@@ -12,7 +12,7 @@
 
 ## Acceptance Criteria
 
-1. [x] `GET /api/v1/devices?groupId=<id>` returns JSON: `{"devices": [{"deviceId": "<uuid>", "displayName": "<name>", "lastSeenAt": "<timestamp>"}]}`
+1. [x] `GET /api/v1/devices?groupId=<id>` returns JSON: `{"devices": [{"device_id": "<uuid>", "display_name": "<name>", "lastSeenAt": "<timestamp>"}]}`
 2. [x] Only returns active devices (active=true)
 3. [x] Sorted by `display_name` ascending
 4. [x] Returns empty array if group doesn't exist or has no active devices

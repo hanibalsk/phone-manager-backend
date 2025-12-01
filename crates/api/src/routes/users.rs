@@ -18,7 +18,7 @@ use crate::extractors::UserAuth;
 
 /// User profile response.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ProfileResponse {
     pub id: String,
     pub email: String,
@@ -78,7 +78,7 @@ pub async fn get_current_user(
 
 /// Request body for updating user profile.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateProfileRequest {
     /// User's display name (1-100 characters)
     #[validate(length(min = 1, max = 100, message = "Display name must be 1-100 characters"))]
@@ -201,7 +201,7 @@ pub async fn update_current_user(
 
 /// Path parameters for device binding endpoints.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceBindingPath {
     pub user_id: Uuid,
     pub device_id: Uuid,
@@ -209,7 +209,7 @@ pub struct DeviceBindingPath {
 
 /// Request body for linking a device to a user.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LinkDeviceRequest {
     /// Override device display name (optional)
     #[validate(length(min = 1, max = 50, message = "Display name must be 1-50 characters"))]
@@ -222,7 +222,7 @@ pub struct LinkDeviceRequest {
 
 /// Response for device binding operations.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LinkedDeviceResponse {
     pub device: DeviceInfo,
     pub linked: bool,
@@ -230,7 +230,7 @@ pub struct LinkedDeviceResponse {
 
 /// Device information in responses.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceInfo {
     pub id: i64,
     pub device_uuid: String,
@@ -314,14 +314,14 @@ pub async fn link_device(
 
 /// Path parameters for user devices list endpoint.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UserDevicesPath {
     pub user_id: Uuid,
 }
 
 /// Query parameters for listing user devices.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListUserDevicesQuery {
     /// Include inactive devices in the list (default: false)
     #[serde(default)]
@@ -330,7 +330,7 @@ pub struct ListUserDevicesQuery {
 
 /// Device information in user's device list.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UserDeviceResponse {
     pub id: i64,
     pub device_uuid: String,
@@ -344,7 +344,7 @@ pub struct UserDeviceResponse {
 
 /// Response for listing user's devices.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListUserDevicesResponse {
     pub devices: Vec<UserDeviceResponse>,
     pub count: usize,
@@ -407,7 +407,7 @@ pub async fn list_user_devices(
 
 /// Response for unlink device operation.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UnlinkDeviceResponse {
     pub device_uuid: String,
     pub unlinked: bool,
@@ -471,7 +471,7 @@ pub async fn unlink_device(
 
 /// Request body for transferring device ownership.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct TransferDeviceRequest {
     /// UUID of the user to transfer ownership to
     pub new_owner_id: Uuid,
@@ -479,7 +479,7 @@ pub struct TransferDeviceRequest {
 
 /// Response for transfer device operation.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct TransferDeviceResponse {
     pub device: DeviceInfo,
     pub previous_owner_id: String,
@@ -667,11 +667,11 @@ mod tests {
         };
 
         let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("displayName"));
-        assert!(json.contains("avatarUrl"));
-        assert!(json.contains("emailVerified"));
-        assert!(json.contains("createdAt"));
-        assert!(json.contains("updatedAt"));
+        assert!(json.contains("display_name"));
+        assert!(json.contains("avatar_url"));
+        assert!(json.contains("email_verified"));
+        assert!(json.contains("created_at"));
+        assert!(json.contains("updated_at"));
     }
 
     #[test]
@@ -687,6 +687,6 @@ mod tests {
         };
 
         let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("\"avatarUrl\":null"));
+        assert!(json.contains("\"avatar_url\":null"));
     }
 }

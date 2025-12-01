@@ -13,7 +13,7 @@
 ## Acceptance Criteria
 
 1. [x] `GET /api/v1/devices?groupId=<id>` enhanced to include last location
-2. [x] Response: `{"devices": [{"deviceId": "<uuid>", "displayName": "<name>", "lastLocation": {"latitude": <float>, "longitude": <float>, "timestamp": "<iso>", "accuracy": <float>}, "lastSeenAt": "<iso>"}]}`
+2. [x] Response: `{"devices": [{"device_id": "<uuid>", "display_name": "<name>", "last_location": {"latitude": <float>, "longitude": <float>, "timestamp": "<iso>", "accuracy": <float>}, "lastSeenAt": "<iso>"}]}`
 3. [x] `lastLocation` is null if device has no location records
 4. [x] Uses most recent location by `captured_at` timestamp
 5. [x] Query executes in <100ms for 20 devices

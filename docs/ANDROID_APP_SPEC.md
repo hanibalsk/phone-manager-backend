@@ -204,7 +204,7 @@ Add the following fields to the existing `LocationEntity`:
     indices = [
         // ... existing indexes ...
         Index("tripId"),
-        Index("transportationMode")
+        Index("transportation_mode")
     ]
 )
 data class LocationEntity(

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 /// Represents a user account in the system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct User {
     pub id: Uuid,
     pub email: String,
@@ -60,7 +60,7 @@ impl fmt::Display for OAuthProvider {
 
 /// Represents an OAuth account linked to a user.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct OAuthAccount {
     pub id: Uuid,
     pub user_id: Uuid,

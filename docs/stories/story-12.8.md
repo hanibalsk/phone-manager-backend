@@ -51,7 +51,7 @@
 ```json
 {
   "type": "settings_changed",
-  "deviceId": "dev_01...",
+  "device_id": "dev_01...",
   "changes": [
     {
       "key": "tracking_interval_minutes",

@@ -248,10 +248,10 @@ This document provides the detailed story breakdown for the Phone Manager backen
 **Prerequisites**: Epic 1 complete
 
 **Acceptance Criteria**:
-1. `POST /api/v1/devices/register` accepts JSON: `{"deviceId": "<uuid>", "displayName": "<name>", "groupId": "<id>", "platform": "android", "fcmToken": "<optional>"}`
+1. `POST /api/v1/devices/register` accepts JSON: `{"device_id": "<uuid>", "display_name": "<name>", "group_id": "<id>", "platform": "android", "fcm_token": "<optional>"}`
 2. Validates display name (2-50 chars), group ID (2-50 chars, alphanumeric + hyphens/underscores)
 3. Creates device record if doesn't exist; updates if exists (upsert based on deviceId)
-4. Returns 200 with: `{"deviceId": "<uuid>", "displayName": "<name>", "groupId": "<id>", "createdAt": "<timestamp>", "updatedAt": "<timestamp>"}`
+4. Returns 200 with: `{"device_id": "<uuid>", "display_name": "<name>", "group_id": "<id>", "created_at": "<timestamp>", "updated_at": "<timestamp>"}`
 5. Returns 400 for validation errors with field-level details
 6. Returns 409 if group has 20 devices and this is a new device joining
 7. Sets `platform` to "android" if not provided
@@ -341,7 +341,7 @@ This document provides the detailed story breakdown for the Phone Manager backen
 **Prerequisites**: Story 2.1
 
 **Acceptance Criteria**:
-1. `GET /api/v1/devices?groupId=<id>` returns JSON: `{"devices": [{"deviceId": "<uuid>", "displayName": "<name>", "lastSeenAt": "<timestamp>"}]}`
+1. `GET /api/v1/devices?groupId=<id>` returns JSON: `{"devices": [{"device_id": "<uuid>", "display_name": "<name>", "lastSeenAt": "<timestamp>"}]}`
 2. Only returns active devices (active=true)
 3. Sorted by `display_name` ascending
 4. Returns empty array if group doesn't exist or has no active devices
@@ -400,7 +400,7 @@ This document provides the detailed story breakdown for the Phone Manager backen
 **Prerequisites**: Epic 2 complete
 
 **Acceptance Criteria**:
-1. `POST /api/v1/locations` accepts JSON: `{"deviceId": "<uuid>", "timestamp": <ms-epoch>, "latitude": <float>, "longitude": <float>, "accuracy": <float>, "altitude": <optional>, "bearing": <optional>, "speed": <optional>, "provider": <optional>, "batteryLevel": <optional>, "networkType": <optional>}`
+1. `POST /api/v1/locations` accepts JSON: `{"device_id": "<uuid>", "timestamp": <ms-epoch>, "latitude": <float>, "longitude": <float>, "accuracy": <float>, "altitude": <optional>, "bearing": <optional>, "speed": <optional>, "provider": <optional>, "batteryLevel": <optional>, "networkType": <optional>}`
 2. Validates: latitude (-90 to 90), longitude (-180 to 180), accuracy (>= 0), bearing (0-360 if present), speed (>= 0 if present), batteryLevel (0-100 if present)
 3. Returns 400 for validation errors with field-level details
 4. Returns 404 if device not registered
@@ -424,7 +424,7 @@ This document provides the detailed story breakdown for the Phone Manager backen
 **Prerequisites**: Story 3.1
 
 **Acceptance Criteria**:
-1. `POST /api/v1/locations/batch` accepts JSON: `{"deviceId": "<uuid>", "locations": [<location-objects>]}`
+1. `POST /api/v1/locations/batch` accepts JSON: `{"device_id": "<uuid>", "locations": [<location-objects>]}`
 2. Validates: 1-50 locations per batch, max 1MB payload
 3. Each location validated same as single upload
 4. Returns 400 if batch validation fails with details
@@ -498,7 +498,7 @@ This document provides the detailed story breakdown for the Phone Manager backen
 
 **Acceptance Criteria**:
 1. `GET /api/v1/devices?groupId=<id>` enhanced to include last location
-2. Response: `{"devices": [{"deviceId": "<uuid>", "displayName": "<name>", "lastLocation": {"latitude": <float>, "longitude": <float>, "timestamp": "<iso>", "accuracy": <float>}, "lastSeenAt": "<iso>"}]}`
+2. Response: `{"devices": [{"device_id": "<uuid>", "display_name": "<name>", "last_location": {"latitude": <float>, "longitude": <float>, "timestamp": "<iso>", "accuracy": <float>}, "lastSeenAt": "<iso>"}]}`
 3. `lastLocation` is null if device has no location records
 4. Uses most recent location by `captured_at` timestamp
 5. Query executes in <100ms for 20 devices
@@ -932,13 +932,13 @@ This document provides the detailed story breakdown for the Phone Manager backen
 **Prerequisites**: Story 5.1
 
 **Acceptance Criteria**:
-1. `POST /api/v1/movement-events` accepts JSON: `{"deviceId": "<uuid>", "tripId": "<uuid-optional>", "timestamp": <ms-epoch>, "latitude": <float>, "longitude": <float>, "accuracy": <float>, "speed": <float-optional>, "bearing": <float-optional>, "altitude": <float-optional>, "transportationMode": "<mode>", "confidence": <float>, "detectionSource": "<source>"}`
+1. `POST /api/v1/movement-events` accepts JSON: `{"device_id": "<uuid>", "tripId": "<uuid-optional>", "timestamp": <ms-epoch>, "latitude": <float>, "longitude": <float>, "accuracy": <float>, "speed": <float-optional>, "bearing": <float-optional>, "altitude": <float-optional>, "transportation_mode": "<mode>", "confidence": <float>, "detection_source": "<source>"}`
 2. Validates: latitude (-90 to 90), longitude (-180 to 180), accuracy (>= 0), bearing (0-360 if present), speed (>= 0 if present), confidence (0.0-1.0), transportationMode (STATIONARY|WALKING|RUNNING|CYCLING|IN_VEHICLE|UNKNOWN), detectionSource (ACTIVITY_RECOGNITION|BLUETOOTH_CAR|ANDROID_AUTO|MULTIPLE|NONE)
 3. Validates timestamp: not in future (5 min tolerance for clock skew), not older than 7 days
 4. Returns 400 for validation errors with field-level details
 5. Returns 404 if device not registered or inactive
 6. ~~Returns 404 if tripId provided but trip doesn't exist~~ (Deferred to Epic 6 - see Technical Notes)
-7. Returns 200 with: `{"id": "<uuid>", "createdAt": "<timestamp>"}`
+7. Returns 200 with: `{"id": "<uuid>", "created_at": "<timestamp>"}`
 8. Stores location as PostGIS GEOGRAPHY point
 9. Response time <50ms for single event
 
@@ -960,7 +960,7 @@ This document provides the detailed story breakdown for the Phone Manager backen
 **Prerequisites**: Story 5.2
 
 **Acceptance Criteria**:
-1. `POST /api/v1/movement-events/batch` accepts JSON: `{"deviceId": "<uuid>", "events": [<movement-event-objects>]}`
+1. `POST /api/v1/movement-events/batch` accepts JSON: `{"device_id": "<uuid>", "events": [<movement-event-objects>]}`
 2. Validates: 1-100 events per batch, max 2MB payload
 3. Each event validated same as single upload (Story 5.2) including timestamp freshness
 4. All events must belong to same deviceId (enforced by request schema)
@@ -1040,7 +1040,7 @@ This document provides the detailed story breakdown for the Phone Manager backen
 1. TransportationMode enum: STATIONARY, WALKING, RUNNING, CYCLING, IN_VEHICLE, UNKNOWN
 2. DetectionSource enum: ACTIVITY_RECOGNITION, BLUETOOTH_CAR, ANDROID_AUTO, MULTIPLE, NONE
 3. Enums implement Serialize/Deserialize with exact string matching
-4. Invalid mode/source returns 400 with: `{"field": "transportationMode", "message": "Invalid transportation mode. Must be one of: STATIONARY, WALKING, RUNNING, CYCLING, IN_VEHICLE, UNKNOWN"}`
+4. Invalid mode/source returns 400 with: `{"field": "transportation_mode", "message": "Invalid transportation mode. Must be one of: STATIONARY, WALKING, RUNNING, CYCLING, IN_VEHICLE, UNKNOWN"}`
 5. Database VARCHAR fields validated against enum values
 6. Unit tests cover all enum variants and invalid values
 
@@ -1099,12 +1099,12 @@ This document provides the detailed story breakdown for the Phone Manager backen
 **Prerequisites**: Story 6.1
 
 **Acceptance Criteria**:
-1. `POST /api/v1/trips` accepts JSON: `{"deviceId": "<uuid>", "localTripId": "<client-id>", "startTimestamp": <ms-epoch>, "startLatitude": <float>, "startLongitude": <float>, "transportationMode": "<mode>", "detectionSource": "<source>"}`
+1. `POST /api/v1/trips` accepts JSON: `{"device_id": "<uuid>", "local_trip_id": "<client-id>", "start_timestamp": <ms-epoch>, "start_latitude": <float>, "start_longitude": <float>, "transportation_mode": "<mode>", "detection_source": "<source>"}`
 2. Validates all fields same as movement events
 3. Returns 200 (not 201) if trip with same (deviceId, localTripId) exists - idempotent
 4. Existing trip response includes all current data (may have been updated)
 5. New trip created with state=ACTIVE
-6. Returns 200/201 with: `{"id": "<uuid>", "localTripId": "<client-id>", "state": "ACTIVE", "startTimestamp": <ts>, "createdAt": "<timestamp>"}`
+6. Returns 200/201 with: `{"id": "<uuid>", "local_trip_id": "<client-id>", "state": "ACTIVE", "start_timestamp": <ts>, "created_at": "<timestamp>"}`
 7. Returns 404 if device not registered
 8. Returns 409 if device already has an ACTIVE trip with different localTripId
 9. Only one ACTIVE trip allowed per device
@@ -1258,7 +1258,7 @@ This document provides the detailed story breakdown for the Phone Manager backen
 **Prerequisites**: Story 7.1
 
 **Acceptance Criteria**:
-1. `POST /api/v1/locations` enhanced to accept: `"transportationMode": "<mode-optional>", "detectionSource": "<source-optional>", "tripId": "<uuid-optional>"`
+1. `POST /api/v1/locations` enhanced to accept: `"transportation_mode": "<mode-optional>", "detection_source": "<source-optional>", "tripId": "<uuid-optional>"`
 2. Existing payload structure unchanged (new fields optional)
 3. Validates transportationMode and detectionSource same as movement events
 4. Returns 404 if tripId provided but trip doesn't exist

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 /// Device counts by status.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceMetrics {
     pub total: i64,
     pub active: i64,
@@ -19,7 +19,7 @@ pub struct DeviceMetrics {
 
 /// Breakdown of devices by enrollment status.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceStatusBreakdown {
     pub registered: i64,
     pub enrolled: i64,
@@ -29,7 +29,7 @@ pub struct DeviceStatusBreakdown {
 
 /// User counts by role.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UserMetrics {
     pub total: i64,
     pub active: i64,
@@ -38,7 +38,7 @@ pub struct UserMetrics {
 
 /// Breakdown of users by role.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RoleBreakdown {
     pub owner: i64,
     pub admin: i64,
@@ -47,7 +47,7 @@ pub struct RoleBreakdown {
 
 /// Group metrics.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GroupMetrics {
     pub total: i64,
     pub average_members: f64,
@@ -55,7 +55,7 @@ pub struct GroupMetrics {
 
 /// Policy metrics.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct PolicyMetrics {
     pub total: i64,
     pub active_assignments: i64,
@@ -63,7 +63,7 @@ pub struct PolicyMetrics {
 
 /// Enrollment metrics.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct EnrollmentMetrics {
     pub active_tokens: i64,
     pub enrolled_this_month: i64,
@@ -71,14 +71,14 @@ pub struct EnrollmentMetrics {
 
 /// Activity summary.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ActivitySummary {
     pub last_7_days: ActivityPeriod,
 }
 
 /// Activity for a time period.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ActivityPeriod {
     pub total_events: i64,
     pub by_type: HashMap<String, i64>,
@@ -86,7 +86,7 @@ pub struct ActivityPeriod {
 
 /// Trend data for a metric.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct TrendData {
     pub last_7_days: i64,
     pub last_30_days: i64,
@@ -96,7 +96,7 @@ pub struct TrendData {
 
 /// All trends.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct Trends {
     pub devices: TrendData,
     pub users: TrendData,
@@ -104,7 +104,7 @@ pub struct Trends {
 
 /// Complete dashboard metrics response.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DashboardMetrics {
     pub devices: DeviceMetrics,
     pub users: UserMetrics,
@@ -188,6 +188,6 @@ mod tests {
         assert!(json.contains("enrollment"));
         assert!(json.contains("activity"));
         assert!(json.contains("trends"));
-        assert!(json.contains("generatedAt"));
+        assert!(json.contains("generated_at"));
     }
 }

@@ -510,8 +510,8 @@ mod tests {
         let json = r#"{
             "name": "Acme Corp",
             "slug": "acme-corp",
-            "billingEmail": "billing@acme.com",
-            "planType": "business"
+            "billing_email": "billing@acme.com",
+            "plan_type": "business"
         }"#;
         let request: CreateOrganizationRequest = serde_json::from_str(json).unwrap();
         assert_eq!(request.name, "Acme Corp");
@@ -524,7 +524,7 @@ mod tests {
     fn test_update_organization_request_deserialization() {
         let json = r#"{
             "name": "Updated Name",
-            "maxUsers": 200
+            "max_users": 200
         }"#;
         let request: UpdateOrganizationRequest = serde_json::from_str(json).unwrap();
         assert_eq!(request.name, Some("Updated Name".to_string()));
@@ -536,9 +536,9 @@ mod tests {
     fn test_list_organizations_query_deserialization() {
         let json = r#"{
             "page": 2,
-            "perPage": 25,
-            "isActive": true,
-            "planType": "starter"
+            "per_page": 25,
+            "is_active": true,
+            "plan_type": "starter"
         }"#;
         let query: ListOrganizationsQuery = serde_json::from_str(json).unwrap();
         assert_eq!(query.page, Some(2));

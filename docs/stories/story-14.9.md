@@ -59,7 +59,7 @@ Response (202) - Asynchronous:
   "status": "pending",
   "format": "csv",
   "estimatedRecords": 15000,
-  "createdAt": "2025-12-01T00:00:00Z"
+  "created_at": "2025-12-01T00:00:00Z"
 }
 ```
 

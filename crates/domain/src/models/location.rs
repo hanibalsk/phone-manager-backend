@@ -7,7 +7,7 @@ use validator::Validate;
 
 /// Represents a location record in the system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct Location {
     pub id: i64,
     pub device_id: Uuid,
@@ -33,7 +33,7 @@ pub struct Location {
 
 /// Request payload for single location upload.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UploadLocationRequest {
     pub device_id: Uuid,
 
@@ -78,7 +78,7 @@ pub struct UploadLocationRequest {
 
 /// Request payload for batch location upload.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BatchUploadRequest {
     pub device_id: Uuid,
 
@@ -88,7 +88,7 @@ pub struct BatchUploadRequest {
 
 /// Individual location data within a batch.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LocationData {
     #[validate(custom(function = "shared::validation::validate_timestamp"))]
     pub timestamp: i64,
@@ -133,7 +133,7 @@ pub struct LocationData {
 
 /// Response payload for location upload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UploadLocationResponse {
     pub success: bool,
     pub processed_count: usize,
@@ -141,7 +141,7 @@ pub struct UploadLocationResponse {
 
 /// Last known location for a device.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LastLocation {
     pub latitude: f64,
     pub longitude: f64,
@@ -177,7 +177,7 @@ impl<'de> serde::Deserialize<'de> for SortOrder {
 
 /// Query parameters for location history endpoint.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GetLocationHistoryQuery {
     /// Opaque cursor for pagination (base64-encoded timestamp:id).
     pub cursor: Option<String>,
@@ -230,7 +230,7 @@ impl GetLocationHistoryQuery {
 
 /// Single location item in history response.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LocationHistoryItem {
     pub id: i64,
     pub latitude: f64,
@@ -289,7 +289,7 @@ impl From<Location> for LocationHistoryItem {
 
 /// Pagination info for cursor-based pagination.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct PaginationInfo {
     /// Cursor for fetching the next page.
     pub next_cursor: Option<String>,
@@ -299,7 +299,7 @@ pub struct PaginationInfo {
 
 /// Simplification metadata included when tolerance > 0.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SimplificationInfo {
     /// Whether simplification was applied.
     pub applied: bool,
@@ -334,7 +334,7 @@ impl SimplificationInfo {
 
 /// Response payload for location history endpoint.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LocationHistoryResponse {
     pub locations: Vec<LocationHistoryItem>,
     pub pagination: PaginationInfo,
@@ -810,8 +810,8 @@ mod tests {
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("\"applied\":true"));
         assert!(json.contains("\"tolerance\":50"));
-        assert!(json.contains("\"originalCount\":1523"));
-        assert!(json.contains("\"simplifiedCount\":127"));
-        assert!(json.contains("\"reductionPercent\":"));
+        assert!(json.contains("\"original_count\":1523"));
+        assert!(json.contains("\"simplified_count\":127"));
+        assert!(json.contains("\"reduction_percent\":"));
     }
 }

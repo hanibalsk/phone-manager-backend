@@ -27,7 +27,7 @@ impl std::fmt::Display for UnlockRequestStatus {
 
 /// Request to create an unlock request.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateUnlockRequestRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -35,7 +35,7 @@ pub struct CreateUnlockRequestRequest {
 
 /// Response after creating an unlock request.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateUnlockRequestResponse {
     pub id: Uuid,
     pub device_id: Uuid,
@@ -49,7 +49,7 @@ pub struct CreateUnlockRequestResponse {
 
 /// Brief device info for listing.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceInfo {
     pub id: Uuid,
     pub display_name: String,
@@ -57,7 +57,7 @@ pub struct DeviceInfo {
 
 /// Brief user info for listing.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UserInfo {
     pub id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -66,7 +66,7 @@ pub struct UserInfo {
 
 /// Unlock request for listing.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UnlockRequestItem {
     pub id: Uuid,
     pub device: DeviceInfo,
@@ -88,7 +88,7 @@ pub struct UnlockRequestItem {
 
 /// Pagination info for list responses.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct Pagination {
     pub page: i64,
     pub per_page: i64,
@@ -97,7 +97,7 @@ pub struct Pagination {
 
 /// Response for listing unlock requests.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListUnlockRequestsResponse {
     pub data: Vec<UnlockRequestItem>,
     pub pagination: Pagination,
@@ -105,7 +105,7 @@ pub struct ListUnlockRequestsResponse {
 
 /// Request to respond to an unlock request.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RespondToUnlockRequestRequest {
     pub status: UnlockRequestStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -114,7 +114,7 @@ pub struct RespondToUnlockRequestRequest {
 
 /// Response after responding to an unlock request.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RespondToUnlockRequestResponse {
     pub id: Uuid,
     pub status: UnlockRequestStatus,
@@ -128,7 +128,7 @@ pub struct RespondToUnlockRequestResponse {
 
 /// Query parameters for listing unlock requests.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListUnlockRequestsQuery {
     #[serde(default)]
     pub status: Option<String>,

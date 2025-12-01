@@ -53,7 +53,7 @@ async fn test_register_success() {
         json!({
             "email": user.email,
             "password": user.password,
-            "displayName": user.display_name
+            "display_name": user.display_name
         }),
     );
 
@@ -64,7 +64,7 @@ async fn test_register_success() {
     assert!(body.get("userId").is_some());
     assert_eq!(body["email"], user.email.to_lowercase());
     assert!(body.get("accessToken").is_some());
-    assert!(body.get("refreshToken").is_some());
+    assert!(body.get("refresh_token").is_some());
     assert!(!body["accessToken"].as_str().unwrap().is_empty());
 
     cleanup_test_data(&pool).await;
@@ -87,7 +87,7 @@ async fn test_register_duplicate_email() {
         json!({
             "email": user.email,
             "password": user.password,
-            "displayName": user.display_name
+            "display_name": user.display_name
         }),
     );
 
@@ -102,7 +102,7 @@ async fn test_register_duplicate_email() {
         json!({
             "email": user.email,
             "password": user.password,
-            "displayName": "Another User"
+            "display_name": "Another User"
         }),
     );
 
@@ -134,7 +134,7 @@ async fn test_register_weak_password() {
         json!({
             "email": "test@example.com",
             "password": "weak",
-            "displayName": "Test User"
+            "display_name": "Test User"
         }),
     );
 
@@ -163,7 +163,7 @@ async fn test_register_invalid_email() {
         json!({
             "email": "not-an-email",
             "password": "SecureP@ss123!",
-            "displayName": "Test User"
+            "display_name": "Test User"
         }),
     );
 
@@ -194,7 +194,7 @@ async fn test_login_success() {
         json!({
             "email": user.email,
             "password": user.password,
-            "displayName": user.display_name
+            "display_name": user.display_name
         }),
     );
     let _ = app.oneshot(request).await.unwrap();
@@ -216,7 +216,7 @@ async fn test_login_success() {
     let body = parse_response_body(response).await;
     assert!(body.get("userId").is_some());
     assert!(body.get("accessToken").is_some());
-    assert!(body.get("refreshToken").is_some());
+    assert!(body.get("refresh_token").is_some());
 
     cleanup_test_data(&pool).await;
 }
@@ -238,7 +238,7 @@ async fn test_login_invalid_password() {
         json!({
             "email": user.email,
             "password": user.password,
-            "displayName": user.display_name
+            "display_name": user.display_name
         }),
     );
     let _ = app.oneshot(request).await.unwrap();
@@ -301,7 +301,7 @@ async fn test_login_case_insensitive_email() {
         json!({
             "email": user.email.to_lowercase(),
             "password": user.password,
-            "displayName": user.display_name
+            "display_name": user.display_name
         }),
     );
     let _ = app.oneshot(request).await.unwrap();
@@ -344,12 +344,12 @@ async fn test_refresh_token_success() {
         json!({
             "email": user.email,
             "password": user.password,
-            "displayName": user.display_name
+            "display_name": user.display_name
         }),
     );
     let response = app.oneshot(request).await.unwrap();
     let body = parse_response_body(response).await;
-    let refresh_token = body["refreshToken"].as_str().unwrap();
+    let refresh_token = body["refresh_token"].as_str().unwrap();
 
     // Use refresh token
     let app = common::create_test_app(config, pool.clone());
@@ -357,7 +357,7 @@ async fn test_refresh_token_success() {
         Method::POST,
         "/api/v1/auth/refresh",
         json!({
-            "refreshToken": refresh_token
+            "refresh_token": refresh_token
         }),
     );
 
@@ -366,7 +366,7 @@ async fn test_refresh_token_success() {
 
     let body = parse_response_body(response).await;
     assert!(body.get("accessToken").is_some());
-    assert!(body.get("refreshToken").is_some());
+    assert!(body.get("refresh_token").is_some());
 
     cleanup_test_data(&pool).await;
 }
@@ -384,7 +384,7 @@ async fn test_refresh_token_invalid() {
         Method::POST,
         "/api/v1/auth/refresh",
         json!({
-            "refreshToken": "invalid-token"
+            "refresh_token": "invalid-token"
         }),
     );
 
@@ -415,7 +415,7 @@ async fn test_logout_success() {
         json!({
             "email": user.email,
             "password": user.password,
-            "displayName": user.display_name
+            "display_name": user.display_name
         }),
     );
     let response = app.oneshot(request).await.unwrap();
@@ -461,7 +461,7 @@ async fn test_access_protected_route_with_valid_token() {
         json!({
             "email": user.email,
             "password": user.password,
-            "displayName": user.display_name
+            "display_name": user.display_name
         }),
     );
     let response = app.oneshot(request).await.unwrap();
@@ -550,7 +550,7 @@ async fn test_multiple_sessions_same_user() {
         json!({
             "email": user.email,
             "password": user.password,
-            "displayName": user.display_name
+            "display_name": user.display_name
         }),
     );
     let _ = app.oneshot(request).await.unwrap();
@@ -630,7 +630,7 @@ async fn test_oauth_invalid_provider() {
         "/api/v1/auth/oauth",
         json!({
             "provider": "invalid_provider",
-            "idToken": "some-token"
+            "id_token": "some-token"
         }),
     );
 
@@ -658,7 +658,7 @@ async fn test_oauth_missing_token() {
         "/api/v1/auth/oauth",
         json!({
             "provider": "google",
-            "idToken": ""
+            "id_token": ""
         }),
     );
 
@@ -689,7 +689,7 @@ async fn test_forgot_password_existing_user() {
         json!({
             "email": user.email,
             "password": user.password,
-            "displayName": user.display_name
+            "display_name": user.display_name
         }),
     );
     let _ = app.oneshot(request).await.unwrap();

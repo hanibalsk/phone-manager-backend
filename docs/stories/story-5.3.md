@@ -18,7 +18,7 @@
 
 ## Acceptance Criteria
 
-1. `POST /api/v1/movement-events/batch` accepts JSON: `{"deviceId": "<uuid>", "events": [<movement-event-objects>]}`
+1. `POST /api/v1/movement-events/batch` accepts JSON: `{"device_id": "<uuid>", "events": [<movement-event-objects>]}`
 2. Validates: 1-100 events per batch, max 2MB payload
 3. Each event validated same as single upload (Story 5.2)
 4. All events must belong to same deviceId

@@ -68,9 +68,9 @@ Response (200):
       "owner": {
         "id": "123e4567-e89b-12d3-a456-426614174000",
         "email": "manager@acme.com",
-        "displayName": "Team Manager"
+        "display_name": "Team Manager"
       },
-      "createdAt": "2025-11-01T09:00:00Z"
+      "created_at": "2025-11-01T09:00:00Z"
     }
   ],
   "pagination": {
@@ -104,13 +104,13 @@ Response (200):
     "deviceCount": 15,
     "isActive": true,
     "createdBy": "123e4567-e89b-12d3-a456-426614174000",
-    "createdAt": "2025-11-01T09:00:00Z"
+    "created_at": "2025-11-01T09:00:00Z"
   },
   "members": [
     {
       "userId": "123e4567-e89b-12d3-a456-426614174000",
       "email": "manager@acme.com",
-      "displayName": "Team Manager",
+      "display_name": "Team Manager",
       "role": "owner",
       "joinedAt": "2025-11-01T09:00:00Z"
     }
@@ -119,7 +119,7 @@ Response (200):
     {
       "id": 42,
       "deviceUuid": "550e8400-e29b-41d4-a716-446655440000",
-      "displayName": "Field Tablet #42",
+      "display_name": "Field Tablet #42",
       "lastSeenAt": "2025-12-01T10:25:00Z"
     }
   ]
@@ -146,7 +146,7 @@ Response (200):
   "description": "Updated description",
   "maxDevices": 100,
   "isActive": true,
-  "updatedAt": "2025-12-01T11:00:00Z"
+  "updated_at": "2025-12-01T11:00:00Z"
 }
 ```
 
@@ -156,7 +156,7 @@ Response (200):
 ```json
 {
   "deactivated": true,
-  "groupId": "field-workers",
+  "group_id": "field-workers",
   "deactivatedAt": "2025-12-01T11:00:00Z"
 }
 ```

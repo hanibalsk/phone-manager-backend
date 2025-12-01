@@ -97,10 +97,10 @@ GET /api/v1/trips/:tripId/movement-events?order=asc|desc
       "speed": 5.5,
       "bearing": 180.0,
       "altitude": 100.0,
-      "transportationMode": "WALKING",
+      "transportation_mode": "WALKING",
       "confidence": 0.95,
-      "detectionSource": "ACTIVITY_RECOGNITION",
-      "createdAt": "2025-11-30T12:00:00Z"
+      "detection_source": "ACTIVITY_RECOGNITION",
+      "created_at": "2025-11-30T12:00:00Z"
     }
   ],
   "count": 1

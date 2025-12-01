@@ -11,7 +11,7 @@ use super::org_user::OrgUserRole;
 
 /// Admin user list item.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminUserItem {
     pub id: Uuid,
     pub email: String,
@@ -27,7 +27,7 @@ pub struct AdminUserItem {
 
 /// User summary statistics for the admin list.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminUserSummary {
     pub owners: i64,
     pub admins: i64,
@@ -38,7 +38,7 @@ pub struct AdminUserSummary {
 
 /// Pagination for admin user list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminUserPagination {
     pub page: u32,
     pub per_page: u32,
@@ -48,7 +48,7 @@ pub struct AdminUserPagination {
 
 /// Response for admin user list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminUserListResponse {
     pub data: Vec<AdminUserItem>,
     pub pagination: AdminUserPagination,
@@ -57,7 +57,7 @@ pub struct AdminUserListResponse {
 
 /// Query parameters for listing admin users.
 #[derive(Debug, Clone, Deserialize, Validate, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminUserQuery {
     #[validate(range(min = 1, message = "Page must be at least 1"))]
     pub page: Option<u32>,
@@ -110,7 +110,7 @@ impl SortOrder {
 
 /// Device info for user detail response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UserDeviceInfo {
     pub id: i64,
     pub device_uuid: Uuid,
@@ -121,7 +121,7 @@ pub struct UserDeviceInfo {
 
 /// Group info for user detail response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UserGroupInfo {
     pub id: String,
     pub name: String,
@@ -130,7 +130,7 @@ pub struct UserGroupInfo {
 
 /// Recent action for activity summary.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RecentAction {
     pub action: String,
     pub resource_type: String,
@@ -139,7 +139,7 @@ pub struct RecentAction {
 
 /// Activity summary for user detail.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UserActivitySummary {
     pub total_actions: i64,
     pub last_action_at: Option<DateTime<Utc>>,
@@ -148,7 +148,7 @@ pub struct UserActivitySummary {
 
 /// Full user profile for detail view.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminUserProfile {
     pub id: Uuid,
     pub email: String,
@@ -165,7 +165,7 @@ pub struct AdminUserProfile {
 
 /// Response for user detail endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminUserDetailResponse {
     pub user: AdminUserProfile,
     pub devices: Vec<UserDeviceInfo>,
@@ -175,7 +175,7 @@ pub struct AdminUserDetailResponse {
 
 /// Request for updating user role/permissions.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateAdminUserRequest {
     pub role: Option<OrgUserRole>,
     pub permissions: Option<Vec<String>>,
@@ -183,7 +183,7 @@ pub struct UpdateAdminUserRequest {
 
 /// Response for updating user.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateAdminUserResponse {
     pub id: Uuid,
     pub email: String,
@@ -195,7 +195,7 @@ pub struct UpdateAdminUserResponse {
 
 /// Response for removing user from org.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RemoveUserResponse {
     pub removed: bool,
     pub user_id: Uuid,
@@ -270,8 +270,8 @@ mod tests {
             last_login_at: None,
         };
         let json = serde_json::to_string(&item).unwrap();
-        assert!(json.contains("deviceCount"));
-        assert!(json.contains("groupCount"));
-        assert!(json.contains("grantedAt"));
+        assert!(json.contains("device_count"));
+        assert!(json.contains("group_count"));
+        assert!(json.contains("granted_at"));
     }
 }

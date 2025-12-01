@@ -76,7 +76,7 @@ impl fmt::Display for GroupRole {
 
 /// Represents a location sharing group.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct Group {
     pub id: Uuid,
     pub name: String,
@@ -93,7 +93,7 @@ pub struct Group {
 
 /// Represents a user's membership in a group.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GroupMembership {
     pub id: Uuid,
     pub group_id: Uuid,
@@ -106,7 +106,7 @@ pub struct GroupMembership {
 
 /// Request payload for creating a group.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateGroupRequest {
     #[validate(length(min = 1, max = 100, message = "Name must be between 1 and 100 characters"))]
     pub name: String,
@@ -123,7 +123,7 @@ pub struct CreateGroupRequest {
 
 /// Request payload for updating a group.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateGroupRequest {
     #[validate(length(min = 1, max = 100, message = "Name must be between 1 and 100 characters"))]
     pub name: Option<String>,
@@ -140,7 +140,7 @@ pub struct UpdateGroupRequest {
 
 /// Response for group listing (minimal info).
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GroupSummary {
     pub id: Uuid,
     pub name: String,
@@ -154,7 +154,7 @@ pub struct GroupSummary {
 
 /// Response for group detail.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GroupDetail {
     pub id: Uuid,
     pub name: String,
@@ -175,7 +175,7 @@ pub struct GroupDetail {
 
 /// Basic membership info for group responses.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct MembershipInfo {
     pub id: Uuid,
     pub role: GroupRole,
@@ -184,7 +184,7 @@ pub struct MembershipInfo {
 
 /// Response for creating a group.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateGroupResponse {
     pub id: Uuid,
     pub name: String,
@@ -202,14 +202,14 @@ pub struct CreateGroupResponse {
 
 /// Query parameters for listing groups.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListGroupsQuery {
     pub role: Option<String>,
 }
 
 /// Response for listing groups.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListGroupsResponse {
     pub data: Vec<GroupSummary>,
     pub count: usize,
@@ -221,7 +221,7 @@ pub struct ListGroupsResponse {
 
 /// Query parameters for listing members.
 #[derive(Debug, Clone, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListMembersQuery {
     pub page: Option<i64>,
     pub per_page: Option<i64>,
@@ -231,7 +231,7 @@ pub struct ListMembersQuery {
 
 /// Pagination info for list responses.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct Pagination {
     pub page: i64,
     pub per_page: i64,
@@ -241,7 +241,7 @@ pub struct Pagination {
 
 /// Public user info (no sensitive data like email).
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UserPublic {
     pub id: Uuid,
     pub display_name: Option<String>,
@@ -250,7 +250,7 @@ pub struct UserPublic {
 
 /// Device info for member listing.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct MemberDeviceInfo {
     pub id: Uuid,
     pub display_name: String,
@@ -260,7 +260,7 @@ pub struct MemberDeviceInfo {
 
 /// Last location info for device.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LastLocationInfo {
     pub latitude: f64,
     pub longitude: f64,
@@ -268,7 +268,7 @@ pub struct LastLocationInfo {
 
 /// Member response in list.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct MemberResponse {
     pub id: Uuid,
     pub user: UserPublic,
@@ -281,7 +281,7 @@ pub struct MemberResponse {
 
 /// Response for listing members.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListMembersResponse {
     pub data: Vec<MemberResponse>,
     pub pagination: Pagination,
@@ -289,7 +289,7 @@ pub struct ListMembersResponse {
 
 /// Response when removing a member.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RemoveMemberResponse {
     pub removed: bool,
     pub user_id: Uuid,
@@ -302,14 +302,14 @@ pub struct RemoveMemberResponse {
 
 /// Request to update a member's role.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateRoleRequest {
     pub role: GroupRole,
 }
 
 /// Response after updating a member's role.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateRoleResponse {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -324,7 +324,7 @@ pub struct UpdateRoleResponse {
 
 /// Request to transfer group ownership.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct TransferOwnershipRequest {
     /// The user ID of the new owner (must be existing group member).
     pub new_owner_id: Uuid,
@@ -332,7 +332,7 @@ pub struct TransferOwnershipRequest {
 
 /// Response after transferring group ownership.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct TransferOwnershipResponse {
     pub group_id: Uuid,
     pub previous_owner_id: Uuid,

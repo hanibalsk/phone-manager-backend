@@ -11,7 +11,7 @@ use super::admin_user::SortOrder;
 
 /// Owner info for admin group list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GroupOwnerInfo {
     pub id: Uuid,
     pub email: String,
@@ -20,7 +20,7 @@ pub struct GroupOwnerInfo {
 
 /// Admin group list item.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminGroupItem {
     pub id: Uuid,
     pub name: String,
@@ -36,7 +36,7 @@ pub struct AdminGroupItem {
 
 /// Group summary statistics.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminGroupSummary {
     pub total_groups: i64,
     pub active_groups: i64,
@@ -46,7 +46,7 @@ pub struct AdminGroupSummary {
 
 /// Pagination for admin group list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminGroupPagination {
     pub page: u32,
     pub per_page: u32,
@@ -56,7 +56,7 @@ pub struct AdminGroupPagination {
 
 /// Response for admin group list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminGroupListResponse {
     pub data: Vec<AdminGroupItem>,
     pub pagination: AdminGroupPagination,
@@ -65,7 +65,7 @@ pub struct AdminGroupListResponse {
 
 /// Query parameters for listing admin groups.
 #[derive(Debug, Clone, Deserialize, Validate, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminGroupQuery {
     #[validate(range(min = 1, message = "Page must be at least 1"))]
     pub page: Option<u32>,
@@ -102,7 +102,7 @@ impl AdminGroupSortField {
 
 /// Member info for group detail response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GroupMemberInfo {
     pub user_id: Uuid,
     pub email: String,
@@ -113,7 +113,7 @@ pub struct GroupMemberInfo {
 
 /// Device info for group detail response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GroupDeviceInfo {
     pub id: i64,
     pub device_uuid: Uuid,
@@ -123,7 +123,7 @@ pub struct GroupDeviceInfo {
 
 /// Full group info for detail view.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminGroupProfile {
     pub id: Uuid,
     pub name: String,
@@ -140,7 +140,7 @@ pub struct AdminGroupProfile {
 
 /// Response for group detail endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminGroupDetailResponse {
     pub group: AdminGroupProfile,
     pub members: Vec<GroupMemberInfo>,
@@ -149,7 +149,7 @@ pub struct AdminGroupDetailResponse {
 
 /// Request for updating group settings.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateAdminGroupRequest {
     #[validate(length(min = 1, max = 100, message = "Name must be 1-100 characters"))]
     pub name: Option<String>,
@@ -162,7 +162,7 @@ pub struct UpdateAdminGroupRequest {
 
 /// Response for updating group.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateAdminGroupResponse {
     pub id: Uuid,
     pub name: String,
@@ -174,7 +174,7 @@ pub struct UpdateAdminGroupResponse {
 
 /// Response for deactivating group.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeactivateGroupResponse {
     pub deactivated: bool,
     pub group_id: Uuid,

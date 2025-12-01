@@ -7,7 +7,7 @@ use validator::Validate;
 
 /// Represents a registered device in the system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct Device {
     pub id: i64,
     pub device_id: Uuid,
@@ -28,7 +28,7 @@ pub struct Device {
 
 /// Request payload for device registration.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RegisterDeviceRequest {
     pub device_id: Uuid,
 
@@ -55,7 +55,7 @@ pub struct RegisterDeviceRequest {
 
 /// Response payload for device registration.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RegisterDeviceResponse {
     pub device_id: Uuid,
     pub display_name: String,
@@ -75,7 +75,7 @@ pub struct RegisterDeviceResponse {
 
 /// Last known location for a device (used in device listings).
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceLastLocation {
     pub latitude: f64,
     pub longitude: f64,
@@ -85,7 +85,7 @@ pub struct DeviceLastLocation {
 
 /// Device summary for group listings.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceSummary {
     pub device_id: Uuid,
     pub display_name: String,
@@ -335,7 +335,7 @@ mod tests {
             last_seen_at: None,
         };
         let json = serde_json::to_string(&summary).unwrap();
-        assert!(json.contains("\"lastLocation\""));
+        assert!(json.contains("\"last_location\""));
         assert!(json.contains("\"latitude\":37.7749"));
         assert!(json.contains("\"longitude\":-122.4194"));
         assert!(json.contains("\"accuracy\":10"));
@@ -350,7 +350,7 @@ mod tests {
             last_seen_at: None,
         };
         let json = serde_json::to_string(&summary).unwrap();
-        assert!(json.contains("\"lastLocation\":null"));
+        assert!(json.contains("\"last_location\":null"));
     }
 
     #[test]

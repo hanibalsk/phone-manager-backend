@@ -12,10 +12,10 @@
 
 ## Acceptance Criteria
 
-1. [x] `POST /api/v1/devices/register` accepts JSON: `{"deviceId": "<uuid>", "displayName": "<name>", "groupId": "<id>", "platform": "android", "fcmToken": "<optional>"}`
+1. [x] `POST /api/v1/devices/register` accepts JSON: `{"device_id": "<uuid>", "display_name": "<name>", "group_id": "<id>", "platform": "android", "fcm_token": "<optional>"}`
 2. [x] Validates display name (2-50 chars), group ID (2-50 chars, alphanumeric + hyphens/underscores)
 3. [x] Creates device record if doesn't exist; updates if exists (upsert based on deviceId)
-4. [x] Returns 200 with: `{"deviceId": "<uuid>", "displayName": "<name>", "groupId": "<id>", "createdAt": "<timestamp>", "updatedAt": "<timestamp>"}`
+4. [x] Returns 200 with: `{"device_id": "<uuid>", "display_name": "<name>", "group_id": "<id>", "created_at": "<timestamp>", "updated_at": "<timestamp>"}`
 5. [x] Returns 400 for validation errors with field-level details
 6. [x] Returns 409 if group has 20 devices and this is a new device joining
 7. [x] Sets `platform` to "android" if not provided

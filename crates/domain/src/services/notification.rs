@@ -44,7 +44,7 @@ impl std::fmt::Display for SettingChangeAction {
 
 /// A single setting change for notification payload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SettingChangeNotification {
     pub key: String,
     pub action: SettingChangeAction,
@@ -54,7 +54,7 @@ pub struct SettingChangeNotification {
 
 /// Notification payload for settings changed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SettingsChangedPayload {
     #[serde(rename = "type")]
     pub notification_type: NotificationType,
@@ -66,7 +66,7 @@ pub struct SettingsChangedPayload {
 
 /// Notification payload for unlock request response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UnlockRequestResponsePayload {
     #[serde(rename = "type")]
     pub notification_type: NotificationType,

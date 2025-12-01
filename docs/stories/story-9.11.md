@@ -173,7 +173,7 @@ Story 9.11 implementation is complete and meets all acceptance criteria. The use
 - Repository in `crates/persistence/src/repositories/user.rs`
 
 ✅ **Follows project conventions:**
-- camelCase JSON serialization via `#[serde(rename_all = "camelCase")]`
+- camelCase JSON serialization via `#[serde(rename_all = "snake_case")]`
 - Proper error type usage (`ApiError`)
 - Tracing/logging via `tracing::info!`
 

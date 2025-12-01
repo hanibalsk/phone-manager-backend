@@ -230,7 +230,7 @@ fn rate_limited_response(limit: u32, retry_after: u64) -> Response {
     let body = json!({
         "error": "rate_limit_exceeded",
         "message": format!("Rate limit of {} requests/minute exceeded", limit),
-        "retryAfter": retry_after
+        "retry_after": retry_after
     });
 
     let mut response = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();

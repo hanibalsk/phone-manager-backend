@@ -53,7 +53,7 @@ impl std::fmt::Display for SettingCategory {
 
 /// Metadata about a setting (from setting_definitions table).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SettingDefinition {
     pub key: String,
     pub display_name: String,
@@ -69,7 +69,7 @@ pub struct SettingDefinition {
 
 /// A device setting value with lock state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceSetting {
     pub id: Uuid,
     pub device_id: Uuid,
@@ -89,7 +89,7 @@ pub struct DeviceSetting {
 
 /// Setting value response with lock info (for API responses).
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SettingValue {
     pub value: serde_json::Value,
     pub is_locked: bool,
@@ -108,7 +108,7 @@ pub struct SettingValue {
 
 /// Response for getting all device settings.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GetSettingsResponse {
     pub device_id: Uuid,
     pub settings: std::collections::HashMap<String, SettingValue>,
@@ -120,14 +120,14 @@ pub struct GetSettingsResponse {
 
 /// Request to update multiple settings.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateSettingsRequest {
     pub settings: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// Response after updating settings.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateSettingsResponse {
     pub updated: Vec<String>,
     pub locked: Vec<String>,
@@ -137,14 +137,14 @@ pub struct UpdateSettingsResponse {
 
 /// Request to update a single setting.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateSettingRequest {
     pub value: serde_json::Value,
 }
 
 /// Request to lock a setting.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LockSettingRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -156,7 +156,7 @@ pub struct LockSettingRequest {
 
 /// Response after locking a setting.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LockSettingResponse {
     pub key: String,
     pub is_locked: bool,
@@ -169,7 +169,7 @@ pub struct LockSettingResponse {
 
 /// Response after unlocking a setting.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UnlockSettingResponse {
     pub key: String,
     pub is_locked: bool,
@@ -179,7 +179,7 @@ pub struct UnlockSettingResponse {
 
 /// Lock info for listing locks.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LockInfo {
     pub key: String,
     pub is_locked: bool,
@@ -193,7 +193,7 @@ pub struct LockInfo {
 
 /// User info for lock display.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LockerInfo {
     pub id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -202,7 +202,7 @@ pub struct LockerInfo {
 
 /// Response for listing locks.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListLocksResponse {
     pub device_id: Uuid,
     pub locks: Vec<LockInfo>,
@@ -212,7 +212,7 @@ pub struct ListLocksResponse {
 
 /// Request to bulk update locks.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BulkUpdateLocksRequest {
     pub locks: std::collections::HashMap<String, bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -223,7 +223,7 @@ pub struct BulkUpdateLocksRequest {
 
 /// Individual lock update result.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LockUpdateResult {
     pub key: String,
     pub is_locked: bool,
@@ -235,7 +235,7 @@ pub struct LockUpdateResult {
 
 /// Skipped lock update info.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SkippedLockUpdate {
     pub key: String,
     pub reason: String,
@@ -243,7 +243,7 @@ pub struct SkippedLockUpdate {
 
 /// Response for bulk lock update.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BulkUpdateLocksResponse {
     pub updated: Vec<LockUpdateResult>,
     pub skipped: Vec<SkippedLockUpdate>,
@@ -252,7 +252,7 @@ pub struct BulkUpdateLocksResponse {
 
 /// Request for settings sync.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SyncSettingsRequest {
     /// Last sync timestamp from device (optional, if not provided all settings are returned)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -261,7 +261,7 @@ pub struct SyncSettingsRequest {
 
 /// Response for settings sync.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SyncSettingsResponse {
     pub synced_at: DateTime<Utc>,
     pub settings: std::collections::HashMap<String, SettingValue>,
@@ -270,7 +270,7 @@ pub struct SyncSettingsResponse {
 
 /// A setting change entry for sync response.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SettingChange {
     pub key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -307,7 +307,7 @@ mod tests {
 
     #[test]
     fn test_lock_setting_request_deserialize() {
-        let json = r#"{"reason":"Policy","value":5,"notifyUser":true}"#;
+        let json = r#"{"reason":"Policy","value":5,"notify_user":true}"#;
         let req: LockSettingRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.reason, Some("Policy".to_string()));
         assert_eq!(req.value, Some(serde_json::json!(5)));

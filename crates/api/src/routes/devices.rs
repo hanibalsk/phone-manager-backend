@@ -20,7 +20,7 @@ use domain::models::device::{
 
 /// Query parameters for device listing.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GetDevicesQuery {
     pub group_id: Option<String>,
 }
@@ -299,7 +299,7 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"devices\""));
         assert!(json.contains("Test Device"));
-        assert!(json.contains("\"lastLocation\":null"));
+        assert!(json.contains("\"last_location\":null"));
     }
 
     #[test]
@@ -319,14 +319,14 @@ mod tests {
             devices: vec![device],
         };
         let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("\"lastLocation\""));
+        assert!(json.contains("\"last_location\""));
         assert!(json.contains("\"latitude\":37.7749"));
         assert!(json.contains("\"longitude\":-122.4194"));
     }
 
     #[test]
     fn test_get_devices_query_deserialization() {
-        let json = r#"{"groupId": "my-group"}"#;
+        let json = r#"{"group_id": "my-group"}"#;
         let query: GetDevicesQuery = serde_json::from_str(json).unwrap();
         assert_eq!(query.group_id, Some("my-group".to_string()));
     }

@@ -239,9 +239,9 @@ mod tests {
     #[test]
     fn test_create_proximity_alert_request_deserialization() {
         let json = r#"{
-            "sourceDeviceId": "550e8400-e29b-41d4-a716-446655440000",
-            "targetDeviceId": "550e8400-e29b-41d4-a716-446655440001",
-            "radiusMeters": 500
+            "source_device_id": "550e8400-e29b-41d4-a716-446655440000",
+            "target_device_id": "550e8400-e29b-41d4-a716-446655440001",
+            "radius_meters": 500
         }"#;
 
         let request: CreateProximityAlertRequest = serde_json::from_str(json).unwrap();
@@ -263,11 +263,11 @@ mod tests {
 
     #[test]
     fn test_list_proximity_alerts_query_deserialization() {
-        let json = r#"{"sourceDeviceId": "550e8400-e29b-41d4-a716-446655440000"}"#;
+        let json = r#"{"source_device_id": "550e8400-e29b-41d4-a716-446655440000"}"#;
         let query: ListProximityAlertsQuery = serde_json::from_str(json).unwrap();
         assert!(!query.include_inactive);
 
-        let json_with_inactive = r#"{"sourceDeviceId": "550e8400-e29b-41d4-a716-446655440000", "includeInactive": true}"#;
+        let json_with_inactive = r#"{"source_device_id": "550e8400-e29b-41d4-a716-446655440000", "include_inactive": true}"#;
         let query: ListProximityAlertsQuery = serde_json::from_str(json_with_inactive).unwrap();
         assert!(query.include_inactive);
     }

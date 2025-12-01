@@ -236,11 +236,11 @@ mod tests {
     #[test]
     fn test_create_geofence_request_deserialization() {
         let json = r#"{
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
             "name": "Home",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radiusMeters": 100.0
+            "radius_meters": 100.0
         }"#;
 
         let request: CreateGeofenceRequest = serde_json::from_str(json).unwrap();
@@ -280,17 +280,17 @@ mod tests {
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"name\":\"Test\""));
-        assert!(json.contains("\"eventTypes\":[\"enter\",\"exit\"]"));
+        assert!(json.contains("\"event_types\":[\"enter\",\"exit\"]"));
     }
 
     #[test]
     fn test_list_geofences_query_deserialization() {
-        let json = r#"{"deviceId": "550e8400-e29b-41d4-a716-446655440000"}"#;
+        let json = r#"{"device_id": "550e8400-e29b-41d4-a716-446655440000"}"#;
         let query: ListGeofencesQuery = serde_json::from_str(json).unwrap();
         assert!(!query.include_inactive);
 
         let json_with_inactive =
-            r#"{"deviceId": "550e8400-e29b-41d4-a716-446655440000", "includeInactive": true}"#;
+            r#"{"device_id": "550e8400-e29b-41d4-a716-446655440000", "include_inactive": true}"#;
         let query: ListGeofencesQuery = serde_json::from_str(json_with_inactive).unwrap();
         assert!(query.include_inactive);
     }

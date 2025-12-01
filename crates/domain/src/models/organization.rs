@@ -57,7 +57,7 @@ impl std::fmt::Display for PlanType {
 
 /// Organization domain model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct Organization {
     pub id: Uuid,
     pub name: String,
@@ -75,7 +75,7 @@ pub struct Organization {
 
 /// Organization with usage statistics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct OrganizationWithUsage {
     #[serde(flatten)]
     pub organization: Organization,
@@ -86,7 +86,7 @@ pub struct OrganizationWithUsage {
 
 /// Organization usage statistics response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct OrganizationUsageResponse {
     pub organization_id: Uuid,
     pub users: UsageMetric,
@@ -97,7 +97,7 @@ pub struct OrganizationUsageResponse {
 
 /// Generic usage metric with current, max, and percentage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UsageMetric {
     pub current: i64,
     pub max: i32,
@@ -106,7 +106,7 @@ pub struct UsageMetric {
 
 /// Device usage metric with status breakdown.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceUsageMetric {
     pub current: i64,
     pub max: i32,
@@ -116,7 +116,7 @@ pub struct DeviceUsageMetric {
 
 /// Device counts by enrollment status.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceStatusCounts {
     pub enrolled: i64,
     pub pending: i64,
@@ -126,7 +126,7 @@ pub struct DeviceStatusCounts {
 
 /// Request to create a new organization.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateOrganizationRequest {
     #[validate(length(min = 2, max = 255, message = "Name must be 2-255 characters"))]
     pub name: String,
@@ -156,7 +156,7 @@ fn validate_slug(slug: &str) -> Result<(), validator::ValidationError> {
 
 /// Request to update an organization.
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateOrganizationRequest {
     #[validate(length(min = 2, max = 255, message = "Name must be 2-255 characters"))]
     pub name: Option<String>,
@@ -171,7 +171,7 @@ pub struct UpdateOrganizationRequest {
 
 /// Response for organization creation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateOrganizationResponse {
     #[serde(flatten)]
     pub organization: Organization,
@@ -179,7 +179,7 @@ pub struct CreateOrganizationResponse {
 
 /// Response for organization list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListOrganizationsResponse {
     pub data: Vec<Organization>,
     pub pagination: OrganizationPagination,
@@ -187,7 +187,7 @@ pub struct ListOrganizationsResponse {
 
 /// Pagination info for organization list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct OrganizationPagination {
     pub page: i32,
     pub per_page: i32,
@@ -197,7 +197,7 @@ pub struct OrganizationPagination {
 
 /// Query parameters for listing organizations.
 #[derive(Debug, Clone, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListOrganizationsQuery {
     pub page: Option<i32>,
     pub per_page: Option<i32>,
@@ -303,9 +303,9 @@ mod tests {
         };
 
         let json = serde_json::to_string(&org).unwrap();
-        assert!(json.contains("\"planType\":\"starter\""));
-        assert!(json.contains("\"maxUsers\":25"));
-        assert!(json.contains("\"billingEmail\":\"test@test.com\""));
+        assert!(json.contains("\"plan_type\":\"starter\""));
+        assert!(json.contains("\"max_users\":25"));
+        assert!(json.contains("\"billing_email\":\"test@test.com\""));
     }
 
     #[test]

@@ -660,7 +660,7 @@ use validator::Validate;
 
 /// Device registration request from mobile client
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceRegistrationRequest {
     /// Client-generated UUID for the device
     pub device_id: Uuid,
@@ -684,7 +684,7 @@ pub struct DeviceRegistrationRequest {
 
 /// Device registration response
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceRegistrationResponse {
     pub device_id: Uuid,
     pub display_name: String,
@@ -695,7 +695,7 @@ pub struct DeviceRegistrationResponse {
 
 /// Device information returned in group queries
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceInfo {
     pub device_id: Uuid,
     pub display_name: String,
@@ -707,7 +707,7 @@ pub struct DeviceInfo {
 
 /// Last known location of a device
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceLastLocation {
     pub latitude: f64,
     pub longitude: f64,
@@ -756,7 +756,7 @@ use validator::Validate;
 
 /// Single location upload payload
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LocationPayload {
     /// Device UUID
     pub device_id: Uuid,
@@ -800,7 +800,7 @@ pub struct LocationPayload {
 
 /// Batch location upload payload
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LocationBatchPayload {
     /// Device UUID
     pub device_id: Uuid,
@@ -813,7 +813,7 @@ pub struct LocationBatchPayload {
 
 /// Individual location in a batch (without device_id)
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct BatchLocationItem {
     pub timestamp: i64,
 
@@ -844,7 +844,7 @@ pub struct BatchLocationItem {
 
 /// Location upload response
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LocationUploadResponse {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -901,7 +901,7 @@ pub struct CreateApiKeyRequest {
 
 /// API Key creation response
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateApiKeyResponse {
     pub key: String,  // Full key (only shown once)
     pub key_prefix: String,
@@ -920,14 +920,14 @@ use super::device::DeviceInfo;
 
 /// Response wrapper for list of devices
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DevicesResponse {
     pub devices: Vec<DeviceInfo>,
 }
 
 /// Generic error response
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ErrorResponse {
     pub error: String,
     pub message: String,
@@ -937,7 +937,7 @@ pub struct ErrorResponse {
 
 /// Validation error detail
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ValidationErrorDetail {
     pub field: String,
     pub message: String,
@@ -945,7 +945,7 @@ pub struct ValidationErrorDetail {
 
 /// Health check response
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct HealthResponse {
     pub status: String,
     pub version: String,
@@ -953,7 +953,7 @@ pub struct HealthResponse {
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DatabaseHealth {
     pub connected: bool,
     pub latency_ms: Option<u64>,
@@ -1228,22 +1228,22 @@ Register a new device or update existing device.
 **Request:**
 ```json
 {
-  "deviceId": "550e8400-e29b-41d4-a716-446655440000",
-  "displayName": "Martin's Phone",
-  "groupId": "family-group-123",
+  "device_id": "550e8400-e29b-41d4-a716-446655440000",
+  "display_name": "Martin's Phone",
+  "group_id": "family-group-123",
   "platform": "android",
-  "fcmToken": "firebase-token-optional"
+  "fcm_token": "firebase-token-optional"
 }
 ```
 
 **Response (200 OK):**
 ```json
 {
-  "deviceId": "550e8400-e29b-41d4-a716-446655440000",
-  "displayName": "Martin's Phone",
-  "groupId": "family-group-123",
-  "createdAt": "2025-11-25T10:30:00Z",
-  "updatedAt": "2025-11-25T10:30:00Z"
+  "device_id": "550e8400-e29b-41d4-a716-446655440000",
+  "display_name": "Martin's Phone",
+  "group_id": "family-group-123",
+  "created_at": "2025-11-25T10:30:00Z",
+  "updated_at": "2025-11-25T10:30:00Z"
 }
 ```
 
@@ -1255,7 +1255,7 @@ Register a new device or update existing device.
   "error": "validation_error",
   "message": "Request validation failed",
   "details": [
-    {"field": "displayName", "message": "Display name must be 2-50 characters"}
+    {"field": "display_name", "message": "Display name must be 2-50 characters"}
   ]
 }
 ```
@@ -1294,9 +1294,9 @@ X-API-Key: {api_key}
 {
   "devices": [
     {
-      "deviceId": "550e8400-e29b-41d4-a716-446655440000",
-      "displayName": "Martin's Phone",
-      "lastLocation": {
+      "device_id": "550e8400-e29b-41d4-a716-446655440000",
+      "display_name": "Martin's Phone",
+      "last_location": {
         "latitude": 48.1486,
         "longitude": 17.1077,
         "timestamp": "2025-11-25T10:30:00Z",
@@ -1305,9 +1305,9 @@ X-API-Key: {api_key}
       "lastSeenAt": "2025-11-25T10:30:00Z"
     },
     {
-      "deviceId": "660e8400-e29b-41d4-a716-446655440001",
-      "displayName": "Jane's Phone",
-      "lastLocation": null,
+      "device_id": "660e8400-e29b-41d4-a716-446655440001",
+      "display_name": "Jane's Phone",
+      "last_location": null,
       "lastSeenAt": "2025-11-24T15:00:00Z"
     }
   ]
@@ -1333,7 +1333,7 @@ Upload a single location.
 **Request:**
 ```json
 {
-  "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+  "device_id": "550e8400-e29b-41d4-a716-446655440000",
   "timestamp": 1732527000000,
   "latitude": 48.1486,
   "longitude": 17.1077,
@@ -1383,7 +1383,7 @@ Upload multiple locations at once.
 **Request:**
 ```json
 {
-  "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+  "device_id": "550e8400-e29b-41d4-a716-446655440000",
   "locations": [
     {
       "timestamp": 1732527000000,
@@ -2240,17 +2240,17 @@ async fn test_device_registration() {
         .post("/api/devices/register")
         .add_header("X-API-Key", &api_key)
         .json(&json!({
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
-            "displayName": "Test Phone",
-            "groupId": "test-group-123"
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
+            "display_name": "Test Phone",
+            "group_id": "test-group-123"
         }))
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
 
     let body: serde_json::Value = response.json();
-    assert_eq!(body["displayName"], "Test Phone");
-    assert_eq!(body["groupId"], "test-group-123");
+    assert_eq!(body["display_name"], "Test Phone");
+    assert_eq!(body["group_id"], "test-group-123");
 }
 
 #[tokio::test]
@@ -2262,9 +2262,9 @@ async fn test_device_registration_invalid_group_id() {
         .post("/api/devices/register")
         .add_header("X-API-Key", &api_key)
         .json(&json!({
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
-            "displayName": "Test Phone",
-            "groupId": "invalid group with spaces"
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
+            "display_name": "Test Phone",
+            "group_id": "invalid group with spaces"
         }))
         .await;
 
@@ -2281,7 +2281,7 @@ async fn test_location_upload() {
         .post("/api/locations")
         .add_header("X-API-Key", &api_key)
         .json(&json!({
-            "deviceId": device_id,
+            "device_id": device_id,
             "timestamp": chrono::Utc::now().timestamp_millis(),
             "latitude": 48.1486,
             "longitude": 17.1077,
@@ -2323,9 +2323,9 @@ async fn test_unauthorized_without_api_key() {
     let response = server
         .post("/api/devices/register")
         .json(&json!({
-            "deviceId": "550e8400-e29b-41d4-a716-446655440000",
-            "displayName": "Test Phone",
-            "groupId": "test-group"
+            "device_id": "550e8400-e29b-41d4-a716-446655440000",
+            "display_name": "Test Phone",
+            "group_id": "test-group"
         }))
         .await;
 

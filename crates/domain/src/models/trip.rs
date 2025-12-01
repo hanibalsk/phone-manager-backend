@@ -71,7 +71,7 @@ impl std::str::FromStr for TripState {
 
 /// Represents a trip record in the system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct Trip {
     pub id: Uuid,
     pub device_id: Uuid,
@@ -102,7 +102,7 @@ pub struct Trip {
 
 /// Request payload for creating a trip.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateTripRequest {
     pub device_id: Uuid,
 
@@ -125,7 +125,7 @@ pub struct CreateTripRequest {
 
 /// Request payload for updating a trip.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UpdateTripRequest {
     pub state: TripState,
 
@@ -160,7 +160,7 @@ pub fn validate_optional_longitude(lon: f64) -> Result<(), validator::Validation
 
 /// Response payload for trip creation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateTripResponse {
     pub id: Uuid,
     pub local_trip_id: String,
@@ -171,7 +171,7 @@ pub struct CreateTripResponse {
 
 /// Response payload for trip retrieval.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct TripResponse {
     pub id: Uuid,
     pub local_trip_id: String,
@@ -217,7 +217,7 @@ impl From<Trip> for TripResponse {
 
 /// Pagination info for trips list response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct TripPagination {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<String>,
@@ -226,7 +226,7 @@ pub struct TripPagination {
 
 /// Response for GET /api/v1/devices/:deviceId/trips
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GetTripsResponse {
     pub trips: Vec<TripResponse>,
     pub pagination: TripPagination,
@@ -234,7 +234,7 @@ pub struct GetTripsResponse {
 
 /// Query parameters for GET /api/v1/devices/:deviceId/trips
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GetTripsQuery {
     /// Opaque cursor for pagination (base64-encoded timestamp:id).
     pub cursor: Option<String>,

@@ -20,7 +20,7 @@ use persistence::repositories::DeviceRepository;
 
 /// Query parameters for deleting inactive devices.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeleteInactiveDevicesQuery {
     /// Days of inactivity threshold (devices older than this will be deleted)
     pub older_than_days: i32,
@@ -28,7 +28,7 @@ pub struct DeleteInactiveDevicesQuery {
 
 /// Response for admin operations that affect multiple records.
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AdminOperationResponse {
     pub success: bool,
     pub affected_count: i64,
@@ -37,7 +37,7 @@ pub struct AdminOperationResponse {
 
 /// Response for device reactivation.
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ReactivateDeviceResponse {
     pub success: bool,
     pub device_id: Uuid,
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_delete_inactive_query_deserialization() {
-        let json = r#"{"olderThanDays": 30}"#;
+        let json = r#"{"older_than_days": 30}"#;
         let query: DeleteInactiveDevicesQuery = serde_json::from_str(json).unwrap();
         assert_eq!(query.older_than_days, 30);
     }
@@ -183,7 +183,7 @@ mod tests {
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"success\":true"));
-        assert!(json.contains("\"affectedCount\":10"));
+        assert!(json.contains("\"affected_count\":10"));
     }
 
     #[test]
@@ -195,7 +195,7 @@ mod tests {
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"success\":true"));
-        assert!(json.contains("\"deviceId\""));
+        assert!(json.contains("\"device_id\""));
     }
 
     #[test]
@@ -209,10 +209,10 @@ mod tests {
             total_groups: 25,
         };
         let json = serde_json::to_string(&stats).unwrap();
-        assert!(json.contains("\"totalDevices\":100"));
-        assert!(json.contains("\"activeDevices\":80"));
-        assert!(json.contains("\"inactiveDevices\":20"));
-        assert!(json.contains("\"totalLocations\":10000"));
-        assert!(json.contains("\"totalGroups\":25"));
+        assert!(json.contains("\"total_devices\":100"));
+        assert!(json.contains("\"active_devices\":80"));
+        assert!(json.contains("\"inactive_devices\":20"));
+        assert!(json.contains("\"total_locations\":10000"));
+        assert!(json.contains("\"total_groups\":25"));
     }
 }

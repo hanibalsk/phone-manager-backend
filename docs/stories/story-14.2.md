@@ -63,14 +63,14 @@ Response (200):
     {
       "id": 42,
       "deviceUuid": "550e8400-e29b-41d4-a716-446655440000",
-      "displayName": "Field Tablet #42",
+      "display_name": "Field Tablet #42",
       "platform": "android",
       "enrollmentStatus": "enrolled",
       "isManaged": true,
       "assignedUser": {
         "id": "123e4567-e89b-12d3-a456-426614174000",
         "email": "john@acme.com",
-        "displayName": "John Smith"
+        "display_name": "John Smith"
       },
       "group": {
         "id": "field-workers",
@@ -81,13 +81,13 @@ Response (200):
         "name": "Standard Policy"
       },
       "lastSeenAt": "2025-12-01T10:25:00Z",
-      "lastLocation": {
+      "last_location": {
         "latitude": 37.7749,
         "longitude": -122.4194,
         "timestamp": "2025-12-01T10:25:00Z"
       },
       "enrolledAt": "2025-11-15T09:00:00Z",
-      "createdAt": "2025-11-15T08:45:00Z"
+      "created_at": "2025-11-15T08:45:00Z"
     }
   ],
   "pagination": {

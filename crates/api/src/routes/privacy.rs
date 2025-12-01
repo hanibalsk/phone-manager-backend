@@ -19,7 +19,7 @@ use persistence::repositories::{DeviceRepository, LocationRepository};
 
 /// Exported location data.
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ExportedLocation {
     pub latitude: f64,
     pub longitude: f64,
@@ -36,7 +36,7 @@ pub struct ExportedLocation {
 
 /// Exported device data.
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ExportedDevice {
     pub device_id: Uuid,
     pub display_name: String,
@@ -50,7 +50,7 @@ pub struct ExportedDevice {
 
 /// Response for data export.
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DataExportResponse {
     pub device: ExportedDevice,
     pub locations: Vec<ExportedLocation>,
@@ -186,7 +186,7 @@ mod tests {
         assert!(json.contains("\"latitude\":37.7749"));
         assert!(json.contains("\"longitude\":-122.4194"));
         assert!(json.contains("\"accuracy\":10.0"));
-        assert!(json.contains("\"batteryLevel\":80"));
+        assert!(json.contains("\"battery_level\":80"));
     }
 
     #[test]
@@ -202,8 +202,8 @@ mod tests {
             last_seen_at: Some(Utc::now()),
         };
         let json = serde_json::to_string(&device).unwrap();
-        assert!(json.contains("\"displayName\":\"Test Device\""));
-        assert!(json.contains("\"groupId\":\"test-group\""));
+        assert!(json.contains("\"display_name\":\"Test Device\""));
+        assert!(json.contains("\"group_id\":\"test-group\""));
         assert!(json.contains("\"platform\":\"android\""));
         assert!(json.contains("\"active\":true"));
     }
@@ -228,8 +228,8 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"device\""));
         assert!(json.contains("\"locations\":[]"));
-        assert!(json.contains("\"locationCount\":0"));
-        assert!(json.contains("\"exportTimestamp\""));
+        assert!(json.contains("\"location_count\":0"));
+        assert!(json.contains("\"export_timestamp\""));
     }
 
     #[test]

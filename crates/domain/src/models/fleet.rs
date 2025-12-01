@@ -102,7 +102,7 @@ impl std::str::FromStr for DeviceCommandStatus {
 
 /// Device command domain model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceCommand {
     pub id: Uuid,
     pub device_id: i64,
@@ -121,7 +121,7 @@ pub struct DeviceCommand {
 
 /// Fleet device listing query parameters.
 #[derive(Debug, Clone, Default, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct FleetDeviceQuery {
     /// Page number (1-indexed)
     #[validate(range(min = 1))]
@@ -188,7 +188,7 @@ impl SortOrder {
 
 /// Assigned user info in fleet device response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AssignedUserInfo {
     pub id: Uuid,
     pub email: String,
@@ -197,7 +197,7 @@ pub struct AssignedUserInfo {
 
 /// Group info in fleet device response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct FleetGroupInfo {
     pub id: String,
     pub name: Option<String>,
@@ -205,7 +205,7 @@ pub struct FleetGroupInfo {
 
 /// Policy info in fleet device response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct FleetPolicyInfo {
     pub id: Uuid,
     pub name: String,
@@ -213,7 +213,7 @@ pub struct FleetPolicyInfo {
 
 /// Last location info in fleet device response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct FleetLastLocation {
     pub latitude: f64,
     pub longitude: f64,
@@ -222,7 +222,7 @@ pub struct FleetLastLocation {
 
 /// Fleet device item in listing response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct FleetDeviceItem {
     pub id: i64,
     pub device_uuid: Uuid,
@@ -245,7 +245,7 @@ pub struct FleetDeviceItem {
 
 /// Pagination info in fleet response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct FleetPagination {
     pub page: u32,
     pub per_page: u32,
@@ -255,7 +255,7 @@ pub struct FleetPagination {
 
 /// Summary counts in fleet response.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct FleetSummary {
     pub enrolled: i64,
     pub pending: i64,
@@ -267,7 +267,7 @@ pub struct FleetSummary {
 
 /// Fleet device list response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct FleetDeviceListResponse {
     pub data: Vec<FleetDeviceItem>,
     pub pagination: FleetPagination,
@@ -276,7 +276,7 @@ pub struct FleetDeviceListResponse {
 
 /// Request to assign a user to a device.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AssignDeviceRequest {
     pub user_id: Uuid,
     #[serde(default)]
@@ -285,7 +285,7 @@ pub struct AssignDeviceRequest {
 
 /// Response for device assignment.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AssignDeviceResponse {
     pub device_id: i64,
     pub assigned_user: AssignedUserInfo,
@@ -295,7 +295,7 @@ pub struct AssignDeviceResponse {
 
 /// Response for device unassignment.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct UnassignDeviceResponse {
     pub device_id: i64,
     pub unassigned_at: DateTime<Utc>,
@@ -303,7 +303,7 @@ pub struct UnassignDeviceResponse {
 
 /// Response for device status change (suspend/retire).
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceStatusChangeResponse {
     pub device_id: i64,
     pub previous_status: Option<EnrollmentStatus>,
@@ -313,7 +313,7 @@ pub struct DeviceStatusChangeResponse {
 
 /// Request to issue a device command.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct IssueCommandRequest {
     /// Optional payload for the command
     pub payload: Option<serde_json::Value>,
@@ -323,7 +323,7 @@ pub struct IssueCommandRequest {
 
 /// Response for device command issuance.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct IssueCommandResponse {
     pub command_id: Uuid,
     pub device_id: i64,

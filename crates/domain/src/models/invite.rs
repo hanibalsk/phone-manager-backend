@@ -9,7 +9,7 @@ use super::group::GroupRole;
 
 /// Represents a group invitation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct GroupInvite {
     pub id: Uuid,
     pub group_id: Uuid,
@@ -25,7 +25,7 @@ pub struct GroupInvite {
 
 /// Request to create a new invite.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateInviteRequest {
     /// Role to assign when joining (default: member). Cannot be owner.
     pub preset_role: Option<GroupRole>,
@@ -41,7 +41,7 @@ pub struct CreateInviteRequest {
 
 /// Response after creating an invite.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreateInviteResponse {
     pub id: Uuid,
     pub group_id: Uuid,
@@ -57,7 +57,7 @@ pub struct CreateInviteResponse {
 
 /// Summary of an invite for listing.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct InviteSummary {
     pub id: Uuid,
     pub code: String,
@@ -71,7 +71,7 @@ pub struct InviteSummary {
 
 /// Creator info for invite listing.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CreatorInfo {
     pub id: Uuid,
     pub display_name: Option<String>,
@@ -79,14 +79,14 @@ pub struct CreatorInfo {
 
 /// Response for listing invites.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ListInvitesResponse {
     pub data: Vec<InviteSummary>,
 }
 
 /// Public invite info (for GET /invites/:code without auth).
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct PublicInviteInfo {
     pub group: PublicGroupInfo,
     pub preset_role: GroupRole,
@@ -96,7 +96,7 @@ pub struct PublicInviteInfo {
 
 /// Public group info for invite preview.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct PublicGroupInfo {
     pub name: String,
     pub icon_emoji: Option<String>,
@@ -105,7 +105,7 @@ pub struct PublicGroupInfo {
 
 /// Request to join a group using an invite code.
 #[derive(Debug, Clone, Deserialize, Validate)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct JoinGroupRequest {
     /// The invite code in XXX-XXX-XXX format.
     #[validate(length(equal = 11, message = "Invalid invite code format"))]
@@ -123,7 +123,7 @@ lazy_static::lazy_static! {
 
 /// Summary of group info for join response.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct JoinGroupInfo {
     pub id: Uuid,
     pub name: String,
@@ -132,7 +132,7 @@ pub struct JoinGroupInfo {
 
 /// Summary of membership info for join response.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct JoinMembershipInfo {
     pub id: Uuid,
     pub role: GroupRole,
@@ -141,7 +141,7 @@ pub struct JoinMembershipInfo {
 
 /// Response after joining a group.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct JoinGroupResponse {
     pub group: JoinGroupInfo,
     pub membership: JoinMembershipInfo,

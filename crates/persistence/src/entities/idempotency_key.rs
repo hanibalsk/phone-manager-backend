@@ -25,7 +25,7 @@ mod tests {
             id: 1,
             key_hash: "abc123def456".to_string(),
             device_id: Uuid::new_v4(),
-            response_body: serde_json::json!({"success": true, "processedCount": 1}),
+            response_body: serde_json::json!({"success": true, "processed_count": 1}),
             response_status: 200,
             created_at: Utc::now(),
             expires_at: Utc::now() + chrono::Duration::hours(24),
@@ -58,7 +58,7 @@ mod tests {
     fn test_idempotency_key_response_body() {
         let entity = create_test_entity();
         assert_eq!(entity.response_body["success"], true);
-        assert_eq!(entity.response_body["processedCount"], 1);
+        assert_eq!(entity.response_body["processed_count"], 1);
     }
 
     #[test]
