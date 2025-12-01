@@ -8,7 +8,8 @@ use axum::{
 use domain::models::group::{
     generate_slug, CreateGroupRequest, CreateGroupResponse, GroupDetail, GroupRole, GroupSummary,
     ListGroupsQuery, ListGroupsResponse, ListMembersQuery, ListMembersResponse, MemberResponse,
-    MembershipInfo, Pagination, UpdateGroupRequest, UserPublic,
+    MembershipInfo, Pagination, UpdateGroupRequest, UpdateRoleRequest, UpdateRoleResponse,
+    UserPublic,
 };
 use persistence::repositories::GroupRepository;
 use tracing::info;
@@ -525,6 +526,100 @@ pub async fn remove_member(
     );
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// =============================================================================
+// Role Management Endpoints (Story 11.3)
+// =============================================================================
+
+/// Update member role.
+///
+/// PUT /api/v1/groups/:group_id/members/:user_id/role
+///
+/// Requires JWT authentication.
+/// - Only admins and owners can change roles
+/// - Cannot change owner's role (use transfer endpoint)
+/// - Cannot promote to owner (use transfer endpoint)
+/// - Admins cannot promote others to admin (only owner can)
+pub async fn update_member_role(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path((group_id, target_user_id)): Path<(Uuid, Uuid)>,
+    Json(request): Json<UpdateRoleRequest>,
+) -> Result<Json<UpdateRoleResponse>, ApiError> {
+    let repo = GroupRepository::new(state.pool.clone());
+
+    // Check actor is a member of the group
+    let actor_membership = repo
+        .get_membership(group_id, user_auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Group not found or you are not a member".to_string()))?;
+
+    let actor_role: GroupRole = actor_membership.role.into();
+
+    // Only admins and owners can change roles
+    if !actor_role.can_manage_members() {
+        return Err(ApiError::Forbidden(
+            "Only admins and owners can change member roles".to_string(),
+        ));
+    }
+
+    // Cannot promote anyone to owner via this endpoint
+    if request.role == GroupRole::Owner {
+        return Err(ApiError::Forbidden(
+            "Cannot promote to owner. Use the transfer ownership endpoint.".to_string(),
+        ));
+    }
+
+    // Get target member
+    let target_membership = repo
+        .get_membership(group_id, target_user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Member not found".to_string()))?;
+
+    let target_role: GroupRole = target_membership.role.into();
+
+    // Cannot change owner's role
+    if target_role == GroupRole::Owner {
+        return Err(ApiError::Forbidden(
+            "Cannot change the owner's role. Use the transfer ownership endpoint.".to_string(),
+        ));
+    }
+
+    // Admins cannot promote others to admin (only owner can)
+    if actor_role == GroupRole::Admin && request.role == GroupRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Only the owner can promote members to admin".to_string(),
+        ));
+    }
+
+    // Admins cannot change other admins' roles (only owner can)
+    if actor_role == GroupRole::Admin && target_role == GroupRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Admins cannot change other admins' roles".to_string(),
+        ));
+    }
+
+    // Update the role
+    let updated = repo
+        .update_member_role(group_id, target_user_id, request.role)
+        .await?;
+
+    info!(
+        group_id = %group_id,
+        actor_user_id = %user_auth.user_id,
+        target_user_id = %target_user_id,
+        new_role = %request.role,
+        "Member role updated"
+    );
+
+    Ok(Json(UpdateRoleResponse {
+        id: updated.id,
+        user_id: updated.user_id,
+        group_id: updated.group_id,
+        role: updated.role.into(),
+        updated_at: updated.updated_at,
+    }))
 }
 
 #[cfg(test)]

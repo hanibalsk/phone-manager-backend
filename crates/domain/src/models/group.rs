@@ -296,6 +296,28 @@ pub struct RemoveMemberResponse {
     pub group_id: Uuid,
 }
 
+// ============================================================================
+// Role Management DTOs (Story 11.3)
+// ============================================================================
+
+/// Request to update a member's role.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateRoleRequest {
+    pub role: GroupRole,
+}
+
+/// Response after updating a member's role.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateRoleResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub group_id: Uuid,
+    pub role: GroupRole,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// Helper function to generate URL-safe slug from name.
 pub fn generate_slug(name: &str) -> String {
     name.to_lowercase()

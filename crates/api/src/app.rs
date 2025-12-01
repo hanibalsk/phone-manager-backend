@@ -284,6 +284,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/v1/groups/:group_id/members/:user_id",
             delete(groups::remove_member),
+        )
+        // Role management (Story 11.3)
+        .route(
+            "/api/v1/groups/:group_id/members/:user_id/role",
+            put(groups::update_member_role),
         );
 
     // Public routes (no authentication required)
