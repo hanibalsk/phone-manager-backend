@@ -14,6 +14,7 @@ pub mod proximity_alert;
 pub mod setting;
 pub mod trip;
 pub mod trip_path_correction;
+pub mod unlock_request;
 pub mod user;
 
 pub use api_key::ApiKeyEntity;
@@ -33,4 +34,5 @@ pub use setting::{
 };
 pub use trip::TripEntity;
 pub use trip_path_correction::TripPathCorrectionEntity;
+pub use unlock_request::{UnlockRequestEntity, UnlockRequestStatusDb, UnlockRequestWithDetailsEntity};
 pub use user::{OAuthAccountEntity, UserEntity, UserSessionEntity};

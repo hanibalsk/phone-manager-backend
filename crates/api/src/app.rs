@@ -283,6 +283,16 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/devices/:device_id/settings/:key/lock",
             post(device_settings::lock_setting)
                 .delete(device_settings::unlock_setting),
+        )
+        // Unlock request endpoint (Story 12.6)
+        .route(
+            "/api/v1/devices/:device_id/settings/:key/unlock-request",
+            post(device_settings::create_unlock_request),
+        )
+        // Respond to unlock request (Story 12.6)
+        .route(
+            "/api/v1/unlock-requests/:request_id",
+            put(device_settings::respond_to_unlock_request),
         );
 
     // Group management routes (require JWT authentication)
@@ -330,6 +340,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/v1/groups/:group_id/transfer",
             post(groups::transfer_ownership),
+        )
+        // Unlock requests for group (Story 12.6)
+        .route(
+            "/api/v1/groups/:group_id/unlock-requests",
+            get(device_settings::list_unlock_requests),
         );
 
     // Public routes (no authentication required)

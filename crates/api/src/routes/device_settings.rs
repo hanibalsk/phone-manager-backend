@@ -13,7 +13,15 @@ use domain::models::setting::{
     SettingCategory, SettingDataType, SettingDefinition, SettingValue, SkippedLockUpdate,
     UnlockSettingResponse, UpdateSettingRequest, UpdateSettingsRequest, UpdateSettingsResponse,
 };
-use persistence::repositories::{DeviceRepository, GroupRepository, SettingRepository};
+use domain::models::unlock_request::{
+    CreateUnlockRequestRequest, CreateUnlockRequestResponse, DeviceInfo,
+    ListUnlockRequestsQuery, ListUnlockRequestsResponse, Pagination, RespondToUnlockRequestRequest,
+    RespondToUnlockRequestResponse, UnlockRequestItem, UnlockRequestStatus, UserInfo,
+};
+use persistence::entities::UnlockRequestStatusDb;
+use persistence::repositories::{
+    DeviceRepository, GroupRepository, SettingRepository, UnlockRequestRepository,
+};
 use serde::Deserialize;
 use std::collections::HashMap;
 use tracing::info;
@@ -873,6 +881,308 @@ fn db_category_to_domain(db: persistence::entities::SettingCategoryDb) -> Settin
         persistence::entities::SettingCategoryDb::Battery => SettingCategory::Battery,
         persistence::entities::SettingCategoryDb::General => SettingCategory::General,
     }
+}
+
+/// Convert domain unlock request status to database enum.
+fn domain_status_to_db(status: UnlockRequestStatus) -> UnlockRequestStatusDb {
+    match status {
+        UnlockRequestStatus::Pending => UnlockRequestStatusDb::Pending,
+        UnlockRequestStatus::Approved => UnlockRequestStatusDb::Approved,
+        UnlockRequestStatus::Denied => UnlockRequestStatusDb::Denied,
+        UnlockRequestStatus::Expired => UnlockRequestStatusDb::Expired,
+    }
+}
+
+/// Convert database unlock request status to domain enum.
+fn db_status_to_domain(status: UnlockRequestStatusDb) -> UnlockRequestStatus {
+    match status {
+        UnlockRequestStatusDb::Pending => UnlockRequestStatus::Pending,
+        UnlockRequestStatusDb::Approved => UnlockRequestStatus::Approved,
+        UnlockRequestStatusDb::Denied => UnlockRequestStatus::Denied,
+        UnlockRequestStatusDb::Expired => UnlockRequestStatus::Expired,
+    }
+}
+
+/// Create an unlock request for a locked setting.
+///
+/// POST /api/v1/devices/:device_id/settings/:key/unlock-request
+///
+/// Requires JWT authentication.
+/// Device owner can request to unlock a locked setting.
+pub async fn create_unlock_request(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path((device_id, key)): Path<(Uuid, String)>,
+    Json(request): Json<CreateUnlockRequestRequest>,
+) -> Result<Json<CreateUnlockRequestResponse>, ApiError> {
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let setting_repo = SettingRepository::new(state.pool.clone());
+    let unlock_repo = UnlockRequestRepository::new(state.pool.clone());
+    let group_repo = GroupRepository::new(state.pool.clone());
+
+    // Get the device
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Authorization check: must be device owner or authorized group member
+    let is_authorized = check_settings_authorization(
+        &device_repo,
+        &group_repo,
+        &device,
+        user_auth.user_id,
+    )
+    .await?;
+
+    if !is_authorized {
+        return Err(ApiError::Forbidden(
+            "Not authorized to access this device's settings".to_string(),
+        ));
+    }
+
+    // Check if setting definition exists
+    let _def = setting_repo
+        .get_definition(&key)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
+
+    // Check if setting is actually locked
+    let is_locked = setting_repo.is_setting_locked(device_id, &key).await?;
+    if !is_locked {
+        return Err(ApiError::Validation(format!(
+            "Setting '{}' is not locked",
+            key
+        )));
+    }
+
+    // Check for existing pending request
+    let existing = unlock_repo
+        .find_pending_for_device_setting(device_id, &key)
+        .await?;
+    if existing.is_some() {
+        return Err(ApiError::Conflict(
+            "A pending unlock request already exists for this setting".to_string(),
+        ));
+    }
+
+    // Create the unlock request
+    let entity = unlock_repo
+        .create(device_id, &key, user_auth.user_id, request.reason.as_deref())
+        .await?;
+
+    info!(
+        device_id = %device_id,
+        user_id = %user_auth.user_id,
+        setting_key = %key,
+        request_id = %entity.id,
+        "Created unlock request"
+    );
+
+    Ok(Json(CreateUnlockRequestResponse {
+        id: entity.id,
+        device_id: entity.device_id,
+        setting_key: entity.setting_key,
+        status: db_status_to_domain(entity.status),
+        reason: entity.reason,
+        created_at: entity.created_at,
+        expires_at: entity.expires_at,
+    }))
+}
+
+/// List unlock requests for a group.
+///
+/// GET /api/v1/groups/:group_id/unlock-requests
+///
+/// Requires JWT authentication.
+/// Only group admins/owners can list unlock requests.
+pub async fn list_unlock_requests(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(group_id): Path<Uuid>,
+    Query(query): Query<ListUnlockRequestsQuery>,
+) -> Result<Json<ListUnlockRequestsResponse>, ApiError> {
+    let group_repo = GroupRepository::new(state.pool.clone());
+    let unlock_repo = UnlockRequestRepository::new(state.pool.clone());
+
+    // Check if user is a member of the group
+    let membership = group_repo
+        .get_membership(group_id, user_auth.user_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::Forbidden("Not a member of this group".to_string())
+        })?;
+
+    // Check if user has admin/owner role
+    let role: domain::models::GroupRole = membership.role.into();
+    if !role.can_manage_members() {
+        return Err(ApiError::Forbidden(
+            "Only admins can view unlock requests".to_string(),
+        ));
+    }
+
+    // Parse status filter
+    let status_filter = query.status.as_ref().and_then(|s| match s.as_str() {
+        "pending" => Some(UnlockRequestStatusDb::Pending),
+        "approved" => Some(UnlockRequestStatusDb::Approved),
+        "denied" => Some(UnlockRequestStatusDb::Denied),
+        "expired" => Some(UnlockRequestStatusDb::Expired),
+        _ => None,
+    });
+
+    // Calculate pagination
+    let limit = query.per_page.min(100).max(1);
+    let offset = (query.page.max(1) - 1) * limit;
+
+    // Get unlock requests for the group
+    let requests = unlock_repo
+        .list_for_group(group_id, status_filter, limit, offset)
+        .await?;
+
+    let total = unlock_repo.count_for_group(group_id, status_filter).await?;
+
+    // Convert to response format
+    let items: Vec<UnlockRequestItem> = requests
+        .into_iter()
+        .map(|r| UnlockRequestItem {
+            id: r.id,
+            device: DeviceInfo {
+                id: r.device_id,
+                display_name: r.device_display_name,
+            },
+            setting_key: r.setting_key,
+            setting_display_name: r.setting_display_name,
+            status: db_status_to_domain(r.status),
+            requested_by: UserInfo {
+                id: r.requested_by,
+                display_name: r.requester_display_name,
+            },
+            reason: r.reason,
+            responded_by: r.responded_by.map(|id| UserInfo {
+                id,
+                display_name: r.responder_display_name,
+            }),
+            response_note: r.response_note,
+            created_at: r.created_at,
+            expires_at: r.expires_at,
+            responded_at: r.responded_at,
+        })
+        .collect();
+
+    info!(
+        group_id = %group_id,
+        user_id = %user_auth.user_id,
+        count = items.len(),
+        total = total,
+        "Listed unlock requests"
+    );
+
+    Ok(Json(ListUnlockRequestsResponse {
+        data: items,
+        pagination: Pagination {
+            page: query.page,
+            per_page: limit,
+            total,
+        },
+    }))
+}
+
+/// Respond to an unlock request (approve or deny).
+///
+/// PUT /api/v1/unlock-requests/:request_id
+///
+/// Requires JWT authentication.
+/// Only group admins/owners can respond to unlock requests.
+pub async fn respond_to_unlock_request(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(request_id): Path<Uuid>,
+    Json(request): Json<RespondToUnlockRequestRequest>,
+) -> Result<Json<RespondToUnlockRequestResponse>, ApiError> {
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let group_repo = GroupRepository::new(state.pool.clone());
+    let setting_repo = SettingRepository::new(state.pool.clone());
+    let unlock_repo = UnlockRequestRepository::new(state.pool.clone());
+
+    // Get the unlock request
+    let unlock_request = unlock_repo
+        .find_by_id(request_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Unlock request not found".to_string()))?;
+
+    // Check if request is still pending
+    if unlock_request.status != UnlockRequestStatusDb::Pending {
+        return Err(ApiError::Conflict(format!(
+            "Unlock request has already been {}",
+            String::from(unlock_request.status)
+        )));
+    }
+
+    // Check if request has expired
+    if unlock_request.expires_at < Utc::now() {
+        return Err(ApiError::Conflict(
+            "Unlock request has expired".to_string(),
+        ));
+    }
+
+    // Get the device to check authorization
+    let device = device_repo
+        .find_by_device_id(unlock_request.device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Check if user is admin of the device's group
+    let is_admin = check_is_admin(&group_repo, &device, user_auth.user_id).await?;
+    if !is_admin {
+        return Err(ApiError::Forbidden(
+            "Only admins can respond to unlock requests".to_string(),
+        ));
+    }
+
+    // Validate the response status
+    if request.status != UnlockRequestStatus::Approved && request.status != UnlockRequestStatus::Denied {
+        return Err(ApiError::Validation(
+            "Status must be 'approved' or 'denied'".to_string(),
+        ));
+    }
+
+    // Update the unlock request
+    let db_status = domain_status_to_db(request.status);
+    let updated = unlock_repo
+        .respond(request_id, db_status, user_auth.user_id, request.note.as_deref())
+        .await?
+        .ok_or_else(|| {
+            ApiError::Conflict("Failed to update unlock request - it may have been modified".to_string())
+        })?;
+
+    // If approved, unlock the setting
+    let setting_unlocked = if request.status == UnlockRequestStatus::Approved {
+        setting_repo
+            .unlock_setting(unlock_request.device_id, &unlock_request.setting_key, user_auth.user_id)
+            .await?
+            .is_some()
+    } else {
+        false
+    };
+
+    info!(
+        request_id = %request_id,
+        device_id = %unlock_request.device_id,
+        setting_key = %unlock_request.setting_key,
+        user_id = %user_auth.user_id,
+        status = ?request.status,
+        setting_unlocked = setting_unlocked,
+        "Responded to unlock request"
+    );
+
+    Ok(Json(RespondToUnlockRequestResponse {
+        id: updated.id,
+        status: db_status_to_domain(updated.status),
+        responded_by: user_auth.user_id,
+        responded_at: updated.responded_at.unwrap_or_else(Utc::now),
+        note: updated.response_note,
+        setting_unlocked,
+    }))
 }
 
 #[cfg(test)]

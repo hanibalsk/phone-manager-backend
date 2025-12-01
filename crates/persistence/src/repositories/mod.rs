@@ -12,6 +12,7 @@ pub mod proximity_alert;
 pub mod setting;
 pub mod trip;
 pub mod trip_path_correction;
+pub mod unlock_request;
 pub mod user;
 
 pub use api_key::ApiKeyRepository;
@@ -28,4 +29,5 @@ pub use trip::{TripInput, TripQuery, TripRepository, TripUpdateInput};
 pub use trip_path_correction::{
     TripPathCorrectionInput, TripPathCorrectionRepository, TripPathCorrectionUpdateInput,
 };
+pub use unlock_request::UnlockRequestRepository;
 pub use user::UserRepository;
