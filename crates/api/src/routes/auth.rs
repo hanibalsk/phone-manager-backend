@@ -124,6 +124,93 @@ pub async fn register(
     Ok((StatusCode::CREATED, Json(response)))
 }
 
+/// Request body for user login.
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginRequest {
+    /// User's email address
+    #[validate(email(message = "Invalid email format"))]
+    pub email: String,
+
+    /// User's password
+    #[validate(length(min = 1, message = "Password is required"))]
+    pub password: String,
+
+    /// Optional device ID making the request
+    #[allow(dead_code)] // Used in future story for device linking
+    pub device_id: Option<String>,
+
+    /// Optional device name
+    #[allow(dead_code)] // Used in future story for device linking
+    pub device_name: Option<String>,
+}
+
+/// Response body for successful login.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginResponse {
+    pub user: UserResponse,
+    pub tokens: TokensResponse,
+}
+
+/// Login with email and password.
+///
+/// POST /api/v1/auth/login
+pub async fn login(
+    State(state): State<AppState>,
+    Json(request): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    // Create auth service
+    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
+        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+
+    // Login user
+    let result = auth_service
+        .login(&request.email, &request.password)
+        .await
+        .map_err(|e| match e {
+            AuthError::InvalidCredentials => {
+                ApiError::Unauthorized("Invalid email or password".to_string())
+            }
+            AuthError::UserDisabled => ApiError::Forbidden("User account is disabled".to_string()),
+            AuthError::DatabaseError(db_err) => ApiError::from(db_err),
+            AuthError::PasswordError(e) => {
+                // Log the actual error but return generic message
+                tracing::error!("Password verification error: {}", e);
+                ApiError::Unauthorized("Invalid email or password".to_string())
+            }
+            AuthError::TokenError(e) => ApiError::Internal(format!("Token error: {}", e)),
+            _ => ApiError::Internal(e.to_string()),
+        })?;
+
+    // Build response
+    let response = LoginResponse {
+        user: UserResponse {
+            id: result.user_id.to_string(),
+            email: result.email,
+            display_name: result.display_name,
+            avatar_url: None,
+            email_verified: result.email_verified,
+            auth_provider: "email".to_string(),
+            organization_id: None,
+            created_at: chrono::Utc::now().to_rfc3339(),
+        },
+        tokens: TokensResponse {
+            access_token: result.access_token,
+            refresh_token: result.refresh_token,
+            token_type: "Bearer".to_string(),
+            expires_in: result.access_token_expires_in,
+        },
+    };
+
+    Ok(Json(response))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,6 +273,42 @@ mod tests {
             email: "test@example.com".to_string(),
             password: "SecureP@ss1".to_string(),
             display_name: "A".repeat(101),
+            device_id: None,
+            device_name: None,
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_login_request_validation() {
+        let request = LoginRequest {
+            email: "test@example.com".to_string(),
+            password: "SecureP@ss1".to_string(),
+            device_id: None,
+            device_name: None,
+        };
+
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_login_request_invalid_email() {
+        let request = LoginRequest {
+            email: "not-an-email".to_string(),
+            password: "SecureP@ss1".to_string(),
+            device_id: None,
+            device_name: None,
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_login_request_empty_password() {
+        let request = LoginRequest {
+            email: "test@example.com".to_string(),
+            password: "".to_string(),
             device_id: None,
             device_name: None,
         };

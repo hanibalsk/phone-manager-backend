@@ -3,7 +3,7 @@
 use chrono::Utc;
 use shared::crypto::sha256_hex;
 use shared::jwt::{JwtConfig, JwtError};
-use shared::password::{hash_password, PasswordError};
+use shared::password::{hash_password, verify_password, PasswordError};
 use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
@@ -66,6 +66,17 @@ pub struct TokenPair {
     pub refresh_token_jti: String,
     #[allow(dead_code)] // Used in future stories
     pub expires_in: i64,
+}
+
+/// Database row for user query.
+#[derive(Debug, sqlx::FromRow)]
+struct UserRow {
+    id: Uuid,
+    email: String,
+    password_hash: Option<String>,
+    display_name: String,
+    is_active: bool,
+    email_verified: bool,
 }
 
 /// Authentication service.
@@ -147,6 +158,62 @@ impl AuthService {
             email: email.to_lowercase(),
             display_name: display_name.to_string(),
             email_verified: false,
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            access_token_expires_in: self.access_token_expiry,
+        })
+    }
+
+    /// Login with email and password.
+    pub async fn login(&self, email: &str, password: &str) -> Result<AuthResult, AuthError> {
+        // Fetch user by email
+        let user: Option<UserRow> = sqlx::query_as(
+            r#"
+            SELECT id, email, password_hash, display_name, is_active, email_verified
+            FROM users
+            WHERE email = $1
+            "#,
+        )
+        .bind(email.to_lowercase())
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let user = match user {
+            Some(u) => u,
+            None => return Err(AuthError::InvalidCredentials),
+        };
+
+        // Check if user is active
+        if !user.is_active {
+            return Err(AuthError::UserDisabled);
+        }
+
+        // Verify password
+        let password_hash = user.password_hash.ok_or(AuthError::InvalidCredentials)?;
+        let is_valid = verify_password(password, &password_hash)?;
+        if !is_valid {
+            return Err(AuthError::InvalidCredentials);
+        }
+
+        // Update last_login_at
+        let now = Utc::now();
+        sqlx::query("UPDATE users SET last_login_at = $1 WHERE id = $2")
+            .bind(now)
+            .bind(user.id)
+            .execute(&self.pool)
+            .await?;
+
+        // Generate tokens
+        let tokens = self.generate_tokens(user.id)?;
+
+        // Create session
+        self.create_session(user.id, &tokens).await?;
+
+        Ok(AuthResult {
+            user_id: user.id,
+            email: user.email,
+            display_name: user.display_name,
+            email_verified: user.email_verified,
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
             access_token_expires_in: self.access_token_expiry,
