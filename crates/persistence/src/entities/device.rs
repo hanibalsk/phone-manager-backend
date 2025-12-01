@@ -64,6 +64,33 @@ pub struct DeviceWithLastLocationEntity {
     pub last_accuracy: Option<f32>,
 }
 
+/// Database row mapping for fleet device listing with joined data.
+#[derive(Debug, Clone, FromRow)]
+pub struct FleetDeviceEntity {
+    // Device fields
+    pub id: i64,
+    pub device_id: Uuid,
+    pub display_name: String,
+    pub platform: String,
+    pub is_managed: bool,
+    pub enrollment_status: Option<String>,
+    pub enrolled_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub last_seen_at: Option<DateTime<Utc>>,
+    pub group_id: String,
+    // Assigned user fields (from LEFT JOIN)
+    pub assigned_user_id: Option<Uuid>,
+    pub assigned_user_email: Option<String>,
+    pub assigned_user_display_name: Option<String>,
+    // Policy fields (from LEFT JOIN)
+    pub policy_id: Option<Uuid>,
+    pub policy_name: Option<String>,
+    // Last location (from subquery)
+    pub last_latitude: Option<f64>,
+    pub last_longitude: Option<f64>,
+    pub last_location_time: Option<DateTime<Utc>>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

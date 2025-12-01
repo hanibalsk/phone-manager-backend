@@ -28,7 +28,7 @@ pub mod user;
 pub use api_key::ApiKeyEntity;
 pub use audit_export_job::AuditExportJobEntity;
 pub use audit_log::AuditLogEntity;
-pub use device::{DeviceEntity, DeviceWithLastLocationEntity};
+pub use device::{DeviceEntity, DeviceWithLastLocationEntity, FleetDeviceEntity};
 pub use device_command::DeviceCommandEntity;
 pub use device_policy::DevicePolicyEntity;
 pub use device_token::DeviceTokenEntity;

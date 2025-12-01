@@ -4,7 +4,11 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::entities::{DeviceEntity, DeviceWithLastLocationEntity};
+use crate::entities::{DeviceEntity, DeviceWithLastLocationEntity, FleetDeviceEntity};
+use domain::models::{
+    AssignedUserInfo, FleetDeviceItem, FleetGroupInfo, FleetLastLocation, FleetPolicyInfo,
+    FleetSortField, SortOrder,
+};
 use crate::metrics::QueryTimer;
 
 /// Repository for device-related database operations.
@@ -691,6 +695,191 @@ impl DeviceRepository {
 
         let result = q.fetch_one(&self.pool).await?;
         Ok(result.0)
+    }
+
+    /// List fleet devices with filtering, sorting, and pagination.
+    ///
+    /// Returns devices with joined user, policy, and location data.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn list_fleet_devices(
+        &self,
+        organization_id: Uuid,
+        status_filter: Option<&str>,
+        group_id_filter: Option<&str>,
+        policy_id_filter: Option<Uuid>,
+        assigned_filter: Option<bool>,
+        search_filter: Option<&str>,
+        sort_field: FleetSortField,
+        sort_order: SortOrder,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<FleetDeviceItem>, sqlx::Error> {
+        // Build the base SELECT with LEFT JOINs
+        let mut query = String::from(
+            r#"
+            SELECT
+                d.id,
+                d.device_id,
+                d.display_name,
+                d.platform,
+                d.is_managed,
+                d.enrollment_status::TEXT as enrollment_status,
+                d.enrolled_at,
+                d.created_at,
+                d.last_seen_at,
+                d.group_id,
+                u.id as assigned_user_id,
+                u.email as assigned_user_email,
+                u.display_name as assigned_user_display_name,
+                p.id as policy_id,
+                p.name as policy_name,
+                ll.latitude as last_latitude,
+                ll.longitude as last_longitude,
+                ll.timestamp as last_location_time
+            FROM devices d
+            LEFT JOIN users u ON d.assigned_user_id = u.id
+            LEFT JOIN device_policies p ON d.policy_id = p.id
+            LEFT JOIN LATERAL (
+                SELECT latitude, longitude, timestamp
+                FROM locations
+                WHERE device_id = d.id
+                ORDER BY timestamp DESC
+                LIMIT 1
+            ) ll ON true
+            WHERE d.organization_id = $1 AND d.is_managed = true
+            "#,
+        );
+
+        let mut param_idx = 2;
+
+        // Add filters
+        if status_filter.is_some() {
+            query.push_str(&format!(
+                " AND d.enrollment_status = ${}::enrollment_status",
+                param_idx
+            ));
+            param_idx += 1;
+        }
+        if group_id_filter.is_some() {
+            query.push_str(&format!(" AND d.group_id = ${}", param_idx));
+            param_idx += 1;
+        }
+        if policy_id_filter.is_some() {
+            query.push_str(&format!(" AND d.policy_id = ${}", param_idx));
+            param_idx += 1;
+        }
+        if let Some(assigned) = assigned_filter {
+            if assigned {
+                query.push_str(" AND d.assigned_user_id IS NOT NULL");
+            } else {
+                query.push_str(" AND d.assigned_user_id IS NULL");
+            }
+        }
+        if search_filter.is_some() {
+            query.push_str(&format!(
+                " AND (d.display_name ILIKE ${} OR d.device_id::TEXT ILIKE ${})",
+                param_idx, param_idx
+            ));
+            param_idx += 1;
+        }
+
+        // Add sorting
+        let sort_column = match sort_field {
+            FleetSortField::LastSeenAt => "d.last_seen_at",
+            FleetSortField::DisplayName => "d.display_name",
+            FleetSortField::CreatedAt => "d.created_at",
+            FleetSortField::EnrolledAt => "d.enrolled_at",
+        };
+        let order_str = sort_order.as_str();
+        query.push_str(&format!(
+            " ORDER BY {} {} NULLS LAST",
+            sort_column, order_str
+        ));
+
+        // Add pagination
+        query.push_str(&format!(" LIMIT ${} OFFSET ${}", param_idx, param_idx + 1));
+
+        // Build and execute query
+        let mut q = sqlx::query_as::<_, FleetDeviceEntity>(&query).bind(organization_id);
+
+        if let Some(status) = status_filter {
+            q = q.bind(status);
+        }
+        if let Some(group_id) = group_id_filter {
+            q = q.bind(group_id);
+        }
+        if let Some(policy_id) = policy_id_filter {
+            q = q.bind(policy_id);
+        }
+        if let Some(search) = search_filter {
+            q = q.bind(format!("%{}%", search));
+        }
+
+        q = q.bind(limit as i32).bind(offset as i32);
+
+        let entities = q.fetch_all(&self.pool).await?;
+
+        // Map entities to domain models
+        let items = entities
+            .into_iter()
+            .map(|e| {
+                let assigned_user = e.assigned_user_id.map(|id| AssignedUserInfo {
+                    id,
+                    email: e.assigned_user_email.unwrap_or_default(),
+                    display_name: e.assigned_user_display_name,
+                });
+
+                let group = if !e.group_id.is_empty() {
+                    Some(FleetGroupInfo {
+                        id: e.group_id.clone(),
+                        name: None, // Group name not available without another join
+                    })
+                } else {
+                    None
+                };
+
+                let policy = e.policy_id.map(|id| FleetPolicyInfo {
+                    id,
+                    name: e.policy_name.unwrap_or_default(),
+                });
+
+                let last_location =
+                    if let (Some(lat), Some(lon), Some(ts)) =
+                        (e.last_latitude, e.last_longitude, e.last_location_time)
+                    {
+                        Some(FleetLastLocation {
+                            latitude: lat,
+                            longitude: lon,
+                            timestamp: ts,
+                        })
+                    } else {
+                        None
+                    };
+
+                let enrollment_status = e
+                    .enrollment_status
+                    .as_deref()
+                    .and_then(|s| s.parse().ok());
+
+                FleetDeviceItem {
+                    id: e.id,
+                    device_uuid: e.device_id,
+                    display_name: e.display_name,
+                    platform: e.platform,
+                    enrollment_status,
+                    is_managed: e.is_managed,
+                    assigned_user,
+                    group,
+                    policy,
+                    last_seen_at: e.last_seen_at,
+                    last_location,
+                    enrolled_at: e.enrolled_at,
+                    created_at: e.created_at,
+                }
+            })
+            .collect();
+
+        Ok(items)
     }
 
     /// Get admin statistics about devices and locations.

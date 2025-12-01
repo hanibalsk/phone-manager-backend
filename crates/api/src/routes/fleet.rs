@@ -93,8 +93,28 @@ async fn list_fleet_devices(
 
     let total_pages = ((total as f64) / (per_page as f64)).ceil() as u32;
 
-    // For now, return empty list (full implementation would query devices with all joins)
-    let data = Vec::new();
+    // Get sort options with defaults
+    let sort_field = query.sort.unwrap_or_default();
+    let sort_order = query.order.unwrap_or_default();
+
+    // Calculate offset
+    let offset = (page - 1) * per_page;
+
+    // Fetch devices with filtering, sorting, and pagination
+    let data = device_repo
+        .list_fleet_devices(
+            org_id,
+            status_str,
+            query.group_id.as_deref(),
+            query.policy_id,
+            query.assigned,
+            query.search.as_deref(),
+            sort_field,
+            sort_order,
+            per_page,
+            offset,
+        )
+        .await?;
 
     let response = FleetDeviceListResponse {
         data,
