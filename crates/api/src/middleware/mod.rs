@@ -6,6 +6,7 @@ pub mod metrics;
 pub mod rate_limit;
 pub mod security_headers;
 pub mod trace_id;
+pub mod user_auth;
 
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use auth::{optional_auth, require_admin, require_auth};
@@ -17,3 +18,5 @@ pub use rate_limit::{rate_limit_middleware, RateLimiterState};
 pub use security_headers::security_headers_middleware;
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use trace_id::{trace_id, RequestId, REQUEST_ID_HEADER};
+#[allow(unused_imports)] // Re-exports for downstream use
+pub use user_auth::{optional_user_auth, require_user_auth, UserAuth};
