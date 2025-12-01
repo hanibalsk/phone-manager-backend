@@ -1,5 +1,6 @@
 //! Repository implementations for database operations.
 
+pub mod admin_user;
 pub mod api_key;
 pub mod audit_export_job;
 pub mod audit_log;
@@ -24,6 +25,7 @@ pub mod trip_path_correction;
 pub mod unlock_request;
 pub mod user;
 
+pub use admin_user::AdminUserRepository;
 pub use api_key::ApiKeyRepository;
 pub use audit_export_job::{AuditExportJobRepository, ExportJob};
 pub use audit_log::AuditLogRepository;
