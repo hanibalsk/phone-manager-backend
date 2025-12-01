@@ -156,6 +156,8 @@ dwIDAQAB
             cors_origins: vec![],
             rate_limit_per_minute: 0, // Disable rate limiting for tests
             export_rate_limit_per_hour: 0, // Disable export rate limiting for tests
+            forgot_password_rate_limit_per_hour: 0, // Disable auth rate limiting for tests
+            request_verification_rate_limit_per_hour: 0, // Disable auth rate limiting for tests
         },
         limits: phone_manager_api::config::LimitsConfig {
             max_devices_per_group: 20,
@@ -194,6 +196,11 @@ dwIDAQAB
             sender_name: "Test".to_string(),
             base_url: "https://test.example.com".to_string(),
             template_style: "html".to_string(),
+        },
+        oauth: phone_manager_api::config::OAuthConfig {
+            google_client_id: String::new(),
+            apple_client_id: String::new(),
+            apple_team_id: String::new(),
         },
     }
 }

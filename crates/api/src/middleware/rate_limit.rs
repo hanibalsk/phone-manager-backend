@@ -2,10 +2,11 @@
 //!
 //! Provides per-API-key rate limiting using a sliding window algorithm.
 //! Also provides per-organization export rate limiting for audit log exports.
+//! Also provides per-IP rate limiting for authentication endpoints.
 
 use axum::{
     body::Body,
-    extract::State,
+    extract::{ConnectInfo, State},
     http::{header, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
@@ -19,8 +20,10 @@ use governor::{
 use serde_json::json;
 use std::{
     collections::HashMap,
+    net::{IpAddr, SocketAddr},
     num::NonZeroU32,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 use uuid::Uuid;
 
@@ -197,6 +200,192 @@ impl Clone for ExportRateLimiterState {
             rate_limit_per_hour: self.rate_limit_per_hour,
         }
     }
+}
+
+/// Type alias for the rate limiter used per IP address for auth endpoints.
+type IpRateLimiter = GovRateLimiter<NotKeyed, InMemoryState, DefaultClock>;
+
+/// Auth rate limiter state for per-IP rate limiting on authentication endpoints.
+/// Uses a HashMap keyed by IP address with individual rate limiters.
+/// Configured separately for password reset (5/hour) and verification (3/hour).
+pub struct AuthRateLimiterState {
+    limiters: RwLock<HashMap<IpAddr, Arc<IpRateLimiter>>>,
+    rate_limit_per_hour: u32,
+    endpoint_name: String,
+}
+
+impl AuthRateLimiterState {
+    /// Create a new auth rate limiter state with the specified limit per hour.
+    pub fn new(rate_limit_per_hour: u32, endpoint_name: &str) -> Self {
+        Self {
+            limiters: RwLock::new(HashMap::new()),
+            rate_limit_per_hour,
+            endpoint_name: endpoint_name.to_string(),
+        }
+    }
+
+    /// Get or create a rate limiter for the given IP address.
+    fn get_or_create_limiter(&self, ip: IpAddr) -> Arc<IpRateLimiter> {
+        // First try to get existing limiter with read lock
+        {
+            let limiters = self.limiters.read().unwrap();
+            if let Some(limiter) = limiters.get(&ip) {
+                return limiter.clone();
+            }
+        }
+
+        // Create new limiter with write lock
+        let mut limiters = self.limiters.write().unwrap();
+
+        // Double-check in case another thread created it
+        if let Some(limiter) = limiters.get(&ip) {
+            return limiter.clone();
+        }
+
+        // Create new limiter with rate limit per hour
+        // Using with_period to create a quota that replenishes over an hour
+        let quota = Quota::with_period(Duration::from_secs(3600 / self.rate_limit_per_hour as u64))
+            .unwrap()
+            .allow_burst(
+                NonZeroU32::new(self.rate_limit_per_hour).unwrap_or(NonZeroU32::new(1).unwrap()),
+            );
+        let limiter = Arc::new(GovRateLimiter::direct(quota));
+        limiters.insert(ip, limiter.clone());
+        limiter
+    }
+
+    /// Check if a request from the given IP should be allowed.
+    /// Returns Ok(()) if allowed, or Err with retry_after seconds if rate limited.
+    pub fn check(&self, ip: IpAddr) -> Result<(), u64> {
+        let limiter = self.get_or_create_limiter(ip);
+
+        match limiter.check() {
+            Ok(_) => Ok(()),
+            Err(not_until) => {
+                let wait_time = not_until.wait_time_from(governor::clock::Clock::now(
+                    &governor::clock::DefaultClock::default(),
+                ));
+                // Return retry after in seconds, minimum 1 second
+                Err(wait_time.as_secs().max(1))
+            }
+        }
+    }
+
+    /// Get the configured rate limit per hour.
+    pub fn rate_limit_per_hour(&self) -> u32 {
+        self.rate_limit_per_hour
+    }
+
+    /// Get the endpoint name for error messages.
+    pub fn endpoint_name(&self) -> &str {
+        &self.endpoint_name
+    }
+}
+
+impl std::fmt::Debug for AuthRateLimiterState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AuthRateLimiterState")
+            .field("rate_limit_per_hour", &self.rate_limit_per_hour)
+            .field("endpoint_name", &self.endpoint_name)
+            .field("active_limiters", &self.limiters.read().unwrap().len())
+            .finish()
+    }
+}
+
+impl Clone for AuthRateLimiterState {
+    fn clone(&self) -> Self {
+        // Clone creates a new state that shares the same limiters
+        Self {
+            limiters: RwLock::new(self.limiters.read().unwrap().clone()),
+            rate_limit_per_hour: self.rate_limit_per_hour,
+            endpoint_name: self.endpoint_name.clone(),
+        }
+    }
+}
+
+/// Extract IP address from request, checking X-Forwarded-For header first,
+/// then falling back to connection info.
+fn extract_client_ip<B>(req: &Request<B>) -> Option<IpAddr> {
+    // First check X-Forwarded-For header (for requests behind a proxy)
+    if let Some(forwarded_for) = req.headers().get("x-forwarded-for") {
+        if let Ok(value) = forwarded_for.to_str() {
+            // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
+            // The first one is the original client
+            if let Some(first_ip) = value.split(',').next() {
+                if let Ok(ip) = first_ip.trim().parse::<IpAddr>() {
+                    return Some(ip);
+                }
+            }
+        }
+    }
+
+    // Fall back to X-Real-IP header
+    if let Some(real_ip) = req.headers().get("x-real-ip") {
+        if let Ok(value) = real_ip.to_str() {
+            if let Ok(ip) = value.trim().parse::<IpAddr>() {
+                return Some(ip);
+            }
+        }
+    }
+
+    // Fall back to connection info
+    req.extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|conn| conn.0.ip())
+}
+
+/// Middleware factory for auth rate limiting.
+/// Takes the rate limiter state directly instead of from AppState.
+pub async fn auth_rate_limit_middleware(
+    State(rate_limiter): State<Arc<AuthRateLimiterState>>,
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    // Extract client IP
+    let client_ip = match extract_client_ip(&req) {
+        Some(ip) => ip,
+        None => {
+            tracing::warn!("Could not determine client IP for auth rate limiting");
+            // Allow request if we can't determine IP (fail open, but log)
+            return next.run(req).await;
+        }
+    };
+
+    // Check rate limit
+    if let Err(retry_after) = rate_limiter.check(client_ip) {
+        tracing::warn!(
+            ip = %client_ip,
+            endpoint = %rate_limiter.endpoint_name(),
+            retry_after = retry_after,
+            "Auth rate limit exceeded"
+        );
+        return auth_rate_limited_response(
+            rate_limiter.rate_limit_per_hour(),
+            rate_limiter.endpoint_name(),
+            retry_after,
+        );
+    }
+
+    next.run(req).await
+}
+
+/// Create a rate limited response for auth endpoints with proper headers and body.
+fn auth_rate_limited_response(limit: u32, endpoint: &str, retry_after: u64) -> Response {
+    let body = json!({
+        "error": "rate_limit_exceeded",
+        "message": format!("Rate limit of {} requests/hour exceeded for {}", limit, endpoint),
+        "retry_after": retry_after
+    });
+
+    let mut response = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
+
+    // Add Retry-After header
+    response.headers_mut().insert(
+        header::RETRY_AFTER,
+        retry_after.to_string().parse().unwrap(),
+    );
+
+    response
 }
 
 /// Middleware that applies rate limiting per API key.
@@ -602,5 +791,172 @@ mod tests {
 
         // Should be different Arcs
         assert!(!Arc::ptr_eq(&limiter1, &limiter2));
+    }
+
+    // ===========================================
+    // Auth Rate Limiter Tests (Per-IP)
+    // ===========================================
+
+    #[test]
+    fn test_auth_rate_limiter_state_creation() {
+        let state = AuthRateLimiterState::new(5, "forgot-password");
+        assert_eq!(state.rate_limit_per_hour(), 5);
+        assert_eq!(state.endpoint_name(), "forgot-password");
+    }
+
+    #[test]
+    fn test_auth_rate_limiter_allows_requests() {
+        let state = AuthRateLimiterState::new(5, "test-endpoint");
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+
+        // First request should be allowed
+        assert!(state.check(ip).is_ok());
+    }
+
+    #[test]
+    fn test_auth_rate_limiter_exhaustion() {
+        // Use very low limit to test exhaustion
+        let state = AuthRateLimiterState::new(1, "test-endpoint");
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+
+        // First request should be allowed
+        assert!(state.check(ip).is_ok());
+
+        // Second request should be rate limited
+        let result = state.check(ip);
+        assert!(result.is_err());
+        // Retry-after should be at least 1 second
+        assert!(result.unwrap_err() >= 1);
+    }
+
+    #[test]
+    fn test_auth_rate_limiter_different_ips_independent() {
+        let state = AuthRateLimiterState::new(1, "test-endpoint"); // Very low limit
+        let ip1: IpAddr = "192.168.1.1".parse().unwrap();
+        let ip2: IpAddr = "192.168.1.2".parse().unwrap();
+        let ip3: IpAddr = "192.168.1.3".parse().unwrap();
+
+        // Each IP should have independent limits
+        assert!(state.check(ip1).is_ok());
+        assert!(state.check(ip2).is_ok());
+        assert!(state.check(ip3).is_ok());
+
+        // Now ip1 should be rate limited, but others still allowed for their first request
+        assert!(state.check(ip1).is_err());
+        assert!(state.check(ip2).is_err());
+        assert!(state.check(ip3).is_err());
+    }
+
+    #[test]
+    fn test_auth_rate_limiter_same_ip_multiple_checks() {
+        let state = AuthRateLimiterState::new(5, "forgot-password");
+        let ip: IpAddr = "10.0.0.1".parse().unwrap();
+
+        // Should allow 5 requests
+        for i in 0..5 {
+            let result = state.check(ip);
+            assert!(result.is_ok(), "Request {} should be allowed", i);
+        }
+
+        // 6th request should be rate limited
+        assert!(state.check(ip).is_err());
+    }
+
+    #[test]
+    fn test_auth_rate_limiter_many_ips() {
+        let state = AuthRateLimiterState::new(5, "test-endpoint");
+
+        // Test with 100 different IPs
+        for i in 0..100u8 {
+            let ip: IpAddr = format!("192.168.1.{}", i).parse().unwrap();
+            assert!(state.check(ip).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_auth_rate_limiter_ipv4_and_ipv6() {
+        let state = AuthRateLimiterState::new(5, "test-endpoint");
+
+        // IPv4 address
+        let ipv4: IpAddr = "192.168.1.1".parse().unwrap();
+        assert!(state.check(ipv4).is_ok());
+
+        // IPv6 address
+        let ipv6: IpAddr = "::1".parse().unwrap();
+        assert!(state.check(ipv6).is_ok());
+
+        // Full IPv6 address
+        let ipv6_full: IpAddr = "2001:0db8:85a3:0000:0000:8a2e:0370:7334".parse().unwrap();
+        assert!(state.check(ipv6_full).is_ok());
+    }
+
+    #[test]
+    fn test_auth_rate_limiter_state_debug() {
+        let state = AuthRateLimiterState::new(5, "forgot-password");
+        let debug = format!("{:?}", state);
+        assert!(debug.contains("AuthRateLimiterState"));
+        assert!(debug.contains("rate_limit_per_hour"));
+        assert!(debug.contains("5"));
+        assert!(debug.contains("endpoint_name"));
+        assert!(debug.contains("forgot-password"));
+        assert!(debug.contains("active_limiters"));
+    }
+
+    #[test]
+    fn test_auth_rate_limiter_state_clone() {
+        let state = AuthRateLimiterState::new(5, "test-endpoint");
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+        state.check(ip).unwrap(); // Create a limiter
+
+        let cloned = state.clone();
+        assert_eq!(cloned.rate_limit_per_hour(), 5);
+        assert_eq!(cloned.endpoint_name(), "test-endpoint");
+    }
+
+    #[test]
+    fn test_auth_rate_limiter_get_or_create_idempotent() {
+        let state = AuthRateLimiterState::new(5, "test-endpoint");
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+
+        // Multiple calls should return the same limiter
+        let limiter1 = state.get_or_create_limiter(ip);
+        let limiter2 = state.get_or_create_limiter(ip);
+
+        // Should be the same Arc (same underlying object)
+        assert!(Arc::ptr_eq(&limiter1, &limiter2));
+    }
+
+    #[test]
+    fn test_auth_rate_limiter_different_ips_different_limiters() {
+        let state = AuthRateLimiterState::new(5, "test-endpoint");
+
+        let ip1: IpAddr = "192.168.1.1".parse().unwrap();
+        let ip2: IpAddr = "192.168.1.2".parse().unwrap();
+
+        let limiter1 = state.get_or_create_limiter(ip1);
+        let limiter2 = state.get_or_create_limiter(ip2);
+
+        // Should be different Arcs
+        assert!(!Arc::ptr_eq(&limiter1, &limiter2));
+    }
+
+    #[test]
+    fn test_auth_rate_limited_response_format() {
+        let response = auth_rate_limited_response(5, "forgot-password", 3600);
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(response.headers().contains_key(header::RETRY_AFTER));
+        assert_eq!(
+            response.headers().get(header::RETRY_AFTER).unwrap(),
+            "3600"
+        );
+    }
+
+    #[test]
+    fn test_auth_rate_limited_response_various_endpoints() {
+        let endpoints = vec!["forgot-password", "request-verification"];
+        for endpoint in endpoints {
+            let response = auth_rate_limited_response(5, endpoint, 60);
+            assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        }
     }
 }

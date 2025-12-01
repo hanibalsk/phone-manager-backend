@@ -17,6 +17,9 @@ pub struct Config {
     /// Email service configuration
     #[serde(default)]
     pub email: EmailConfig,
+    /// OAuth provider configuration
+    #[serde(default)]
+    pub oauth: OAuthConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -73,6 +76,14 @@ pub struct SecurityConfig {
     /// Export rate limit per hour per organization (default: 10)
     #[serde(default = "default_export_rate_limit")]
     pub export_rate_limit_per_hour: u32,
+
+    /// Forgot password rate limit per hour per IP (default: 5)
+    #[serde(default = "default_forgot_password_rate_limit")]
+    pub forgot_password_rate_limit_per_hour: u32,
+
+    /// Request verification rate limit per hour per IP (default: 3)
+    #[serde(default = "default_request_verification_rate_limit")]
+    pub request_verification_rate_limit_per_hour: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -162,6 +173,12 @@ fn default_rate_limit() -> u32 {
 }
 fn default_export_rate_limit() -> u32 {
     10 // 10 exports per hour per organization
+}
+fn default_forgot_password_rate_limit() -> u32 {
+    5 // 5 forgot password requests per hour per IP
+}
+fn default_request_verification_rate_limit() -> u32 {
+    3 // 3 verification requests per hour per IP
 }
 fn default_max_devices_per_group() -> usize {
     20
@@ -328,6 +345,22 @@ fn default_template_style() -> String {
     "html".to_string()
 }
 
+/// OAuth provider configuration for social login.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct OAuthConfig {
+    /// Google OAuth client ID (audience for token validation)
+    #[serde(default)]
+    pub google_client_id: String,
+
+    /// Apple OAuth client ID / Service ID (audience for token validation)
+    #[serde(default)]
+    pub apple_client_id: String,
+
+    /// Apple OAuth team ID (for server-to-server auth)
+    #[serde(default)]
+    pub apple_team_id: String,
+}
+
 /// Configuration validation error
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigValidationError {
@@ -387,6 +420,8 @@ impl Config {
             cors_origins = []
             rate_limit_per_minute = 100
             export_rate_limit_per_hour = 10
+            forgot_password_rate_limit_per_hour = 5
+            request_verification_rate_limit_per_hour = 3
 
             [limits]
             max_devices_per_group = 20
@@ -416,6 +451,11 @@ impl Config {
             provider = "console"
             sender_email = "test@example.com"
             sender_name = "Test"
+
+            [oauth]
+            google_client_id = ""
+            apple_client_id = ""
+            apple_team_id = ""
         "#;
 
         let mut builder = config::Config::builder()

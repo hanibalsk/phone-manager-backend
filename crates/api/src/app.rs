@@ -15,8 +15,9 @@ use tower_http::{
 
 use crate::config::Config;
 use crate::middleware::{
-    metrics_handler, metrics_middleware, rate_limit_middleware, require_admin, require_auth,
-    security_headers_middleware, trace_id, ExportRateLimiterState, RateLimiterState,
+    auth_rate_limit_middleware, metrics_handler, metrics_middleware, rate_limit_middleware,
+    require_admin, require_auth, security_headers_middleware, trace_id, AuthRateLimiterState,
+    ExportRateLimiterState, RateLimiterState,
 };
 use crate::routes::{
     admin, admin_groups, admin_users, audit_logs, auth, bulk_import, dashboard, device_policies, device_settings, devices, enrollment, enrollment_tokens,
@@ -33,6 +34,10 @@ pub struct AppState {
     pub rate_limiter: Option<Arc<RateLimiterState>>,
     /// Export rate limiter for per-organization audit log exports
     pub export_rate_limiter: Option<Arc<ExportRateLimiterState>>,
+    /// Forgot password rate limiter (per-IP)
+    pub forgot_password_rate_limiter: Option<Arc<AuthRateLimiterState>>,
+    /// Request verification rate limiter (per-IP)
+    pub request_verification_rate_limiter: Option<Arc<AuthRateLimiterState>>,
     /// Shared map-matching client (None if disabled or failed to initialize)
     pub map_matching_client: Option<Arc<MapMatchingClient>>,
     /// Notification service for push notifications
@@ -60,6 +65,27 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         None
     };
 
+    // Create auth rate limiters for forgot-password and request-verification endpoints
+    let forgot_password_rate_limiter =
+        if config.security.forgot_password_rate_limit_per_hour > 0 {
+            Some(Arc::new(AuthRateLimiterState::new(
+                config.security.forgot_password_rate_limit_per_hour,
+                "forgot-password",
+            )))
+        } else {
+            None
+        };
+
+    let request_verification_rate_limiter =
+        if config.security.request_verification_rate_limit_per_hour > 0 {
+            Some(Arc::new(AuthRateLimiterState::new(
+                config.security.request_verification_rate_limit_per_hour,
+                "request-verification",
+            )))
+        } else {
+            None
+        };
+
     // Create map-matching client if enabled and configured
     let map_matching_client = if config.map_matching.enabled && !config.map_matching.url.is_empty()
     {
@@ -85,6 +111,8 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         config: config.clone(),
         rate_limiter,
         export_rate_limiter,
+        forgot_password_rate_limiter,
+        request_verification_rate_limiter,
         map_matching_client,
         notification_service,
     };
@@ -336,26 +364,61 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         );
 
     // Auth routes (public, no authentication required)
-    let auth_routes = Router::new()
+    // Non-rate-limited auth routes
+    let auth_routes_base = Router::new()
         .route("/api/v1/auth/register", post(auth::register))
         .route("/api/v1/auth/login", post(auth::login))
         .route("/api/v1/auth/oauth", post(auth::oauth_login))
         .route("/api/v1/auth/refresh", post(auth::refresh))
         .route("/api/v1/auth/logout", post(auth::logout))
         .route(
-            "/api/v1/auth/forgot-password",
-            post(auth::forgot_password),
-        )
-        .route(
             "/api/v1/auth/reset-password",
             post(auth::reset_password),
         )
-        .route("/api/v1/auth/verify-email", post(auth::verify_email))
-        // Request verification requires JWT auth (user must be logged in)
-        .route(
-            "/api/v1/auth/request-verification",
-            post(auth::request_verification),
-        );
+        .route("/api/v1/auth/verify-email", post(auth::verify_email));
+
+    // Rate-limited forgot-password route (5/hour per IP)
+    let forgot_password_routes = if let Some(ref limiter) = state.forgot_password_rate_limiter {
+        Router::new()
+            .route(
+                "/api/v1/auth/forgot-password",
+                post(auth::forgot_password),
+            )
+            .route_layer(middleware::from_fn_with_state(
+                limiter.clone(),
+                auth_rate_limit_middleware,
+            ))
+    } else {
+        Router::new().route(
+            "/api/v1/auth/forgot-password",
+            post(auth::forgot_password),
+        )
+    };
+
+    // Rate-limited request-verification route (3/hour per IP)
+    // Note: This route also requires JWT auth (user must be logged in)
+    let request_verification_routes =
+        if let Some(ref limiter) = state.request_verification_rate_limiter {
+            Router::new()
+                .route(
+                    "/api/v1/auth/request-verification",
+                    post(auth::request_verification),
+                )
+                .route_layer(middleware::from_fn_with_state(
+                    limiter.clone(),
+                    auth_rate_limit_middleware,
+                ))
+        } else {
+            Router::new().route(
+                "/api/v1/auth/request-verification",
+                post(auth::request_verification),
+            )
+        };
+
+    // Combine all auth routes
+    let auth_routes = auth_routes_base
+        .merge(forgot_password_routes)
+        .merge(request_verification_routes);
 
     // User profile routes (require JWT authentication)
     // The UserAuth extractor handles JWT validation directly

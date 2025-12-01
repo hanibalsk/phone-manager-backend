@@ -11,6 +11,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::config::JwtAuthConfig;
+use crate::services::apple_auth::{AppleAuthClient, AppleAuthError};
 
 /// Errors that can occur during authentication operations.
 #[derive(Debug, Error)]
@@ -128,11 +129,20 @@ pub struct AuthService {
     pool: PgPool,
     jwt_config: JwtConfig,
     access_token_expiry: i64,
+    /// Google OAuth client ID for audience validation
+    google_client_id: Option<String>,
+    /// Apple auth client for proper JWT verification
+    apple_auth_client: AppleAuthClient,
 }
 
 impl AuthService {
     /// Creates a new AuthService with the given database pool and JWT configuration.
-    pub fn new(pool: PgPool, jwt_config: &JwtAuthConfig) -> Result<Self, AuthError> {
+    pub fn new(
+        pool: PgPool,
+        jwt_config: &JwtAuthConfig,
+        google_client_id: Option<String>,
+        apple_client_id: Option<String>,
+    ) -> Result<Self, AuthError> {
         let jwt = JwtConfig::new(
             &jwt_config.private_key,
             &jwt_config.public_key,
@@ -141,10 +151,15 @@ impl AuthService {
         )
         .map_err(|e| AuthError::Internal(format!("Failed to initialize JWT: {}", e)))?;
 
+        // Create Apple auth client with proper JWKS verification
+        let apple_auth_client = AppleAuthClient::new(apple_client_id);
+
         Ok(Self {
             pool,
             jwt_config: jwt,
             access_token_expiry: jwt_config.access_token_expiry_secs,
+            google_client_id,
+            apple_auth_client,
         })
     }
 
@@ -177,7 +192,7 @@ impl AuthService {
         let user_id = Uuid::new_v4();
         let now = Utc::now();
 
-        sqlx::query(
+        let insert_result = sqlx::query(
             r#"
             INSERT INTO users (id, email, password_hash, display_name, is_active, email_verified, created_at, updated_at)
             VALUES ($1, $2, $3, $4, true, false, $5, $5)
@@ -189,7 +204,16 @@ impl AuthService {
         .bind(display_name)
         .bind(now)
         .execute(&self.pool)
-        .await?;
+        .await;
+
+        // Handle unique constraint violation (race condition with concurrent registration)
+        if let Err(sqlx::Error::Database(db_err)) = &insert_result {
+            // PostgreSQL error code 23505 = unique_violation
+            if db_err.code().as_deref() == Some("23505") {
+                return Err(AuthError::EmailAlreadyExists);
+            }
+        }
+        insert_result?;
 
         // Generate tokens
         let tokens = self.generate_tokens(user_id)?;
@@ -383,8 +407,7 @@ impl AuthService {
 
     /// Verify Google ID token using Google's tokeninfo endpoint.
     async fn verify_google_token(&self, id_token: &str) -> Result<OAuthUserInfo, AuthError> {
-        // In production, we would validate the token signature against Google's public keys
-        // For now, use Google's tokeninfo endpoint which is simpler
+        // Use Google's tokeninfo endpoint for validation
         let client = reqwest::Client::new();
         let response = client
             .get("https://oauth2.googleapis.com/tokeninfo")
@@ -402,8 +425,21 @@ impl AuthService {
             .await
             .map_err(|e| AuthError::OAuthProviderError(format!("Failed to parse Google response: {}", e)))?;
 
-        // Validate the token is for our app (would check aud claim in production)
-        // For MVP, we just verify we got valid user info
+        // Validate audience - token must be issued for our app
+        if let Some(ref expected_client_id) = self.google_client_id {
+            let actual_aud = token_info.aud.as_deref().unwrap_or("");
+            if actual_aud != expected_client_id {
+                tracing::warn!(
+                    expected = %expected_client_id,
+                    actual = %actual_aud,
+                    "Google token audience mismatch"
+                );
+                return Err(AuthError::InvalidOAuthToken);
+            }
+        } else {
+            tracing::warn!("Google OAuth client ID not configured - audience validation skipped");
+        }
+
         let email = token_info
             .email
             .ok_or(AuthError::OAuthProviderError("No email in Google token".to_string()))?;
@@ -417,45 +453,39 @@ impl AuthService {
         })
     }
 
-    /// Verify Apple ID token.
+    /// Verify Apple ID token with proper JWKS signature verification.
     ///
-    /// Apple Sign-In uses JWT ID tokens that can be validated locally
-    /// by verifying the signature against Apple's public keys.
+    /// Apple Sign-In uses JWT ID tokens that are validated by:
+    /// 1. Fetching Apple's public keys from their JWKS endpoint
+    /// 2. Verifying the JWT signature using the appropriate public key
+    /// 3. Validating the claims (iss, aud, exp)
     async fn verify_apple_token(&self, id_token: &str) -> Result<OAuthUserInfo, AuthError> {
-        // For Apple Sign-In, we need to:
-        // 1. Fetch Apple's public keys from https://appleid.apple.com/auth/keys
-        // 2. Decode the JWT header to get the key ID (kid)
-        // 3. Verify the signature using the appropriate public key
-        // 4. Validate the claims (iss, aud, exp)
+        // Use AppleAuthClient for proper JWT verification with JWKS
+        let claims = self.apple_auth_client.verify_token(id_token).await
+            .map_err(|e| match e {
+                AppleAuthError::InvalidSignature => AuthError::InvalidOAuthToken,
+                AppleAuthError::TokenExpired => AuthError::InvalidOAuthToken,
+                AppleAuthError::InvalidIssuer => AuthError::InvalidOAuthToken,
+                AppleAuthError::InvalidAudience => AuthError::InvalidOAuthToken,
+                AppleAuthError::InvalidTokenFormat => AuthError::InvalidOAuthToken,
+                AppleAuthError::KeyNotFound(kid) => {
+                    tracing::error!(kid = %kid, "Apple public key not found");
+                    AuthError::OAuthProviderError("Key not found".to_string())
+                }
+                AppleAuthError::KeyFetchError(msg) => {
+                    tracing::error!(error = %msg, "Failed to fetch Apple JWKS");
+                    AuthError::OAuthProviderError(format!("Key fetch failed: {}", msg))
+                }
+                AppleAuthError::MissingEmail => {
+                    AuthError::OAuthProviderError("No email in Apple token".to_string())
+                }
+                AppleAuthError::ValidationError(msg) => {
+                    tracing::error!(error = %msg, "Apple token validation failed");
+                    AuthError::OAuthProviderError(msg)
+                }
+            })?;
 
-        // For MVP, we'll do a simplified verification using the JWT claims
-        // In production, this should be replaced with proper signature verification
-
-        // Decode JWT without signature verification (for MVP only)
-        let parts: Vec<&str> = id_token.split('.').collect();
-        if parts.len() != 3 {
-            return Err(AuthError::InvalidOAuthToken);
-        }
-
-        // Decode the payload (second part)
-        let payload = base64_decode_url_safe(parts[1])
-            .map_err(|_| AuthError::InvalidOAuthToken)?;
-
-        let claims: AppleTokenClaims = serde_json::from_slice(&payload)
-            .map_err(|_| AuthError::InvalidOAuthToken)?;
-
-        // Validate issuer
-        if claims.iss != "https://appleid.apple.com" {
-            return Err(AuthError::InvalidOAuthToken);
-        }
-
-        // Validate expiration
-        let now = Utc::now().timestamp();
-        if claims.exp < now {
-            return Err(AuthError::InvalidOAuthToken);
-        }
-
-        // Apple provides email in the 'email' claim
+        // Extract email (required)
         let email = claims
             .email
             .ok_or(AuthError::OAuthProviderError("No email in Apple token".to_string()))?;
@@ -806,12 +836,11 @@ impl AuthService {
         .execute(&self.pool)
         .await?;
 
-        // In MVP, we log the token. In production, this would be emailed.
+        // Log token generation (never log the actual token)
         tracing::info!(
             user_id = %user_id,
             email = %email,
-            reset_token = %reset_token,
-            "Password reset token generated (MVP: logging token, production: would email)"
+            "Password reset token generated"
         );
 
         Ok(Some(reset_token))
@@ -943,12 +972,11 @@ impl AuthService {
         .execute(&self.pool)
         .await?;
 
-        // In MVP, we log the token. In production, this would be emailed.
+        // Log token generation (never log the actual token)
         tracing::info!(
             user_id = %user_id,
             email = %email,
-            verification_token = %verification_token,
-            "Email verification token generated (MVP: logging token, production: would email)"
+            "Email verification token generated"
         );
 
         Ok(verification_token)
@@ -1054,6 +1082,8 @@ struct OAuthUserInfo {
 struct GoogleTokenInfo {
     /// Subject (Google user ID)
     sub: String,
+    /// Audience (client ID the token was issued for)
+    aud: Option<String>,
     /// User's email
     email: Option<String>,
     /// Whether email is verified
@@ -1062,35 +1092,6 @@ struct GoogleTokenInfo {
     name: Option<String>,
     /// User's profile picture URL
     picture: Option<String>,
-}
-
-/// Apple ID token claims structure.
-#[derive(Debug, serde::Deserialize)]
-struct AppleTokenClaims {
-    /// Issuer (should be "https://appleid.apple.com")
-    iss: String,
-    /// Subject (Apple user ID)
-    sub: String,
-    /// Expiration time
-    exp: i64,
-    /// User's email
-    email: Option<String>,
-    /// Whether email is verified
-    email_verified: Option<bool>,
-}
-
-/// Decode base64 URL-safe encoded string.
-fn base64_decode_url_safe(input: &str) -> Result<Vec<u8>, base64::DecodeError> {
-    use base64::Engine;
-    // Add padding if needed
-    let padded = match input.len() % 4 {
-        2 => format!("{}==", input),
-        3 => format!("{}=", input),
-        _ => input.to_string(),
-    };
-    // Replace URL-safe characters
-    let standard = padded.replace('-', "+").replace('_', "/");
-    base64::engine::general_purpose::STANDARD.decode(standard)
 }
 
 #[cfg(test)]

@@ -2028,6 +2028,7 @@ dependencies = [
  "geo",
  "governor",
  "hex",
+ "jsonwebtoken",
  "metrics",
  "metrics-exporter-prometheus",
  "mime_guess",

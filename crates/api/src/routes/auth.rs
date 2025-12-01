@@ -8,6 +8,28 @@ use crate::app::AppState;
 use crate::error::ApiError;
 use crate::services::auth::{AuthError, AuthService};
 
+/// Helper to create AuthService with OAuth config from AppState.
+fn create_auth_service(state: &AppState) -> Result<AuthService, ApiError> {
+    let google_client_id = if state.config.oauth.google_client_id.is_empty() {
+        None
+    } else {
+        Some(state.config.oauth.google_client_id.clone())
+    };
+    let apple_client_id = if state.config.oauth.apple_client_id.is_empty() {
+        None
+    } else {
+        Some(state.config.oauth.apple_client_id.clone())
+    };
+
+    AuthService::new(
+        state.pool.clone(),
+        &state.config.jwt,
+        google_client_id,
+        apple_client_id,
+    )
+    .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))
+}
+
 /// Request body for user registration.
 #[derive(Debug, Clone, Deserialize, Validate)]
 #[serde(rename_all = "snake_case")]
@@ -80,8 +102,7 @@ pub async fn register(
         .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     // Create auth service
-    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
-        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+    let auth_service = create_auth_service(&state)?;
 
     // Register user
     let result = auth_service
@@ -187,8 +208,7 @@ pub async fn login(
         .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     // Create auth service
-    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
-        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+    let auth_service = create_auth_service(&state)?;
 
     // Login user
     let result = auth_service
@@ -245,8 +265,7 @@ pub async fn oauth_login(
         .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     // Create auth service
-    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
-        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+    let auth_service = create_auth_service(&state)?;
 
     // OAuth login
     let result = auth_service
@@ -323,8 +342,7 @@ pub async fn refresh(
         .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     // Create auth service
-    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
-        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+    let auth_service = create_auth_service(&state)?;
 
     // Refresh tokens
     let result = auth_service
@@ -386,8 +404,7 @@ pub async fn logout(
         .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     // Create auth service
-    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
-        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+    let auth_service = create_auth_service(&state)?;
 
     // Logout - invalidate the session
     auth_service
@@ -439,8 +456,7 @@ pub async fn forgot_password(
         .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     // Create auth service
-    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
-        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+    let auth_service = create_auth_service(&state)?;
 
     // Request password reset (silently ignores non-existent emails)
     auth_service
@@ -490,8 +506,7 @@ pub async fn reset_password(
         .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     // Create auth service
-    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
-        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+    let auth_service = create_auth_service(&state)?;
 
     // Reset password
     auth_service
@@ -530,8 +545,7 @@ pub async fn request_verification(
     user_auth: crate::extractors::UserAuth,
 ) -> Result<Json<RequestVerificationResponse>, ApiError> {
     // Create auth service
-    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
-        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+    let auth_service = create_auth_service(&state)?;
 
     // Request verification
     auth_service
@@ -581,8 +595,7 @@ pub async fn verify_email(
         .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     // Create auth service
-    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
-        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+    let auth_service = create_auth_service(&state)?;
 
     // Verify email
     auth_service
