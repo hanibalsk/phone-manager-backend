@@ -1,5 +1,6 @@
 //! Domain models for Phone Manager.
 
+pub mod bulk_import;
 pub mod device;
 pub mod device_policy;
 pub mod device_token;
@@ -74,4 +75,9 @@ pub use fleet::{
     FleetDeviceQuery, FleetGroupInfo, FleetLastLocation, FleetPagination, FleetPolicyInfo,
     FleetSortField, FleetSummary, IssueCommandRequest, IssueCommandResponse, SortOrder,
     UnassignDeviceResponse,
+};
+pub use bulk_import::{
+    BulkDeviceImportRequest, BulkDeviceImportResponse, BulkDeviceInput, BulkDeviceItem,
+    BulkImportError, BulkImportJobStatus, BulkImportOptions, BulkImportResult,
+    MAX_BULK_IMPORT_DEVICES, MAX_METADATA_SIZE,
 };

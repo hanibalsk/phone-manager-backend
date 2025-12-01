@@ -2,6 +2,7 @@
 
 pub mod admin;
 pub mod auth;
+pub mod bulk_import;
 pub mod device_policies;
 pub mod device_settings;
 pub mod devices;

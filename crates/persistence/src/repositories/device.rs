@@ -730,6 +730,111 @@ impl DeviceRepository {
             total_groups: group_count.0,
         })
     }
+
+    /// Find a device by external_id within an organization.
+    pub async fn find_by_external_id(
+        &self,
+        organization_id: Uuid,
+        external_id: &str,
+    ) -> Result<Option<DeviceEntity>, sqlx::Error> {
+        let result = sqlx::query_as::<_, DeviceEntity>(
+            r#"
+            SELECT id, device_id, display_name, group_id, platform, fcm_token,
+                   active, created_at, updated_at, last_seen_at,
+                   owner_user_id, organization_id, is_primary, linked_at
+            FROM devices
+            WHERE organization_id = $1 AND external_id = $2
+            "#,
+        )
+        .bind(organization_id)
+        .bind(external_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(result)
+    }
+
+    /// Create a device via bulk import.
+    pub async fn create_bulk_device(
+        &self,
+        organization_id: Uuid,
+        external_id: Option<&str>,
+        display_name: &str,
+        group_id: Option<&str>,
+        policy_id: Option<Uuid>,
+        assigned_user_id: Option<Uuid>,
+        metadata: Option<&serde_json::Value>,
+    ) -> Result<DeviceEntity, sqlx::Error> {
+        let device_uuid = Uuid::new_v4();
+        let now = Utc::now();
+
+        let result = sqlx::query_as::<_, DeviceEntity>(
+            r#"
+            INSERT INTO devices (
+                device_id, display_name, group_id, platform, active,
+                organization_id, is_managed, enrollment_status, external_id,
+                policy_id, assigned_user_id, metadata, created_at, updated_at
+            )
+            VALUES ($1, $2, $3, 'unknown', false, $4, true, 'pending', $5, $6, $7, $8, $9, $9)
+            RETURNING id, device_id, display_name, group_id, platform, fcm_token,
+                      active, created_at, updated_at, last_seen_at,
+                      owner_user_id, organization_id, is_primary, linked_at
+            "#,
+        )
+        .bind(device_uuid)
+        .bind(display_name)
+        .bind(group_id)
+        .bind(organization_id)
+        .bind(external_id)
+        .bind(policy_id)
+        .bind(assigned_user_id)
+        .bind(metadata)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(result)
+    }
+
+    /// Update an existing device via bulk import.
+    pub async fn update_bulk_device(
+        &self,
+        device_id: i64,
+        display_name: &str,
+        group_id: Option<&str>,
+        policy_id: Option<Uuid>,
+        assigned_user_id: Option<Uuid>,
+        metadata: Option<&serde_json::Value>,
+    ) -> Result<DeviceEntity, sqlx::Error> {
+        let now = Utc::now();
+
+        let result = sqlx::query_as::<_, DeviceEntity>(
+            r#"
+            UPDATE devices
+            SET display_name = $2,
+                group_id = COALESCE($3, group_id),
+                policy_id = COALESCE($4, policy_id),
+                assigned_user_id = COALESCE($5, assigned_user_id),
+                metadata = COALESCE($6, metadata),
+                updated_at = $7
+            WHERE id = $1
+            RETURNING id, device_id, display_name, group_id, platform, fcm_token,
+                      active, created_at, updated_at, last_seen_at,
+                      owner_user_id, organization_id, is_primary, linked_at
+            "#,
+        )
+        .bind(device_id)
+        .bind(display_name)
+        .bind(group_id)
+        .bind(policy_id)
+        .bind(assigned_user_id)
+        .bind(metadata)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(result)
+    }
 }
 
 /// Admin statistics about the system.
