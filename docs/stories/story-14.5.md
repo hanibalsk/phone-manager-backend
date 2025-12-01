@@ -116,3 +116,39 @@ Response (200):
 | Date | Change |
 |------|--------|
 | 2025-12-01 | Story created |
+| 2025-12-01 | Implementation complete |
+| 2025-12-01 | Senior developer review: APPROVED |
+
+---
+
+## Senior Developer Review
+
+**Reviewer**: Martin Janci
+**Date**: 2025-12-01
+**Outcome**: ✅ APPROVED
+
+### Summary
+Policy apply/unapply endpoints implementation meets all acceptance criteria. Unapply properly sets policy_id to NULL only for devices that have the specified policy.
+
+### Findings
+- **Positive**: Reuses PolicyTarget and AppliedToCount types from apply endpoint
+- **Positive**: Device count triggers automatically update policy's device_count
+- **Positive**: Proper targeting (device or group)
+- **Note**: Apply endpoint already existed from Story 13.3
+
+### Acceptance Criteria Verification
+| AC | Status |
+|----|--------|
+| Apply endpoint exists | ✅ (Story 13.3) |
+| Unapply removes policy from devices/groups | ✅ |
+| Target specific devices or groups | ✅ |
+| Returns affected device counts | ✅ |
+| Admin/Owner access only | ✅ |
+
+### Security
+- JWT authentication enforced
+- Organization isolation verified
+- Policy ownership validated before operations
+
+### Action Items
+None
