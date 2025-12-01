@@ -411,6 +411,57 @@ impl AuthService {
 
         Ok(())
     }
+
+    /// Logout by invalidating the session associated with the refresh token.
+    ///
+    /// If `all_devices` is true, invalidates all sessions for the user.
+    /// Otherwise, only invalidates the session identified by the refresh token.
+    pub async fn logout(
+        &self,
+        refresh_token: &str,
+        all_devices: bool,
+    ) -> Result<(), AuthError> {
+        // Validate the refresh token to get user ID
+        let claims = self
+            .jwt_config
+            .validate_refresh_token(refresh_token)
+            .map_err(|e| match e {
+                JwtError::TokenExpired => AuthError::InvalidRefreshToken,
+                JwtError::InvalidToken => AuthError::InvalidRefreshToken,
+                _ => AuthError::TokenError(e),
+            })?;
+
+        // Parse user ID from claims
+        let user_id =
+            Uuid::parse_str(&claims.sub).map_err(|_| AuthError::InvalidRefreshToken)?;
+
+        if all_devices {
+            // Delete all sessions for this user
+            sqlx::query("DELETE FROM user_sessions WHERE user_id = $1")
+                .bind(user_id)
+                .execute(&self.pool)
+                .await?;
+        } else {
+            // Hash the JTI to find the specific session
+            let jti_hash = sha256_hex(&claims.jti);
+
+            // Delete the specific session
+            let result = sqlx::query(
+                "DELETE FROM user_sessions WHERE refresh_token_hash = $1 AND user_id = $2",
+            )
+            .bind(&jti_hash)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+
+            // If no session was found, it's already logged out (not an error)
+            if result.rows_affected() == 0 {
+                tracing::debug!(user_id = %user_id, "Session not found during logout, may already be logged out");
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

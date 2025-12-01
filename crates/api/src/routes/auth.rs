@@ -277,6 +277,54 @@ pub async fn refresh(
     Ok(Json(response))
 }
 
+/// Request body for logout.
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct LogoutRequest {
+    /// The refresh token to invalidate
+    #[validate(length(min = 1, message = "Refresh token is required"))]
+    pub refresh_token: String,
+
+    /// If true, invalidate all sessions for the user
+    #[serde(default)]
+    pub all_devices: bool,
+}
+
+/// Logout and invalidate tokens.
+///
+/// POST /api/v1/auth/logout
+pub async fn logout(
+    State(state): State<AppState>,
+    Json(request): Json<LogoutRequest>,
+) -> Result<StatusCode, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    // Create auth service
+    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
+        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+
+    // Logout - invalidate the session
+    auth_service
+        .logout(&request.refresh_token, request.all_devices)
+        .await
+        .map_err(|e| match e {
+            AuthError::InvalidRefreshToken => {
+                ApiError::Unauthorized("Invalid or expired refresh token".to_string())
+            }
+            AuthError::TokenError(e) => {
+                tracing::error!("Token error during logout: {}", e);
+                ApiError::Unauthorized("Invalid or expired refresh token".to_string())
+            }
+            AuthError::DatabaseError(db_err) => ApiError::from(db_err),
+            _ => ApiError::Internal(e.to_string()),
+        })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -398,5 +446,44 @@ mod tests {
         };
 
         assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_logout_request_validation() {
+        let request = LogoutRequest {
+            refresh_token: "some.refresh.token".to_string(),
+            all_devices: false,
+        };
+
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_logout_request_with_all_devices() {
+        let request = LogoutRequest {
+            refresh_token: "some.refresh.token".to_string(),
+            all_devices: true,
+        };
+
+        assert!(request.validate().is_ok());
+        assert!(request.all_devices);
+    }
+
+    #[test]
+    fn test_logout_request_empty_token() {
+        let request = LogoutRequest {
+            refresh_token: "".to_string(),
+            all_devices: false,
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_logout_request_default_all_devices() {
+        // Test that all_devices defaults to false when not provided
+        let json = r#"{"refreshToken": "some.token"}"#;
+        let request: LogoutRequest = serde_json::from_str(json).unwrap();
+        assert!(!request.all_devices);
     }
 }
