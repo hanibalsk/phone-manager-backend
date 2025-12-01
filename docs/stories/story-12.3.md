@@ -1,7 +1,7 @@
 # Story 12.3: Update Device Settings Endpoint
 
 **Epic**: Epic 12 - Settings Control
-**Status**: In Progress
+**Status**: Done
 **Created**: 2025-12-01
 
 ---
@@ -41,15 +41,15 @@
 
 ## Implementation Tasks
 
-- [ ] Add update_device_settings method to SettingRepository
-- [ ] Add update_device_setting method (single) to SettingRepository
-- [ ] Create UpdateSettingsRequest and UpdateSettingsResponse DTOs
-- [ ] Create UpdateSettingRequest and UpdateSettingResponse DTOs
-- [ ] Add update_settings handler (bulk)
-- [ ] Add update_setting handler (single)
-- [ ] Implement lock bypass for admins
-- [ ] Add routes to app.rs
-- [ ] Add unit tests
+- [x] Add update_device_settings method to SettingRepository
+- [x] Add update_device_setting method (single) to SettingRepository
+- [x] Create UpdateSettingsRequest and UpdateSettingsResponse DTOs
+- [x] Create UpdateSettingRequest and UpdateSettingResponse DTOs
+- [x] Add update_settings handler (bulk)
+- [x] Add update_setting handler (single)
+- [x] Implement lock bypass for admins
+- [x] Add routes to app.rs
+- [x] Add unit tests
 
 ## API Request Example (Bulk)
 
@@ -100,6 +100,14 @@
 
 ### Completion Notes
 
+- Added update_device_settings bulk handler for updating multiple settings at once
+- Added update_device_setting single handler for updating individual settings
+- Implemented value type validation based on setting definition data types
+- Admin force override with `force=true` query parameter to bypass locks
+- Locked settings silently skipped for non-admin users (no error thrown)
+- Response includes which settings were updated, locked, and invalid
+- Added comprehensive unit tests for value type validation
+- All tests pass (73+ unit tests across workspace)
 
 ---
 

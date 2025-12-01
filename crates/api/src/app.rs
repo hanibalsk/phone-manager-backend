@@ -264,10 +264,15 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/users/:user_id/devices/:device_id/transfer",
             post(users::transfer_device),
         )
-        // Device settings endpoints (Story 12.2)
+        // Device settings endpoints (Story 12.2, 12.3)
         .route(
             "/api/v1/devices/:device_id/settings",
-            get(device_settings::get_device_settings),
+            get(device_settings::get_device_settings)
+                .put(device_settings::update_device_settings),
+        )
+        .route(
+            "/api/v1/devices/:device_id/settings/:key",
+            put(device_settings::update_device_setting),
         );
 
     // Group management routes (require JWT authentication)

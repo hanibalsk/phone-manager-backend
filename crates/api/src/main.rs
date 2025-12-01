@@ -2,14 +2,7 @@ use anyhow::Result;
 use std::time::Duration;
 use tracing::info;
 
-mod app;
-mod config;
-mod error;
-mod extractors;
-mod jobs;
-mod middleware;
-mod routes;
-mod services;
+use phone_manager_api::{app, config, jobs, middleware};
 
 #[tokio::main]
 async fn main() -> Result<()> {

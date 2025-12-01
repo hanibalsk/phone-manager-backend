@@ -47,3 +47,12 @@ mime_guess = "2.0"
 [dev-dependencies]
 tokio-test.workspace = true
 fake.workspace = true
+tower = { version = "0.4", features = ["util"] }
+
+[lib]
+name = "phone_manager_api"
+path = "src/lib.rs"
+
+[[test]]
+name = "auth_integration"
+path = "tests/auth_integration.rs"
