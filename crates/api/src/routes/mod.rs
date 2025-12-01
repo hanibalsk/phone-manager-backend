@@ -1,6 +1,7 @@
 //! HTTP route handlers.
 
 pub mod admin;
+pub mod auth;
 pub mod devices;
 pub mod geofences;
 pub mod health;

@@ -85,3 +85,20 @@ circuit_breaker_reset_secs = 60
 
 # Whether map-matching is enabled (can be disabled if service unavailable)
 enabled = false
+
+[jwt]
+# RSA private key in PEM format for signing tokens (REQUIRED for auth)
+# Set via PM__JWT__PRIVATE_KEY environment variable
+# Generate with: openssl genrsa -out private.pem 2048
+private_key = ""
+
+# RSA public key in PEM format for verifying tokens (REQUIRED for auth)
+# Set via PM__JWT__PUBLIC_KEY environment variable
+# Generate with: openssl rsa -in private.pem -pubout -out public.pem
+public_key = ""
+
+# Access token expiration in seconds (default: 1 hour)
+access_token_expiry_secs = 3600
+
+# Refresh token expiration in seconds (default: 30 days)
+refresh_token_expiry_secs = 2592000

@@ -12,6 +12,8 @@ pub struct Config {
     pub limits: LimitsConfig,
     #[allow(dead_code)] // Used in Story 8.3 for automatic path correction
     pub map_matching: MapMatchingConfig,
+    /// JWT authentication configuration
+    pub jwt: JwtAuthConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -182,6 +184,31 @@ fn default_circuit_breaker_reset_secs() -> u64 {
     60
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct JwtAuthConfig {
+    /// RSA private key in PEM format for signing tokens
+    pub private_key: String,
+
+    /// RSA public key in PEM format for verifying tokens
+    pub public_key: String,
+
+    /// Access token expiration in seconds (default: 3600 = 1 hour)
+    #[serde(default = "default_access_token_expiry")]
+    pub access_token_expiry_secs: i64,
+
+    /// Refresh token expiration in seconds (default: 2592000 = 30 days)
+    #[serde(default = "default_refresh_token_expiry")]
+    pub refresh_token_expiry_secs: i64,
+}
+
+fn default_access_token_expiry() -> i64 {
+    3600 // 1 hour
+}
+
+fn default_refresh_token_expiry() -> i64 {
+    2592000 // 30 days
+}
+
 /// Configuration validation error
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigValidationError {
@@ -256,6 +283,12 @@ impl Config {
             circuit_breaker_failures = 5
             circuit_breaker_reset_secs = 60
             enabled = false
+
+            [jwt]
+            private_key = "test-private-key"
+            public_key = "test-public-key"
+            access_token_expiry_secs = 3600
+            refresh_token_expiry_secs = 2592000
         "#;
 
         let mut builder = config::Config::builder()

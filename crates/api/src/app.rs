@@ -19,7 +19,7 @@ use crate::middleware::{
     security_headers_middleware, trace_id, RateLimiterState,
 };
 use crate::routes::{
-    admin, devices, geofences, health, locations, movement_events, openapi, privacy,
+    admin, auth, devices, geofences, health, locations, movement_events, openapi, privacy,
     proximity_alerts, trips, versioning,
 };
 use crate::services::map_matching::MapMatchingClient;
@@ -220,6 +220,10 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             post(versioning::redirect_locations_batch),
         );
 
+    // Auth routes (public, no authentication required)
+    let auth_routes = Router::new()
+        .route("/api/v1/auth/register", post(auth::register));
+
     // Public routes (no authentication required)
     let public_routes = Router::new()
         .route("/api/health", get(health::health_check))
@@ -237,6 +241,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
     // Merge all routes
     Router::new()
         .merge(public_routes)
+        .merge(auth_routes)
         .merge(openapi_routes)
         .merge(protected_routes)
         .merge(admin_routes)
