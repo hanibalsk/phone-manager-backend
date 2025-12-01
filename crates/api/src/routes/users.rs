@@ -2,7 +2,7 @@
 //! Also includes device binding endpoints for linking/unlinking devices to users.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 use chrono::{DateTime, Utc};
@@ -309,6 +309,99 @@ pub async fn link_device(
                 .unwrap_or_default(),
         },
         linked: true,
+    }))
+}
+
+/// Path parameters for user devices list endpoint.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserDevicesPath {
+    pub user_id: Uuid,
+}
+
+/// Query parameters for listing user devices.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListUserDevicesQuery {
+    /// Include inactive devices in the list (default: false)
+    #[serde(default)]
+    pub include_inactive: bool,
+}
+
+/// Device information in user's device list.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserDeviceResponse {
+    pub id: i64,
+    pub device_uuid: String,
+    pub display_name: String,
+    pub platform: String,
+    pub is_primary: bool,
+    pub active: bool,
+    pub linked_at: Option<String>,
+    pub last_seen_at: Option<String>,
+}
+
+/// Response for listing user's devices.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListUserDevicesResponse {
+    pub devices: Vec<UserDeviceResponse>,
+    pub count: usize,
+}
+
+/// List devices owned by the authenticated user.
+///
+/// GET /api/v1/users/:user_id/devices
+///
+/// Requires JWT authentication. User can only list their own devices.
+pub async fn list_user_devices(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(path): Path<UserDevicesPath>,
+    Query(query): Query<ListUserDevicesQuery>,
+) -> Result<Json<ListUserDevicesResponse>, ApiError> {
+    // Check that user is listing their own devices
+    if path.user_id != user_auth.user_id {
+        return Err(ApiError::Forbidden(
+            "You can only list your own devices".to_string(),
+        ));
+    }
+
+    let repo = DeviceRepository::new(state.pool.clone());
+
+    // Fetch devices for user
+    let devices = repo
+        .find_devices_by_user(user_auth.user_id, query.include_inactive)
+        .await?;
+
+    // Transform to response DTOs
+    let device_responses: Vec<UserDeviceResponse> = devices
+        .into_iter()
+        .map(|d| UserDeviceResponse {
+            id: d.id,
+            device_uuid: d.device_id.to_string(),
+            display_name: d.display_name,
+            platform: d.platform,
+            is_primary: d.is_primary,
+            active: d.active,
+            linked_at: d.linked_at.map(|t| t.to_rfc3339()),
+            last_seen_at: d.last_seen_at.map(|t| t.to_rfc3339()),
+        })
+        .collect();
+
+    let count = device_responses.len();
+
+    info!(
+        user_id = %user_auth.user_id,
+        device_count = count,
+        include_inactive = query.include_inactive,
+        "Listed user devices"
+    );
+
+    Ok(Json(ListUserDevicesResponse {
+        devices: device_responses,
+        count,
     }))
 }
 

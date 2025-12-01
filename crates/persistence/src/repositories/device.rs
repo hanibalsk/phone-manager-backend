@@ -316,6 +316,7 @@ impl DeviceRepository {
     }
 
     /// Find all devices owned by a user.
+    /// Returns devices ordered by: primary first, then by linked_at descending.
     pub async fn find_devices_by_user(
         &self,
         user_id: Uuid,
@@ -330,7 +331,7 @@ impl DeviceRepository {
                        owner_user_id, organization_id, is_primary, linked_at
                 FROM devices
                 WHERE owner_user_id = $1
-                ORDER BY is_primary DESC, display_name ASC
+                ORDER BY is_primary DESC, linked_at DESC NULLS LAST
                 "#,
             )
             .bind(user_id)
@@ -344,7 +345,7 @@ impl DeviceRepository {
                        owner_user_id, organization_id, is_primary, linked_at
                 FROM devices
                 WHERE owner_user_id = $1 AND active = true
-                ORDER BY is_primary DESC, display_name ASC
+                ORDER BY is_primary DESC, linked_at DESC NULLS LAST
                 "#,
             )
             .bind(user_id)

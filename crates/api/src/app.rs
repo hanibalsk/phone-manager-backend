@@ -250,6 +250,10 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/v1/users/:user_id/devices/:device_id/link",
             post(users::link_device),
+        )
+        .route(
+            "/api/v1/users/:user_id/devices",
+            get(users::list_user_devices),
         );
 
     // Public routes (no authentication required)
