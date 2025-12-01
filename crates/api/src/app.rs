@@ -19,9 +19,9 @@ use crate::middleware::{
     security_headers_middleware, trace_id, RateLimiterState,
 };
 use crate::routes::{
-    admin, auth, device_policies, device_settings, devices, geofences, groups, health, invites,
-    locations, movement_events, openapi, organizations, privacy, proximity_alerts, trips, users,
-    versioning,
+    admin, auth, device_policies, device_settings, devices, enrollment_tokens, geofences, groups,
+    health, invites, locations, movement_events, openapi, organizations, privacy, proximity_alerts,
+    trips, users, versioning,
 };
 use crate::services::map_matching::MapMatchingClient;
 use domain::services::{MockNotificationService, NotificationService};
@@ -250,6 +250,21 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/admin/v1/organizations/:org_id/policies/:policy_id/apply",
             post(device_policies::apply_policy),
+        )
+        // Enrollment token management routes (Story 13.4)
+        .route(
+            "/api/admin/v1/organizations/:org_id/enrollment-tokens",
+            post(enrollment_tokens::create_enrollment_token)
+                .get(enrollment_tokens::list_enrollment_tokens),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/enrollment-tokens/:token_id",
+            get(enrollment_tokens::get_enrollment_token)
+                .delete(enrollment_tokens::revoke_enrollment_token),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/enrollment-tokens/:token_id/qr",
+            get(enrollment_tokens::get_enrollment_token_qr),
         )
         // Rate limiting for admin routes (separate, higher limit could be configured)
         .route_layer(middleware::from_fn_with_state(

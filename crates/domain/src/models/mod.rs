@@ -2,6 +2,7 @@
 
 pub mod device;
 pub mod device_policy;
+pub mod enrollment_token;
 pub mod geofence;
 pub mod group;
 pub mod invite;
@@ -21,6 +22,11 @@ pub use device_policy::{
     AppliedToCount, ApplyPolicyRequest, ApplyPolicyResponse, CreateDevicePolicyRequest,
     DevicePolicy, DevicePolicyPagination, DevicePolicyResponse, ListDevicePoliciesQuery,
     ListDevicePoliciesResponse, PolicyTarget, PolicyTargetType, UpdateDevicePolicyRequest,
+};
+pub use enrollment_token::{
+    CreateEnrollmentTokenRequest, EnrollmentToken, EnrollmentTokenPagination,
+    EnrollmentTokenResponse, ListEnrollmentTokensQuery, ListEnrollmentTokensResponse, QrCodeResponse,
+    calculate_expiry, extract_prefix, generate_token,
 };
 pub use geofence::Geofence;
 pub use group::{Group, GroupMembership, GroupRole};

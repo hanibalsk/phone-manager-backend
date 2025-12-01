@@ -5,6 +5,7 @@
 pub mod api_key;
 pub mod device;
 pub mod device_policy;
+pub mod enrollment_token;
 pub mod geofence;
 pub mod group;
 pub mod idempotency_key;
@@ -23,6 +24,7 @@ pub mod user;
 pub use api_key::ApiKeyEntity;
 pub use device::{DeviceEntity, DeviceWithLastLocationEntity};
 pub use device_policy::DevicePolicyEntity;
+pub use enrollment_token::EnrollmentTokenEntity;
 pub use geofence::GeofenceEntity;
 pub use group::{
     GroupEntity, GroupMembershipEntity, GroupRoleDb, GroupWithMembershipEntity, MemberWithUserEntity,

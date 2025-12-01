@@ -5,6 +5,7 @@ pub mod auth;
 pub mod device_policies;
 pub mod device_settings;
 pub mod devices;
+pub mod enrollment_tokens;
 pub mod geofences;
 pub mod groups;
 pub mod health;
