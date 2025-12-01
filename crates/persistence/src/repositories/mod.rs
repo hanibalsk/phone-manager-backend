@@ -2,6 +2,7 @@
 
 pub mod api_key;
 pub mod device;
+pub mod device_command;
 pub mod device_policy;
 pub mod device_token;
 pub mod enrollment_token;
@@ -21,7 +22,8 @@ pub mod unlock_request;
 pub mod user;
 
 pub use api_key::ApiKeyRepository;
-pub use device::{AdminStats, DeviceRepository};
+pub use device::{AdminStats, DeviceRepository, FleetSummaryCounts};
+pub use device_command::DeviceCommandRepository;
 pub use device_policy::DevicePolicyRepository;
 pub use device_token::DeviceTokenRepository;
 pub use enrollment_token::EnrollmentTokenRepository;

@@ -20,7 +20,7 @@ use crate::middleware::{
 };
 use crate::routes::{
     admin, auth, device_policies, device_settings, devices, enrollment, enrollment_tokens,
-    geofences, groups, health, invites, locations, movement_events, openapi, organizations,
+    fleet, geofences, groups, health, invites, locations, movement_events, openapi, organizations,
     privacy, proximity_alerts, trips, users, versioning,
 };
 use crate::services::map_matching::MapMatchingClient;
@@ -265,6 +265,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/admin/v1/organizations/:org_id/enrollment-tokens/:token_id/qr",
             get(enrollment_tokens::get_enrollment_token_qr),
+        )
+        // Fleet management routes (Story 13.7)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/devices",
+            fleet::router(),
         )
         // Rate limiting for admin routes (separate, higher limit could be configured)
         .route_layer(middleware::from_fn_with_state(

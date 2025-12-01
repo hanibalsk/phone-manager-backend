@@ -7,6 +7,7 @@ pub mod device_settings;
 pub mod devices;
 pub mod enrollment;
 pub mod enrollment_tokens;
+pub mod fleet;
 pub mod geofences;
 pub mod groups;
 pub mod health;

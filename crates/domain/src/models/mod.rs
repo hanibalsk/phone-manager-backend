@@ -5,6 +5,7 @@ pub mod device_policy;
 pub mod device_token;
 pub mod enrollment;
 pub mod enrollment_token;
+pub mod fleet;
 pub mod geofence;
 pub mod group;
 pub mod invite;
@@ -66,4 +67,11 @@ pub use device_token::{
 pub use enrollment::{
     DeviceInfo, EnrollDeviceRequest, EnrollDeviceResponse, EnrolledDevice, EnrollmentGroupInfo,
     EnrollmentPolicyInfo,
+};
+pub use fleet::{
+    AssignDeviceRequest, AssignDeviceResponse, AssignedUserInfo, DeviceCommand, DeviceCommandStatus,
+    DeviceCommandType, DeviceStatusChangeResponse, FleetDeviceItem, FleetDeviceListResponse,
+    FleetDeviceQuery, FleetGroupInfo, FleetLastLocation, FleetPagination, FleetPolicyInfo,
+    FleetSortField, FleetSummary, IssueCommandRequest, IssueCommandResponse, SortOrder,
+    UnassignDeviceResponse,
 };

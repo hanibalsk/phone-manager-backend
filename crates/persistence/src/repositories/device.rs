@@ -510,6 +510,189 @@ impl DeviceRepository {
         result
     }
 
+    /// Assign a user to a managed device.
+    pub async fn assign_user(
+        &self,
+        device_id: i64,
+        user_id: Uuid,
+    ) -> Result<DeviceEntity, sqlx::Error> {
+        let now = Utc::now();
+        let timer = QueryTimer::new("assign_user_to_device");
+        let result = sqlx::query_as::<_, DeviceEntity>(
+            r#"
+            UPDATE devices
+            SET assigned_user_id = $2,
+                updated_at = $3
+            WHERE id = $1
+            RETURNING id, device_id, display_name, group_id, platform, fcm_token,
+                      active, created_at, updated_at, last_seen_at,
+                      owner_user_id, organization_id, is_primary, linked_at
+            "#,
+        )
+        .bind(device_id)
+        .bind(user_id)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
+    /// Unassign user from a managed device.
+    pub async fn unassign_user(&self, device_id: i64) -> Result<DeviceEntity, sqlx::Error> {
+        let now = Utc::now();
+        let timer = QueryTimer::new("unassign_user_from_device");
+        let result = sqlx::query_as::<_, DeviceEntity>(
+            r#"
+            UPDATE devices
+            SET assigned_user_id = NULL,
+                updated_at = $2
+            WHERE id = $1
+            RETURNING id, device_id, display_name, group_id, platform, fcm_token,
+                      active, created_at, updated_at, last_seen_at,
+                      owner_user_id, organization_id, is_primary, linked_at
+            "#,
+        )
+        .bind(device_id)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
+    /// Update device enrollment status.
+    pub async fn update_enrollment_status(
+        &self,
+        device_id: i64,
+        new_status: &str,
+    ) -> Result<DeviceEntity, sqlx::Error> {
+        let now = Utc::now();
+        let timer = QueryTimer::new("update_enrollment_status");
+        let result = sqlx::query_as::<_, DeviceEntity>(
+            r#"
+            UPDATE devices
+            SET enrollment_status = $2::enrollment_status,
+                updated_at = $3
+            WHERE id = $1
+            RETURNING id, device_id, display_name, group_id, platform, fcm_token,
+                      active, created_at, updated_at, last_seen_at,
+                      owner_user_id, organization_id, is_primary, linked_at
+            "#,
+        )
+        .bind(device_id)
+        .bind(new_status)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
+    /// Get device enrollment status.
+    pub async fn get_enrollment_status(&self, device_id: i64) -> Result<Option<String>, sqlx::Error> {
+        let result: Option<(Option<String>,)> = sqlx::query_as(
+            r#"
+            SELECT enrollment_status::TEXT
+            FROM devices
+            WHERE id = $1
+            "#,
+        )
+        .bind(device_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(result.and_then(|r| r.0))
+    }
+
+    /// Get fleet summary counts for an organization.
+    pub async fn get_fleet_summary(&self, organization_id: Uuid) -> Result<FleetSummaryCounts, sqlx::Error> {
+        let result: FleetSummaryCounts = sqlx::query_as(
+            r#"
+            SELECT
+                COUNT(*) FILTER (WHERE enrollment_status = 'enrolled') as enrolled,
+                COUNT(*) FILTER (WHERE enrollment_status = 'pending') as pending,
+                COUNT(*) FILTER (WHERE enrollment_status = 'suspended') as suspended,
+                COUNT(*) FILTER (WHERE enrollment_status = 'retired') as retired,
+                COUNT(*) FILTER (WHERE assigned_user_id IS NOT NULL) as assigned,
+                COUNT(*) FILTER (WHERE assigned_user_id IS NULL AND is_managed = true) as unassigned
+            FROM devices
+            WHERE organization_id = $1 AND is_managed = true
+            "#,
+        )
+        .bind(organization_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(result)
+    }
+
+    /// Count devices in organization matching filters.
+    pub async fn count_fleet_devices(
+        &self,
+        organization_id: Uuid,
+        status_filter: Option<&str>,
+        group_id_filter: Option<&str>,
+        policy_id_filter: Option<Uuid>,
+        assigned_filter: Option<bool>,
+        search_filter: Option<&str>,
+    ) -> Result<i64, sqlx::Error> {
+        let mut query = String::from(
+            r#"
+            SELECT COUNT(*)
+            FROM devices
+            WHERE organization_id = $1 AND is_managed = true
+            "#,
+        );
+
+        let mut param_idx = 2;
+
+        if status_filter.is_some() {
+            query.push_str(&format!(" AND enrollment_status = ${}::enrollment_status", param_idx));
+            param_idx += 1;
+        }
+        if group_id_filter.is_some() {
+            query.push_str(&format!(" AND group_id = ${}", param_idx));
+            param_idx += 1;
+        }
+        if policy_id_filter.is_some() {
+            query.push_str(&format!(" AND policy_id = ${}", param_idx));
+            param_idx += 1;
+        }
+        if let Some(assigned) = assigned_filter {
+            if assigned {
+                query.push_str(" AND assigned_user_id IS NOT NULL");
+            } else {
+                query.push_str(" AND assigned_user_id IS NULL");
+            }
+        }
+        if search_filter.is_some() {
+            query.push_str(&format!(
+                " AND (display_name ILIKE ${} OR device_id::TEXT ILIKE ${})",
+                param_idx,
+                param_idx
+            ));
+        }
+
+        let mut q = sqlx::query_as::<_, (i64,)>(&query).bind(organization_id);
+
+        if let Some(status) = status_filter {
+            q = q.bind(status);
+        }
+        if let Some(group_id) = group_id_filter {
+            q = q.bind(group_id);
+        }
+        if let Some(policy_id) = policy_id_filter {
+            q = q.bind(policy_id);
+        }
+        if let Some(search) = search_filter {
+            q = q.bind(format!("%{}%", search));
+        }
+
+        let result = q.fetch_one(&self.pool).await?;
+        Ok(result.0)
+    }
+
     /// Get admin statistics about devices and locations.
     pub async fn get_admin_stats(&self) -> Result<AdminStats, sqlx::Error> {
         let device_stats: (i64, i64) = sqlx::query_as(
@@ -558,6 +741,18 @@ pub struct AdminStats {
     pub inactive_devices: i64,
     pub total_locations: i64,
     pub total_groups: i64,
+}
+
+/// Fleet summary counts for an organization.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct FleetSummaryCounts {
+    pub enrolled: i64,
+    pub pending: i64,
+    pub suspended: i64,
+    pub retired: i64,
+    pub assigned: i64,
+    pub unassigned: i64,
 }
 
 #[cfg(test)]

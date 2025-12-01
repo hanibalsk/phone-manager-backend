@@ -4,6 +4,7 @@
 
 pub mod api_key;
 pub mod device;
+pub mod device_command;
 pub mod device_policy;
 pub mod device_token;
 pub mod enrollment_token;
@@ -24,6 +25,7 @@ pub mod user;
 
 pub use api_key::ApiKeyEntity;
 pub use device::{DeviceEntity, DeviceWithLastLocationEntity};
+pub use device_command::DeviceCommandEntity;
 pub use device_policy::DevicePolicyEntity;
 pub use device_token::DeviceTokenEntity;
 pub use enrollment_token::EnrollmentTokenEntity;

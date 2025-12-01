@@ -116,6 +116,20 @@ impl std::fmt::Display for EnrollmentStatus {
     }
 }
 
+impl std::str::FromStr for EnrollmentStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "pending" => Ok(Self::Pending),
+            "enrolled" => Ok(Self::Enrolled),
+            "suspended" => Ok(Self::Suspended),
+            "retired" => Ok(Self::Retired),
+            _ => Err(format!("Unknown enrollment status: {}", s)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
