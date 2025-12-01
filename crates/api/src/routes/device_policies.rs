@@ -16,7 +16,8 @@ use crate::error::ApiError;
 use domain::models::{
     AppliedToCount, ApplyPolicyRequest, ApplyPolicyResponse, CreateDevicePolicyRequest,
     DevicePolicy, DevicePolicyPagination, DevicePolicyResponse, ListDevicePoliciesQuery,
-    ListDevicePoliciesResponse, PolicyTargetType, UpdateDevicePolicyRequest,
+    ListDevicePoliciesResponse, PolicyTargetType, UnapplyPolicyRequest, UnapplyPolicyResponse,
+    UpdateDevicePolicyRequest,
 };
 
 /// Create a new device policy.
@@ -294,6 +295,76 @@ pub async fn apply_policy(
     Ok(Json(ApplyPolicyResponse {
         policy_id,
         applied_to: AppliedToCount {
+            devices: device_ids.len() as i64,
+            groups: groups_count,
+        },
+        total_devices_affected: devices_affected,
+    }))
+}
+
+/// Unapply a policy from devices/groups.
+///
+/// POST /api/admin/v1/organizations/:org_id/policies/:policy_id/unapply
+pub async fn unapply_policy(
+    State(state): State<AppState>,
+    Path((org_id, policy_id)): Path<(Uuid, Uuid)>,
+    Json(request): Json<UnapplyPolicyRequest>,
+) -> Result<Json<UnapplyPolicyResponse>, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
+
+    let repo = DevicePolicyRepository::new(state.pool.clone());
+
+    // Verify policy exists and belongs to organization
+    let policy: DevicePolicy = repo
+        .find_by_id(policy_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device policy not found".to_string()))?;
+
+    if policy.organization_id != org_id {
+        return Err(ApiError::NotFound("Device policy not found".to_string()));
+    }
+
+    let mut devices_affected: i64 = 0;
+    let mut groups_count: i64 = 0;
+    let mut device_ids = Vec::new();
+    let mut group_ids = Vec::new();
+
+    // Separate targets by type
+    for target in &request.targets {
+        match target.target_type {
+            PolicyTargetType::Device => device_ids.push(target.id),
+            PolicyTargetType::Group => group_ids.push(target.id),
+        }
+    }
+
+    // Unapply from individual devices
+    if !device_ids.is_empty() {
+        devices_affected += repo
+            .unapply_from_devices(policy_id, &device_ids)
+            .await?;
+    }
+
+    // Unapply from groups
+    for group_id in &group_ids {
+        let affected = repo.unapply_from_group(policy_id, *group_id).await?;
+        devices_affected += affected;
+        groups_count += 1;
+    }
+
+    tracing::info!(
+        policy_id = %policy_id,
+        organization_id = %org_id,
+        devices = devices_affected,
+        groups = groups_count,
+        "Policy unapplied"
+    );
+
+    Ok(Json(UnapplyPolicyResponse {
+        policy_id,
+        unapplied_from: AppliedToCount {
             devices: device_ids.len() as i64,
             groups: groups_count,
         },

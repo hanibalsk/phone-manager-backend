@@ -263,6 +263,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/admin/v1/organizations/:org_id/policies/:policy_id/apply",
             post(device_policies::apply_policy),
         )
+        // Policy unapply endpoint (Story 14.5)
+        .route(
+            "/api/admin/v1/organizations/:org_id/policies/:policy_id/unapply",
+            post(device_policies::unapply_policy),
+        )
         // Enrollment token management routes (Story 13.4)
         .route(
             "/api/admin/v1/organizations/:org_id/enrollment-tokens",

@@ -29,7 +29,8 @@ pub use device::Device;
 pub use device_policy::{
     AppliedToCount, ApplyPolicyRequest, ApplyPolicyResponse, CreateDevicePolicyRequest,
     DevicePolicy, DevicePolicyPagination, DevicePolicyResponse, ListDevicePoliciesQuery,
-    ListDevicePoliciesResponse, PolicyTarget, PolicyTargetType, UpdateDevicePolicyRequest,
+    ListDevicePoliciesResponse, PolicyTarget, PolicyTargetType, UnapplyPolicyRequest,
+    UnapplyPolicyResponse, UpdateDevicePolicyRequest,
 };
 pub use enrollment_token::{
     CreateEnrollmentTokenRequest, EnrollmentToken, EnrollmentTokenPagination,

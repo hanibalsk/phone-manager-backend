@@ -326,6 +326,48 @@ impl DevicePolicyRepository {
 
         Ok(count)
     }
+
+    /// Remove policy from specific devices.
+    pub async fn unapply_from_devices(
+        &self,
+        policy_id: Uuid,
+        device_ids: &[Uuid],
+    ) -> Result<i64, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            UPDATE devices
+            SET policy_id = NULL
+            WHERE id = ANY($1) AND policy_id = $2
+            "#,
+        )
+        .bind(device_ids)
+        .bind(policy_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() as i64)
+    }
+
+    /// Remove policy from all devices in a group.
+    pub async fn unapply_from_group(
+        &self,
+        policy_id: Uuid,
+        group_id: Uuid,
+    ) -> Result<i64, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            UPDATE devices
+            SET policy_id = NULL
+            WHERE group_id = $1 AND policy_id = $2
+            "#,
+        )
+        .bind(group_id.to_string())
+        .bind(policy_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() as i64)
+    }
 }
 
 #[cfg(test)]

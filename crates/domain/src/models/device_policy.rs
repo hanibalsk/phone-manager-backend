@@ -165,6 +165,23 @@ pub struct AppliedToCount {
     pub groups: i64,
 }
 
+/// Request to unapply a policy from targets.
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct UnapplyPolicyRequest {
+    #[validate(length(min = 1, max = 100, message = "Must specify 1-100 targets"))]
+    pub targets: Vec<PolicyTarget>,
+}
+
+/// Response for policy unapplication.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnapplyPolicyResponse {
+    pub policy_id: Uuid,
+    pub unapplied_from: AppliedToCount,
+    pub total_devices_affected: i64,
+}
+
 /// Validate locked settings array.
 fn validate_locked_settings(settings: &[String]) -> Result<(), validator::ValidationError> {
     if settings.len() > 100 {
