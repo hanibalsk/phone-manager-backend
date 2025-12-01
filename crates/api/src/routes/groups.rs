@@ -6,8 +6,9 @@ use axum::{
     Json,
 };
 use domain::models::group::{
-    generate_slug, CreateGroupRequest, CreateGroupResponse, GroupDetail, GroupSummary,
-    ListGroupsQuery, ListGroupsResponse, MembershipInfo, UpdateGroupRequest,
+    generate_slug, CreateGroupRequest, CreateGroupResponse, GroupDetail, GroupRole, GroupSummary,
+    ListGroupsQuery, ListGroupsResponse, ListMembersQuery, ListMembersResponse, MemberResponse,
+    MembershipInfo, Pagination, UpdateGroupRequest, UserPublic,
 };
 use persistence::repositories::GroupRepository;
 use tracing::info;
@@ -324,10 +325,211 @@ pub async fn delete_group(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// =============================================================================
+// Membership Endpoints (Story 11.2)
+// =============================================================================
+
+/// List group members.
+///
+/// GET /api/v1/groups/:group_id/members
+///
+/// Requires JWT authentication. User must be a member of the group.
+pub async fn list_members(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(group_id): Path<Uuid>,
+    Query(query): Query<ListMembersQuery>,
+) -> Result<Json<ListMembersResponse>, ApiError> {
+    let repo = GroupRepository::new(state.pool.clone());
+
+    // Check user is a member of the group
+    let _membership = repo
+        .get_membership(group_id, user_auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Group not found or you are not a member".to_string()))?;
+
+    // Pagination defaults
+    let page = query.page.unwrap_or(1).max(1);
+    let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
+    let offset = (page - 1) * per_page;
+
+    // Get total count
+    let total = repo
+        .count_members(group_id, query.role.as_deref())
+        .await?;
+
+    // Get members
+    let members = repo
+        .list_members(group_id, query.role.as_deref(), per_page, offset)
+        .await?;
+
+    // Transform to response DTOs
+    let member_responses: Vec<MemberResponse> = members
+        .into_iter()
+        .map(|m| MemberResponse {
+            id: m.id,
+            user: UserPublic {
+                id: m.user_id,
+                display_name: m.display_name,
+                avatar_url: m.avatar_url,
+            },
+            role: m.role.into(),
+            joined_at: m.joined_at,
+            invited_by: m.invited_by,
+            devices: None, // TODO: implement include_devices in future story
+        })
+        .collect();
+
+    let total_pages = (total as f64 / per_page as f64).ceil() as i64;
+
+    info!(
+        group_id = %group_id,
+        user_id = %user_auth.user_id,
+        member_count = member_responses.len(),
+        page = page,
+        "Listed group members"
+    );
+
+    Ok(Json(ListMembersResponse {
+        data: member_responses,
+        pagination: Pagination {
+            page,
+            per_page,
+            total,
+            total_pages,
+        },
+    }))
+}
+
+/// Get member details.
+///
+/// GET /api/v1/groups/:group_id/members/:user_id
+///
+/// Requires JWT authentication. User must be a member of the group.
+pub async fn get_member(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path((group_id, target_user_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<MemberResponse>, ApiError> {
+    let repo = GroupRepository::new(state.pool.clone());
+
+    // Check user is a member of the group
+    let _membership = repo
+        .get_membership(group_id, user_auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Group not found or you are not a member".to_string()))?;
+
+    // Get target member
+    let member = repo
+        .get_member_with_user(group_id, target_user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Member not found".to_string()))?;
+
+    info!(
+        group_id = %group_id,
+        user_id = %user_auth.user_id,
+        target_user_id = %target_user_id,
+        "Retrieved member details"
+    );
+
+    Ok(Json(MemberResponse {
+        id: member.id,
+        user: UserPublic {
+            id: member.user_id,
+            display_name: member.display_name,
+            avatar_url: member.avatar_url,
+        },
+        role: member.role.into(),
+        joined_at: member.joined_at,
+        invited_by: member.invited_by,
+        devices: None,
+    }))
+}
+
+/// Remove member from group.
+///
+/// DELETE /api/v1/groups/:group_id/members/:user_id
+///
+/// Requires JWT authentication.
+/// - Admins/owners can remove other members (but not the owner)
+/// - Members can remove themselves (leave group)
+/// - Owner cannot leave without transferring ownership first
+pub async fn remove_member(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path((group_id, target_user_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, ApiError> {
+    let repo = GroupRepository::new(state.pool.clone());
+
+    // Check user is a member of the group
+    let actor_membership = repo
+        .get_membership(group_id, user_auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Group not found or you are not a member".to_string()))?;
+
+    let actor_role: GroupRole = actor_membership.role.into();
+    let is_self_removal = user_auth.user_id == target_user_id;
+
+    if is_self_removal {
+        // Self-removal (leaving the group)
+        if actor_role == GroupRole::Owner {
+            return Err(ApiError::Forbidden(
+                "Owner cannot leave the group. Transfer ownership first.".to_string(),
+            ));
+        }
+        // Allow self-removal for non-owners
+    } else {
+        // Removing another member
+        if !actor_role.can_manage_members() {
+            return Err(ApiError::Forbidden(
+                "Only admins and owners can remove other members".to_string(),
+            ));
+        }
+
+        // Check target member exists and their role
+        let target_membership = repo
+            .get_membership(group_id, target_user_id)
+            .await?
+            .ok_or_else(|| ApiError::NotFound("Member not found".to_string()))?;
+
+        let target_role: GroupRole = target_membership.role.into();
+
+        // Cannot remove the owner
+        if target_role == GroupRole::Owner {
+            return Err(ApiError::Forbidden(
+                "Cannot remove the group owner. Transfer ownership first.".to_string(),
+            ));
+        }
+
+        // Admins cannot remove other admins (only owner can)
+        if actor_role == GroupRole::Admin && target_role == GroupRole::Admin {
+            return Err(ApiError::Forbidden(
+                "Admins cannot remove other admins".to_string(),
+            ));
+        }
+    }
+
+    // Remove the member
+    let rows_affected = repo.remove_member(group_id, target_user_id).await?;
+
+    if rows_affected == 0 {
+        return Err(ApiError::NotFound("Member not found".to_string()));
+    }
+
+    info!(
+        group_id = %group_id,
+        actor_user_id = %user_auth.user_id,
+        removed_user_id = %target_user_id,
+        is_self_removal = is_self_removal,
+        "Member removed from group"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::models::group::GroupRole;
 
     #[test]
     fn test_generate_slug_simple() {
@@ -348,9 +550,13 @@ mod tests {
     fn test_group_role_permissions() {
         assert!(GroupRole::Owner.can_manage_group());
         assert!(GroupRole::Owner.can_delete_group());
+        assert!(GroupRole::Owner.can_manage_members());
         assert!(GroupRole::Admin.can_manage_group());
         assert!(!GroupRole::Admin.can_delete_group());
+        assert!(GroupRole::Admin.can_manage_members());
         assert!(!GroupRole::Member.can_manage_group());
+        assert!(!GroupRole::Member.can_manage_members());
         assert!(!GroupRole::Viewer.can_manage_group());
+        assert!(!GroupRole::Viewer.can_manage_members());
     }
 }

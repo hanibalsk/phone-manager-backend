@@ -215,6 +215,87 @@ pub struct ListGroupsResponse {
     pub count: usize,
 }
 
+// ============================================================================
+// Membership DTOs (Story 11.2)
+// ============================================================================
+
+/// Query parameters for listing members.
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ListMembersQuery {
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+    pub role: Option<String>,
+    pub include_devices: Option<bool>,
+}
+
+/// Pagination info for list responses.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pagination {
+    pub page: i64,
+    pub per_page: i64,
+    pub total: i64,
+    pub total_pages: i64,
+}
+
+/// Public user info (no sensitive data like email).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserPublic {
+    pub id: Uuid,
+    pub display_name: Option<String>,
+    pub avatar_url: Option<String>,
+}
+
+/// Device info for member listing.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberDeviceInfo {
+    pub id: Uuid,
+    pub display_name: String,
+    pub last_seen_at: Option<DateTime<Utc>>,
+    pub last_location: Option<LastLocationInfo>,
+}
+
+/// Last location info for device.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LastLocationInfo {
+    pub latitude: f64,
+    pub longitude: f64,
+}
+
+/// Member response in list.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberResponse {
+    pub id: Uuid,
+    pub user: UserPublic,
+    pub role: GroupRole,
+    pub joined_at: DateTime<Utc>,
+    pub invited_by: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub devices: Option<Vec<MemberDeviceInfo>>,
+}
+
+/// Response for listing members.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListMembersResponse {
+    pub data: Vec<MemberResponse>,
+    pub pagination: Pagination,
+}
+
+/// Response when removing a member.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoveMemberResponse {
+    pub removed: bool,
+    pub user_id: Uuid,
+    pub group_id: Uuid,
+}
+
 /// Helper function to generate URL-safe slug from name.
 pub fn generate_slug(name: &str) -> String {
     name.to_lowercase()

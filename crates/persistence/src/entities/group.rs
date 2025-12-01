@@ -119,3 +119,18 @@ pub struct GroupWithMembershipEntity {
     pub member_count: i64,
     pub device_count: i64,
 }
+
+/// Member entity with user info for listing members.
+#[derive(Debug, Clone, FromRow)]
+pub struct MemberWithUserEntity {
+    // Membership fields
+    pub id: Uuid,
+    pub group_id: Uuid,
+    pub user_id: Uuid,
+    pub role: GroupRoleDb,
+    pub invited_by: Option<Uuid>,
+    pub joined_at: DateTime<Utc>,
+    // User fields
+    pub display_name: Option<String>,
+    pub avatar_url: Option<String>,
+}

@@ -4,7 +4,9 @@ use domain::models::group::GroupRole;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::entities::{GroupEntity, GroupMembershipEntity, GroupRoleDb, GroupWithMembershipEntity};
+use crate::entities::{
+    GroupEntity, GroupMembershipEntity, GroupRoleDb, GroupWithMembershipEntity, MemberWithUserEntity,
+};
 use crate::metrics::QueryTimer;
 
 /// Repository for group-related database operations.
@@ -367,6 +369,125 @@ impl GroupRepository {
         }
 
         Ok(slug)
+    }
+
+    // =========================================================================
+    // Membership listing methods (Story 11.2)
+    // =========================================================================
+
+    /// List members of a group with pagination.
+    pub async fn list_members(
+        &self,
+        group_id: Uuid,
+        role_filter: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<MemberWithUserEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("list_group_members");
+
+        let result = if let Some(role) = role_filter {
+            sqlx::query_as::<_, MemberWithUserEntity>(
+                r#"
+                SELECT
+                    gm.id, gm.group_id, gm.user_id, gm.role, gm.invited_by, gm.joined_at,
+                    u.display_name, u.avatar_url
+                FROM group_memberships gm
+                JOIN users u ON gm.user_id = u.id
+                WHERE gm.group_id = $1 AND gm.role::text = $2
+                ORDER BY gm.joined_at ASC
+                LIMIT $3 OFFSET $4
+                "#,
+            )
+            .bind(group_id)
+            .bind(role)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await
+        } else {
+            sqlx::query_as::<_, MemberWithUserEntity>(
+                r#"
+                SELECT
+                    gm.id, gm.group_id, gm.user_id, gm.role, gm.invited_by, gm.joined_at,
+                    u.display_name, u.avatar_url
+                FROM group_memberships gm
+                JOIN users u ON gm.user_id = u.id
+                WHERE gm.group_id = $1
+                ORDER BY gm.joined_at ASC
+                LIMIT $2 OFFSET $3
+                "#,
+            )
+            .bind(group_id)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await
+        };
+
+        timer.record();
+        result
+    }
+
+    /// Count total members in a group (with optional role filter).
+    pub async fn count_members(
+        &self,
+        group_id: Uuid,
+        role_filter: Option<&str>,
+    ) -> Result<i64, sqlx::Error> {
+        let timer = QueryTimer::new("count_group_members");
+
+        let result = if let Some(role) = role_filter {
+            sqlx::query_scalar::<_, i64>(
+                r#"
+                SELECT COUNT(*)
+                FROM group_memberships
+                WHERE group_id = $1 AND role::text = $2
+                "#,
+            )
+            .bind(group_id)
+            .bind(role)
+            .fetch_one(&self.pool)
+            .await
+        } else {
+            sqlx::query_scalar::<_, i64>(
+                r#"
+                SELECT COUNT(*)
+                FROM group_memberships
+                WHERE group_id = $1
+                "#,
+            )
+            .bind(group_id)
+            .fetch_one(&self.pool)
+            .await
+        };
+
+        timer.record();
+        result
+    }
+
+    /// Get a single member with user info.
+    pub async fn get_member_with_user(
+        &self,
+        group_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<MemberWithUserEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("get_member_with_user");
+        let result = sqlx::query_as::<_, MemberWithUserEntity>(
+            r#"
+            SELECT
+                gm.id, gm.group_id, gm.user_id, gm.role, gm.invited_by, gm.joined_at,
+                u.display_name, u.avatar_url
+            FROM group_memberships gm
+            JOIN users u ON gm.user_id = u.id
+            WHERE gm.group_id = $1 AND gm.user_id = $2
+            "#,
+        )
+        .bind(group_id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await;
+        timer.record();
+        result
     }
 }
 

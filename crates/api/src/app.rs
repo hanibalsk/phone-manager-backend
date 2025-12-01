@@ -271,7 +271,20 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route("/api/v1/groups", get(groups::list_groups))
         .route("/api/v1/groups/:group_id", get(groups::get_group))
         .route("/api/v1/groups/:group_id", put(groups::update_group))
-        .route("/api/v1/groups/:group_id", delete(groups::delete_group));
+        .route("/api/v1/groups/:group_id", delete(groups::delete_group))
+        // Membership management (Story 11.2)
+        .route(
+            "/api/v1/groups/:group_id/members",
+            get(groups::list_members),
+        )
+        .route(
+            "/api/v1/groups/:group_id/members/:user_id",
+            get(groups::get_member),
+        )
+        .route(
+            "/api/v1/groups/:group_id/members/:user_id",
+            delete(groups::remove_member),
+        );
 
     // Public routes (no authentication required)
     let public_routes = Router::new()
