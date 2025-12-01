@@ -1,6 +1,7 @@
 //! Repository implementations for database operations.
 
 pub mod api_key;
+pub mod audit_log;
 pub mod device;
 pub mod device_command;
 pub mod device_policy;
@@ -22,6 +23,7 @@ pub mod unlock_request;
 pub mod user;
 
 pub use api_key::ApiKeyRepository;
+pub use audit_log::AuditLogRepository;
 pub use device::{AdminStats, DeviceRepository, FleetSummaryCounts};
 pub use device_command::DeviceCommandRepository;
 pub use device_policy::DevicePolicyRepository;

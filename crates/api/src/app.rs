@@ -19,7 +19,7 @@ use crate::middleware::{
     security_headers_middleware, trace_id, RateLimiterState,
 };
 use crate::routes::{
-    admin, auth, bulk_import, device_policies, device_settings, devices, enrollment, enrollment_tokens,
+    admin, audit_logs, auth, bulk_import, device_policies, device_settings, devices, enrollment, enrollment_tokens,
     fleet, geofences, groups, health, invites, locations, movement_events, openapi, organizations,
     privacy, proximity_alerts, trips, users, versioning,
 };
@@ -275,6 +275,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .nest(
             "/api/admin/v1/organizations/:org_id/devices/bulk",
             bulk_import::router(),
+        )
+        // Audit log routes (Story 13.9, 13.10)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/audit-logs",
+            audit_logs::router(),
         )
         // Rate limiting for admin routes (separate, higher limit could be configured)
         .route_layer(middleware::from_fn_with_state(

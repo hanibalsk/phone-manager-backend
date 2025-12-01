@@ -1,5 +1,6 @@
 //! Domain models for Phone Manager.
 
+pub mod audit_log;
 pub mod bulk_import;
 pub mod device;
 pub mod device_policy;
@@ -75,6 +76,11 @@ pub use fleet::{
     FleetDeviceQuery, FleetGroupInfo, FleetLastLocation, FleetPagination, FleetPolicyInfo,
     FleetSortField, FleetSummary, IssueCommandRequest, IssueCommandResponse, SortOrder,
     UnassignDeviceResponse,
+};
+pub use audit_log::{
+    ActorType, AuditAction, AuditActor, AuditLog, AuditLogPagination, AuditMetadata,
+    AuditResource, CreateAuditLogInput, FieldChange, ListAuditLogsQuery, ListAuditLogsResponse,
+    ResourceType,
 };
 pub use bulk_import::{
     BulkDeviceImportRequest, BulkDeviceImportResponse, BulkDeviceInput, BulkDeviceItem,
