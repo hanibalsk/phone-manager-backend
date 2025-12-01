@@ -322,7 +322,10 @@ mod tests {
             total_groups: 10,
         };
 
-        assert_eq!(stats.total_devices, stats.active_devices + stats.inactive_devices);
+        assert_eq!(
+            stats.total_devices,
+            stats.active_devices + stats.inactive_devices
+        );
     }
 
     #[test]
@@ -506,7 +509,7 @@ mod tests {
     fn test_admin_stats_negative_values() {
         // While unlikely in practice, i64 can hold negative values
         let stats = AdminStats {
-            total_devices: -1,  // Invalid but structurally possible
+            total_devices: -1, // Invalid but structurally possible
             active_devices: 0,
             inactive_devices: -1,
             total_locations: 0,

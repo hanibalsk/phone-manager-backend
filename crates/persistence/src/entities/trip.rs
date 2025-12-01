@@ -44,10 +44,7 @@ impl TripEntity {
             .parse::<DetectionSource>()
             .unwrap_or(DetectionSource::None);
 
-        let state = self
-            .state
-            .parse::<TripState>()
-            .unwrap_or(TripState::Active);
+        let state = self.state.parse::<TripState>().unwrap_or(TripState::Active);
 
         domain::models::Trip {
             id: self.id,

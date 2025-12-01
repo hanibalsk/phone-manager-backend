@@ -60,10 +60,7 @@ impl TripRepository {
     ///
     /// Uses INSERT ... ON CONFLICT to handle duplicate (device_id, local_trip_id) atomically.
     /// Returns (entity, was_created) tuple.
-    pub async fn create_trip(
-        &self,
-        input: TripInput,
-    ) -> Result<(TripEntity, bool), sqlx::Error> {
+    pub async fn create_trip(&self, input: TripInput) -> Result<(TripEntity, bool), sqlx::Error> {
         let timer = QueryTimer::new("create_trip");
 
         // Use INSERT ... ON CONFLICT DO NOTHING for atomic idempotency
@@ -162,7 +159,10 @@ impl TripRepository {
     }
 
     /// Find active trip for a device.
-    pub async fn find_active_for_device(&self, device_id: Uuid) -> Result<Option<TripEntity>, sqlx::Error> {
+    pub async fn find_active_for_device(
+        &self,
+        device_id: Uuid,
+    ) -> Result<Option<TripEntity>, sqlx::Error> {
         let timer = QueryTimer::new("find_active_trip_for_device");
 
         let result = sqlx::query_as::<_, TripEntity>(

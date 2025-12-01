@@ -127,10 +127,7 @@ pub async fn rate_limit_middleware(
     // Check rate limit
     if let Some(ref rate_limiter) = state.rate_limiter {
         if let Err(retry_after) = rate_limiter.check(auth.api_key_id) {
-            return rate_limited_response(
-                state.config.security.rate_limit_per_minute,
-                retry_after,
-            );
+            return rate_limited_response(state.config.security.rate_limit_per_minute, retry_after);
         }
     }
 
@@ -333,10 +330,7 @@ mod tests {
         let response = rate_limited_response(100, 60);
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert!(response.headers().contains_key(header::RETRY_AFTER));
-        assert_eq!(
-            response.headers().get(header::RETRY_AFTER).unwrap(),
-            "60"
-        );
+        assert_eq!(response.headers().get(header::RETRY_AFTER).unwrap(), "60");
     }
 
     #[test]
@@ -365,10 +359,7 @@ mod tests {
     fn test_rate_limited_response_zero_retry_after() {
         let response = rate_limited_response(100, 0);
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(
-            response.headers().get(header::RETRY_AFTER).unwrap(),
-            "0"
-        );
+        assert_eq!(response.headers().get(header::RETRY_AFTER).unwrap(), "0");
     }
 
     // ===========================================

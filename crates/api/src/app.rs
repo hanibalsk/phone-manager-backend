@@ -18,7 +18,10 @@ use crate::middleware::{
     metrics_handler, metrics_middleware, rate_limit_middleware, require_admin, require_auth,
     security_headers_middleware, trace_id, RateLimiterState,
 };
-use crate::routes::{admin, devices, geofences, health, locations, movement_events, openapi, privacy, proximity_alerts, trips, versioning};
+use crate::routes::{
+    admin, devices, geofences, health, locations, movement_events, openapi, privacy,
+    proximity_alerts, trips, versioning,
+};
 use crate::services::map_matching::MapMatchingClient;
 
 #[derive(Clone)]
@@ -43,19 +46,19 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
     };
 
     // Create map-matching client if enabled and configured
-    let map_matching_client =
-        if config.map_matching.enabled && !config.map_matching.url.is_empty() {
-            match MapMatchingClient::new(config.map_matching.clone()) {
-                Ok(client) => Some(Arc::new(client)),
-                Err(e) => {
-                    tracing::error!(error = %e, "Failed to create map-matching client");
-                    None
-                }
+    let map_matching_client = if config.map_matching.enabled && !config.map_matching.url.is_empty()
+    {
+        match MapMatchingClient::new(config.map_matching.clone()) {
+            Ok(client) => Some(Arc::new(client)),
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to create map-matching client");
+                None
             }
-        } else {
-            tracing::debug!("Map-matching is disabled or not configured");
-            None
-        };
+        }
+    } else {
+        tracing::debug!("Map-matching is disabled or not configured");
+        None
+    };
 
     let state = AppState {
         pool,
@@ -122,10 +125,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/trips/:trip_id/movement-events",
             get(trips::get_trip_movement_events),
         )
-        .route(
-            "/api/v1/trips/:trip_id/path",
-            get(trips::get_trip_path),
-        )
+        .route("/api/v1/trips/:trip_id/path", get(trips::get_trip_path))
         .route(
             "/api/v1/trips/:trip_id/correct-path",
             post(trips::trigger_path_correction),

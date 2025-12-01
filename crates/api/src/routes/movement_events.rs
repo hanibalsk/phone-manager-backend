@@ -62,11 +62,7 @@ pub async fn create_movement_event(
             .iter()
             .flat_map(|(field, errors)| {
                 errors.iter().map(move |err| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        err.message.as_ref().unwrap_or(&"".into())
-                    )
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
                 })
             })
             .collect();
@@ -78,7 +74,9 @@ pub async fn create_movement_event(
     let device = device_repo
         .find_by_device_id(request.device_id)
         .await?
-        .ok_or_else(|| ApiError::NotFound("Device not found. Please register first.".to_string()))?;
+        .ok_or_else(|| {
+            ApiError::NotFound("Device not found. Please register first.".to_string())
+        })?;
 
     if !device.active {
         return Err(ApiError::NotFound(
@@ -152,11 +150,7 @@ pub async fn create_movement_events_batch(
             .iter()
             .flat_map(|(field, errors)| {
                 errors.iter().map(move |err| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        err.message.as_ref().unwrap_or(&"".into())
-                    )
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
                 })
             })
             .collect();
@@ -168,7 +162,9 @@ pub async fn create_movement_events_batch(
     let device = device_repo
         .find_by_device_id(request.device_id)
         .await?
-        .ok_or_else(|| ApiError::NotFound("Device not found. Please register first.".to_string()))?;
+        .ok_or_else(|| {
+            ApiError::NotFound("Device not found. Please register first.".to_string())
+        })?;
 
     if !device.active {
         return Err(ApiError::NotFound(
@@ -177,11 +173,8 @@ pub async fn create_movement_events_batch(
     }
 
     // Validate all trip_ids in the batch - collect unique ones for efficiency
-    let unique_trip_ids: std::collections::HashSet<Uuid> = request
-        .events
-        .iter()
-        .filter_map(|e| e.trip_id)
-        .collect();
+    let unique_trip_ids: std::collections::HashSet<Uuid> =
+        request.events.iter().filter_map(|e| e.trip_id).collect();
 
     if !unique_trip_ids.is_empty() {
         let trip_repo = TripRepository::new(state.pool.clone());

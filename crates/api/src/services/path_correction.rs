@@ -67,7 +67,10 @@ impl PathCorrectionService {
     /// Create a new PathCorrectionService with a shared map-matching client.
     ///
     /// If the client is None, corrections will be skipped.
-    pub fn new(pool: PgPool, map_matching_client: Option<std::sync::Arc<MapMatchingClient>>) -> Self {
+    pub fn new(
+        pool: PgPool,
+        map_matching_client: Option<std::sync::Arc<MapMatchingClient>>,
+    ) -> Self {
         Self {
             pool,
             map_matching_client,

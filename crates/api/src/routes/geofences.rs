@@ -34,11 +34,7 @@ pub async fn create_geofence(
             .iter()
             .flat_map(|(field, errors)| {
                 errors.iter().map(move |err| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        err.message.as_ref().unwrap_or(&"".into())
-                    )
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
                 })
             })
             .collect();
@@ -78,7 +74,11 @@ pub async fn create_geofence(
     }
 
     // Convert event types to strings for database
-    let event_types: Vec<String> = request.event_types.iter().map(|e| e.as_str().to_string()).collect();
+    let event_types: Vec<String> = request
+        .event_types
+        .iter()
+        .map(|e| e.as_str().to_string())
+        .collect();
 
     // Create geofence
     let entity = geofence_repo
@@ -164,11 +164,7 @@ pub async fn update_geofence(
             .iter()
             .flat_map(|(field, errors)| {
                 errors.iter().map(move |err| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        err.message.as_ref().unwrap_or(&"".into())
-                    )
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
                 })
             })
             .collect();
@@ -187,9 +183,10 @@ pub async fn update_geofence(
     let geofence_repo = GeofenceRepository::new(state.pool.clone());
 
     // Convert event types if provided
-    let event_types: Option<Vec<String>> = request.event_types.as_ref().map(|types| {
-        types.iter().map(|e| e.as_str().to_string()).collect()
-    });
+    let event_types: Option<Vec<String>> = request
+        .event_types
+        .as_ref()
+        .map(|types| types.iter().map(|e| e.as_str().to_string()).collect());
 
     let entity = geofence_repo
         .update(
@@ -292,7 +289,8 @@ mod tests {
         let query: ListGeofencesQuery = serde_json::from_str(json).unwrap();
         assert!(!query.include_inactive);
 
-        let json_with_inactive = r#"{"deviceId": "550e8400-e29b-41d4-a716-446655440000", "includeInactive": true}"#;
+        let json_with_inactive =
+            r#"{"deviceId": "550e8400-e29b-41d4-a716-446655440000", "includeInactive": true}"#;
         let query: ListGeofencesQuery = serde_json::from_str(json_with_inactive).unwrap();
         assert!(query.include_inactive);
     }

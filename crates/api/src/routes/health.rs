@@ -66,29 +66,29 @@ pub async fn health_check(
     let map_matching_configured = !map_matching_config.url.is_empty();
 
     // Get actual circuit breaker state from the shared client
-    let (map_matching_available, circuit_state) = if let Some(ref client) = state.map_matching_client
-    {
-        let state = client.circuit_state().await;
-        let is_available = client.is_available()
-            && matches!(
-                state,
-                crate::services::map_matching::CircuitState::Closed
-                    | crate::services::map_matching::CircuitState::HalfOpen
-            );
-        let state_str = match state {
-            crate::services::map_matching::CircuitState::Closed => "closed",
-            crate::services::map_matching::CircuitState::Open => "open",
-            crate::services::map_matching::CircuitState::HalfOpen => "half_open",
+    let (map_matching_available, circuit_state) =
+        if let Some(ref client) = state.map_matching_client {
+            let state = client.circuit_state().await;
+            let is_available = client.is_available()
+                && matches!(
+                    state,
+                    crate::services::map_matching::CircuitState::Closed
+                        | crate::services::map_matching::CircuitState::HalfOpen
+                );
+            let state_str = match state {
+                crate::services::map_matching::CircuitState::Closed => "closed",
+                crate::services::map_matching::CircuitState::Open => "open",
+                crate::services::map_matching::CircuitState::HalfOpen => "half_open",
+            };
+            (is_available, state_str.to_string())
+        } else if !map_matching_enabled {
+            (false, "disabled".to_string())
+        } else if !map_matching_configured {
+            (false, "not_configured".to_string())
+        } else {
+            // Client failed to initialize
+            (false, "initialization_failed".to_string())
         };
-        (is_available, state_str.to_string())
-    } else if !map_matching_enabled {
-        (false, "disabled".to_string())
-    } else if !map_matching_configured {
-        (false, "not_configured".to_string())
-    } else {
-        // Client failed to initialize
-        (false, "initialization_failed".to_string())
-    };
 
     let external_services = Some(ExternalServicesHealth {
         map_matching: MapMatchingHealth {

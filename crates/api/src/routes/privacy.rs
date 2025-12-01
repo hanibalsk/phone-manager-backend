@@ -81,7 +81,9 @@ pub async fn export_device_data(
     };
 
     // Get all locations (this could be a lot of data)
-    let locations = location_repo.get_all_locations_for_device(device_id).await?;
+    let locations = location_repo
+        .get_all_locations_for_device(device_id)
+        .await?;
 
     let exported_device = ExportedDevice {
         device_id: device.device_id,

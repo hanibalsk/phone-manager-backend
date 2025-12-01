@@ -108,7 +108,10 @@ impl Job for CleanupLocationsJob {
             .map_err(|e| format!("Failed to delete expired idempotency keys: {}", e))?;
 
         if keys_deleted > 0 {
-            info!(deleted = keys_deleted, "Cleaned up expired idempotency keys");
+            info!(
+                deleted = keys_deleted,
+                "Cleaned up expired idempotency keys"
+            );
         }
 
         Ok(())
@@ -327,7 +330,10 @@ mod tests {
         let idempotency_key_expiry: &str = "expires_at < NOW()";
 
         // Both cleanups run in the same job but are independent
-        assert_ne!(format!("{} days", location_retention_days), idempotency_key_expiry);
+        assert_ne!(
+            format!("{} days", location_retention_days),
+            idempotency_key_expiry
+        );
     }
 
     // ===========================================

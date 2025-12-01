@@ -103,10 +103,7 @@ mod tests {
     #[test]
     fn test_openapi_spec_has_api_endpoints() {
         // Should include our main API endpoints
-        let endpoints = vec![
-            "/api/v1/devices",
-            "/api/v1/locations",
-        ];
+        let endpoints = vec!["/api/v1/devices", "/api/v1/locations"];
 
         for endpoint in endpoints {
             assert!(
@@ -129,9 +126,7 @@ mod tests {
     #[test]
     fn test_swagger_assets_has_required_files() {
         // Swagger UI requires these core files
-        let required_files = vec![
-            "index.html",
-        ];
+        let required_files = vec!["index.html"];
 
         for file in required_files {
             assert!(

@@ -41,7 +41,9 @@ pub async fn upload_location(
             );
             // Return cached response
             let response: UploadLocationResponse = serde_json::from_value(existing.response_body)
-                .map_err(|_| ApiError::Internal("Failed to parse cached response".to_string()))?;
+                .map_err(|_| {
+                ApiError::Internal("Failed to parse cached response".to_string())
+            })?;
             return Ok(Json(response));
         }
     }
@@ -164,7 +166,9 @@ pub async fn upload_batch(
             );
             // Return cached response
             let response: UploadLocationResponse = serde_json::from_value(existing.response_body)
-                .map_err(|_| ApiError::Internal("Failed to parse cached response".to_string()))?;
+                .map_err(|_| {
+                ApiError::Internal("Failed to parse cached response".to_string())
+            })?;
             return Ok(Json(response));
         }
     }
@@ -507,7 +511,11 @@ async fn get_simplified_locations(
                 next_cursor: None,
                 has_more: false,
             },
-            simplification: Some(SimplificationInfo::new(tolerance, original_count, simplified_count)),
+            simplification: Some(SimplificationInfo::new(
+                tolerance,
+                original_count,
+                simplified_count,
+            )),
         }));
     }
 
@@ -570,7 +578,11 @@ async fn get_simplified_locations(
             next_cursor: None,
             has_more: false,
         },
-        simplification: Some(SimplificationInfo::new(tolerance, original_count, simplified_count)),
+        simplification: Some(SimplificationInfo::new(
+            tolerance,
+            original_count,
+            simplified_count,
+        )),
     }))
 }
 

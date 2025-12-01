@@ -34,11 +34,7 @@ pub async fn create_proximity_alert(
             .iter()
             .flat_map(|(field, errors)| {
                 errors.iter().map(move |err| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        err.message.as_ref().unwrap_or(&"".into())
-                    )
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
                 })
             })
             .collect();
@@ -190,11 +186,7 @@ pub async fn update_proximity_alert(
             .iter()
             .flat_map(|(field, errors)| {
                 errors.iter().map(move |err| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        err.message.as_ref().unwrap_or(&"".into())
-                    )
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
                 })
             })
             .collect();
@@ -275,8 +267,7 @@ mod tests {
         let query: ListProximityAlertsQuery = serde_json::from_str(json).unwrap();
         assert!(!query.include_inactive);
 
-        let json_with_inactive =
-            r#"{"sourceDeviceId": "550e8400-e29b-41d4-a716-446655440000", "includeInactive": true}"#;
+        let json_with_inactive = r#"{"sourceDeviceId": "550e8400-e29b-41d4-a716-446655440000", "includeInactive": true}"#;
         let query: ListProximityAlertsQuery = serde_json::from_str(json_with_inactive).unwrap();
         assert!(query.include_inactive);
     }

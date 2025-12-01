@@ -33,7 +33,11 @@ pub struct CreateProximityAlertRequest {
     #[validate(length(max = 100, message = "Name must be at most 100 characters"))]
     pub name: Option<String>,
 
-    #[validate(range(min = 50, max = 100000, message = "Radius must be between 50 and 100000 meters"))]
+    #[validate(range(
+        min = 50,
+        max = 100000,
+        message = "Radius must be between 50 and 100000 meters"
+    ))]
     pub radius_meters: i32,
 
     #[serde(default = "default_active")]
@@ -54,7 +58,11 @@ pub struct UpdateProximityAlertRequest {
     #[validate(length(max = 100, message = "Name must be at most 100 characters"))]
     pub name: Option<String>,
 
-    #[validate(range(min = 50, max = 100000, message = "Radius must be between 50 and 100000 meters"))]
+    #[validate(range(
+        min = 50,
+        max = 100000,
+        message = "Radius must be between 50 and 100000 meters"
+    ))]
     pub radius_meters: Option<i32>,
 
     pub is_active: Option<bool>,

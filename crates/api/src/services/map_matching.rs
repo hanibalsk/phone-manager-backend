@@ -275,8 +275,10 @@ impl MapMatchingClient {
             .map_err(MapMatchingError::Http)?;
 
         let rate_limiter = RateLimiter::new(config.rate_limit_per_minute);
-        let circuit_breaker =
-            CircuitBreaker::new(config.circuit_breaker_failures, config.circuit_breaker_reset_secs);
+        let circuit_breaker = CircuitBreaker::new(
+            config.circuit_breaker_failures,
+            config.circuit_breaker_reset_secs,
+        );
 
         Ok(Self {
             client,
@@ -383,18 +385,13 @@ impl MapMatchingClient {
 
         debug!(url = %url, "Calling OSRM Match API");
 
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    MapMatchingError::Timeout(self.config.timeout_ms)
-                } else {
-                    MapMatchingError::Http(e)
-                }
-            })?;
+        let response = self.client.get(&url).send().await.map_err(|e| {
+            if e.is_timeout() {
+                MapMatchingError::Timeout(self.config.timeout_ms)
+            } else {
+                MapMatchingError::Http(e)
+            }
+        })?;
 
         let status = response.status();
         if !status.is_success() {

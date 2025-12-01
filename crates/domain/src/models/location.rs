@@ -754,7 +754,10 @@ mod tests {
         let query: GetLocationHistoryQuery = serde_json::from_str(json).unwrap();
         assert_eq!(query.tolerance, Some(15000.0));
         // Should be clamped to MAX_TOLERANCE
-        assert_eq!(query.effective_tolerance(), Some(GetLocationHistoryQuery::MAX_TOLERANCE));
+        assert_eq!(
+            query.effective_tolerance(),
+            Some(GetLocationHistoryQuery::MAX_TOLERANCE)
+        );
     }
 
     #[test]

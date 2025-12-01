@@ -87,9 +87,15 @@ mod tests {
     fn test_header_constants_lowercase() {
         // Verify headers are lowercase (HTTP headers are case-insensitive,
         // but we should be consistent)
-        assert!(headers::X_CONTENT_TYPE_OPTIONS.chars().all(|c| c.is_lowercase() || c == '-'));
-        assert!(headers::X_FRAME_OPTIONS.chars().all(|c| c.is_lowercase() || c == '-'));
-        assert!(headers::X_XSS_PROTECTION.chars().all(|c| c.is_lowercase() || c == '-'));
+        assert!(headers::X_CONTENT_TYPE_OPTIONS
+            .chars()
+            .all(|c| c.is_lowercase() || c == '-'));
+        assert!(headers::X_FRAME_OPTIONS
+            .chars()
+            .all(|c| c.is_lowercase() || c == '-'));
+        assert!(headers::X_XSS_PROTECTION
+            .chars()
+            .all(|c| c.is_lowercase() || c == '-'));
     }
 
     #[test]
@@ -136,7 +142,7 @@ mod tests {
             ("FALSE", false),
             ("False", false),
             ("0", false),
-            ("1", false),  // Only "true" should work
+            ("1", false), // Only "true" should work
             ("yes", false),
             ("no", false),
             ("", false),
@@ -158,7 +164,11 @@ mod tests {
         assert!(HeaderValue::from_static("nosniff").to_str().is_ok());
         assert!(HeaderValue::from_static("DENY").to_str().is_ok());
         assert!(HeaderValue::from_static("1; mode=block").to_str().is_ok());
-        assert!(HeaderValue::from_static("max-age=31536000; includeSubDomains").to_str().is_ok());
+        assert!(
+            HeaderValue::from_static("max-age=31536000; includeSubDomains")
+                .to_str()
+                .is_ok()
+        );
     }
 
     #[test]
@@ -182,7 +192,10 @@ mod tests {
     #[test]
     fn test_hsts_header_value() {
         let value = HeaderValue::from_static("max-age=31536000; includeSubDomains");
-        assert_eq!(value.to_str().unwrap(), "max-age=31536000; includeSubDomains");
+        assert_eq!(
+            value.to_str().unwrap(),
+            "max-age=31536000; includeSubDomains"
+        );
         // Verify max-age is 1 year (31536000 seconds)
         assert!(value.to_str().unwrap().contains("31536000"));
     }
@@ -206,7 +219,10 @@ mod tests {
     #[test]
     fn test_strict_transport_security_header() {
         // HSTS header should be the standard one
-        assert_eq!(header::STRICT_TRANSPORT_SECURITY.as_str(), "strict-transport-security");
+        assert_eq!(
+            header::STRICT_TRANSPORT_SECURITY.as_str(),
+            "strict-transport-security"
+        );
     }
 
     // ===========================================

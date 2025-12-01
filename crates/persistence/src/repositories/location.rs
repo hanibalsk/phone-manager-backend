@@ -45,7 +45,10 @@ impl LocationRepository {
     }
 
     /// Insert a single location record.
-    pub async fn insert_location(&self, input: LocationInput) -> Result<LocationEntity, sqlx::Error> {
+    pub async fn insert_location(
+        &self,
+        input: LocationInput,
+    ) -> Result<LocationEntity, sqlx::Error> {
         let timer = QueryTimer::new("insert_location");
         let result = sqlx::query_as::<_, LocationEntity>(
             r#"
@@ -438,8 +441,8 @@ mod tests {
         // Test with boundary coordinate values
         let input = LocationInput {
             device_id: Uuid::new_v4(),
-            latitude: 90.0,  // Max latitude
-            longitude: 180.0,  // Max longitude
+            latitude: 90.0,   // Max latitude
+            longitude: 180.0, // Max longitude
             accuracy: 0.0,
             altitude: None,
             bearing: None,
@@ -461,10 +464,10 @@ mod tests {
     fn test_location_input_negative_coordinates() {
         let input = LocationInput {
             device_id: Uuid::new_v4(),
-            latitude: -90.0,  // Min latitude
-            longitude: -180.0,  // Min longitude
+            latitude: -90.0,   // Min latitude
+            longitude: -180.0, // Min longitude
             accuracy: 5.0,
-            altitude: Some(-100.0),  // Below sea level
+            altitude: Some(-100.0), // Below sea level
             bearing: None,
             speed: None,
             provider: None,
@@ -812,7 +815,7 @@ mod tests {
     #[test]
     fn test_location_input_speed_values() {
         // Speed in m/s
-        let speeds = vec![0.0, 1.5, 10.0, 30.0, 100.0];  // Walking to driving speeds
+        let speeds = vec![0.0, 1.5, 10.0, 30.0, 100.0]; // Walking to driving speeds
 
         for speed in speeds {
             let input = LocationInput {
@@ -864,7 +867,7 @@ mod tests {
     #[test]
     fn test_location_input_altitude_values() {
         // Altitude in meters - can be negative (below sea level)
-        let altitudes = vec![-400.0, 0.0, 100.0, 1000.0, 8848.0];  // Dead Sea to Everest
+        let altitudes = vec![-400.0, 0.0, 100.0, 1000.0, 8848.0]; // Dead Sea to Everest
 
         for altitude in altitudes {
             let input = LocationInput {

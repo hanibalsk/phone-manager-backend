@@ -629,10 +629,10 @@ mod tests {
             device_id: Uuid::new_v4(),
             trip_id: None,
             timestamp: current_timestamp_millis(),
-            latitude: 90.0,   // Max
-            longitude: 180.0, // Max
-            accuracy: 0.0,    // Min
-            speed: Some(0.0), // Min
+            latitude: 90.0,       // Max
+            longitude: 180.0,     // Max
+            accuracy: 0.0,        // Min
+            speed: Some(0.0),     // Min
             bearing: Some(360.0), // Max
             altitude: None,
             transportation_mode: TransportationMode::Stationary,
@@ -652,7 +652,7 @@ mod tests {
             longitude: -180.0, // Min
             accuracy: 1000.0,
             speed: None,
-            bearing: Some(0.0), // Min
+            bearing: Some(0.0),     // Min
             altitude: Some(-400.0), // Below sea level
             transportation_mode: TransportationMode::Walking,
             confidence: 0.0, // Min

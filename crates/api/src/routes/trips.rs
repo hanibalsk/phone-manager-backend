@@ -25,7 +25,9 @@ use domain::models::trip::{
     CreateTripRequest, CreateTripResponse, GetTripsQuery, GetTripsResponse, TripPagination,
     TripResponse, TripState, UpdateTripRequest,
 };
-use domain::models::trip_path_correction::{CorrectPathResponse, CorrectionStatus, TripPathResponse};
+use domain::models::trip_path_correction::{
+    CorrectPathResponse, CorrectionStatus, TripPathResponse,
+};
 
 /// Create a new trip with idempotency support.
 ///
@@ -45,11 +47,7 @@ pub async fn create_trip(
             .iter()
             .flat_map(|(field, errors)| {
                 errors.iter().map(move |err| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        err.message.as_ref().unwrap_or(&"".into())
-                    )
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
                 })
             })
             .collect();
@@ -61,7 +59,9 @@ pub async fn create_trip(
     let device = device_repo
         .find_by_device_id(request.device_id)
         .await?
-        .ok_or_else(|| ApiError::NotFound("Device not found. Please register first.".to_string()))?;
+        .ok_or_else(|| {
+            ApiError::NotFound("Device not found. Please register first.".to_string())
+        })?;
 
     if !device.active {
         return Err(ApiError::NotFound(
@@ -152,11 +152,7 @@ pub async fn update_trip_state(
             .iter()
             .flat_map(|(field, errors)| {
                 errors.iter().map(move |err| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        err.message.as_ref().unwrap_or(&"".into())
-                    )
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
                 })
             })
             .collect();
@@ -412,7 +408,9 @@ pub async fn get_trip_movement_events(
 
     // Get movement events for the trip
     let event_repo = MovementEventRepository::new(state.pool.clone());
-    let entities = event_repo.get_events_for_trip_ordered(trip_id, ascending).await?;
+    let entities = event_repo
+        .get_events_for_trip_ordered(trip_id, ascending)
+        .await?;
 
     // Convert entities to response DTOs
     let events: Vec<MovementEventResponse> = entities
@@ -474,9 +472,7 @@ pub async fn get_trip_path(
     let correction = correction_repo
         .find_by_trip_id(trip_id)
         .await?
-        .ok_or_else(|| {
-            ApiError::NotFound("Path correction not found for this trip".to_string())
-        })?;
+        .ok_or_else(|| ApiError::NotFound("Path correction not found for this trip".to_string()))?;
 
     // Parse original path from GeoJSON
     let original_coords = parse_geojson_linestring(&correction.original_path).map_err(|e| {
@@ -1066,7 +1062,8 @@ mod tests {
 
     #[test]
     fn test_parse_geojson_linestring_valid() {
-        let geojson = r#"{"type":"LineString","coordinates":[[-120.0,45.0],[-120.1,45.1],[-120.2,45.2]]}"#;
+        let geojson =
+            r#"{"type":"LineString","coordinates":[[-120.0,45.0],[-120.1,45.1],[-120.2,45.2]]}"#;
         let result = parse_geojson_linestring(geojson).unwrap();
 
         assert_eq!(result.len(), 3);
@@ -1078,7 +1075,8 @@ mod tests {
 
     #[test]
     fn test_parse_geojson_linestring_two_points() {
-        let geojson = r#"{"type":"LineString","coordinates":[[-122.4194,37.7749],[-122.4084,37.7899]]}"#;
+        let geojson =
+            r#"{"type":"LineString","coordinates":[[-122.4194,37.7749],[-122.4084,37.7899]]}"#;
         let result = parse_geojson_linestring(geojson).unwrap();
 
         assert_eq!(result.len(), 2);
@@ -1113,7 +1111,8 @@ mod tests {
     #[test]
     fn test_parse_geojson_linestring_with_altitude() {
         // GeoJSON can have optional third element (altitude) - should still work
-        let geojson = r#"{"type":"LineString","coordinates":[[-120.0,45.0,100.0],[-120.1,45.1,200.0]]}"#;
+        let geojson =
+            r#"{"type":"LineString","coordinates":[[-120.0,45.0,100.0],[-120.1,45.1,200.0]]}"#;
         let result = parse_geojson_linestring(geojson).unwrap();
 
         assert_eq!(result.len(), 2);

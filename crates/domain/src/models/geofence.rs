@@ -78,7 +78,11 @@ pub struct CreateGeofenceRequest {
     #[validate(custom(function = "shared::validation::validate_longitude"))]
     pub longitude: f64,
 
-    #[validate(range(min = 20.0, max = 50000.0, message = "Radius must be between 20 and 50000 meters"))]
+    #[validate(range(
+        min = 20.0,
+        max = 50000.0,
+        message = "Radius must be between 20 and 50000 meters"
+    ))]
     pub radius_meters: f32,
 
     #[serde(default = "default_event_types")]
@@ -103,7 +107,11 @@ pub struct UpdateGeofenceRequest {
     #[validate(custom(function = "shared::validation::validate_longitude"))]
     pub longitude: Option<f64>,
 
-    #[validate(range(min = 20.0, max = 50000.0, message = "Radius must be between 20 and 50000 meters"))]
+    #[validate(range(
+        min = 20.0,
+        max = 50000.0,
+        message = "Radius must be between 20 and 50000 meters"
+    ))]
     pub radius_meters: Option<f32>,
 
     pub event_types: Option<Vec<GeofenceEventType>>,

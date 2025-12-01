@@ -278,8 +278,14 @@ mod tests {
     #[test]
     fn test_trip_state_from_str() {
         assert_eq!("ACTIVE".parse::<TripState>().unwrap(), TripState::Active);
-        assert_eq!("COMPLETED".parse::<TripState>().unwrap(), TripState::Completed);
-        assert_eq!("CANCELLED".parse::<TripState>().unwrap(), TripState::Cancelled);
+        assert_eq!(
+            "COMPLETED".parse::<TripState>().unwrap(),
+            TripState::Completed
+        );
+        assert_eq!(
+            "CANCELLED".parse::<TripState>().unwrap(),
+            TripState::Cancelled
+        );
     }
 
     #[test]

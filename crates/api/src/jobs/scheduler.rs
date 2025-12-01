@@ -189,7 +189,10 @@ mod tests {
 
     #[test]
     fn test_job_frequency_duration() {
-        assert_eq!(JobFrequency::Seconds(30).duration(), Duration::from_secs(30));
+        assert_eq!(
+            JobFrequency::Seconds(30).duration(),
+            Duration::from_secs(30)
+        );
         assert_eq!(JobFrequency::Hourly.duration(), Duration::from_secs(3600));
         assert_eq!(JobFrequency::Daily.duration(), Duration::from_secs(86400));
     }
@@ -227,9 +230,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         scheduler.shutdown();
-        scheduler
-            .wait_for_shutdown(Duration::from_secs(2))
-            .await;
+        scheduler.wait_for_shutdown(Duration::from_secs(2)).await;
 
         // Job should have been scheduled but not run yet (first tick skipped)
     }

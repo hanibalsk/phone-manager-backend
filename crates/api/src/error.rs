@@ -57,18 +57,15 @@ impl IntoResponse for ApiError {
             ApiError::Unauthorized(msg) => {
                 (StatusCode::UNAUTHORIZED, "unauthorized", msg.clone(), None)
             }
-            ApiError::Forbidden(msg) => {
-                (StatusCode::FORBIDDEN, "forbidden", msg.clone(), None)
-            }
-            ApiError::NotFound(msg) => {
-                (StatusCode::NOT_FOUND, "not_found", msg.clone(), None)
-            }
-            ApiError::Conflict(msg) => {
-                (StatusCode::CONFLICT, "conflict", msg.clone(), None)
-            }
-            ApiError::Validation(msg) => {
-                (StatusCode::BAD_REQUEST, "validation_error", msg.clone(), None)
-            }
+            ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, "forbidden", msg.clone(), None),
+            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, "not_found", msg.clone(), None),
+            ApiError::Conflict(msg) => (StatusCode::CONFLICT, "conflict", msg.clone(), None),
+            ApiError::Validation(msg) => (
+                StatusCode::BAD_REQUEST,
+                "validation_error",
+                msg.clone(),
+                None,
+            ),
             ApiError::RateLimited(msg) => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "rate_limited",

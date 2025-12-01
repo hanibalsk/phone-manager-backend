@@ -90,7 +90,10 @@ pub async fn metrics_handler() -> impl IntoResponse {
         let output = handle.render();
         (
             axum::http::StatusCode::OK,
-            [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+            [(
+                axum::http::header::CONTENT_TYPE,
+                "text/plain; version=0.0.4",
+            )],
             output,
         )
     } else {
@@ -118,9 +121,7 @@ pub fn init_metrics() {
 
     // Set histogram buckets for request duration
     let handle = builder
-        .set_buckets(&[
-            0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0,
-        ])
+        .set_buckets(&[0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0])
         .expect("Failed to set histogram buckets")
         .install_recorder()
         .expect("Failed to install Prometheus recorder");

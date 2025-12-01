@@ -88,11 +88,7 @@ mod tests {
     #[test]
     fn test_geofence_entity_with_all_event_types() {
         let mut entity = create_test_geofence_entity();
-        entity.event_types = vec![
-            "enter".to_string(),
-            "exit".to_string(),
-            "dwell".to_string(),
-        ];
+        entity.event_types = vec!["enter".to_string(), "exit".to_string(), "dwell".to_string()];
 
         let geofence: Geofence = entity.into();
         assert_eq!(geofence.event_types.len(), 3);
