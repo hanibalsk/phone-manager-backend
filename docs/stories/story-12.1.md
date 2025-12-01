@@ -101,4 +101,72 @@
 | Date | Change |
 |------|--------|
 | 2025-12-01 | Story created |
+| 2025-12-01 | Senior Developer Review (AI) notes appended |
+
+---
+
+## Senior Developer Review (AI)
+
+### Reviewer
+Martin Janci
+
+### Date
+2025-12-01
+
+### Outcome
+**Approve**
+
+### Summary
+Story 12.1 implements a well-designed database schema for device settings with proper normalization, foreign key constraints, and PostgreSQL-specific features (enums, JSONB, partial indexes). The implementation follows database best practices and aligns with the API specification.
+
+### Key Findings
+
+**Severity: Low**
+1. **Lock consistency constraint is correct**: The CHECK constraint `chk_lock_consistency` properly ensures that lock fields are consistent (locked_by and locked_at are both set when is_locked=true).
+
+**Positive Observations**:
+- Proper use of PostgreSQL enums for `setting_data_type` and `setting_category`
+- JSONB for flexible value storage with any JSON-serializable type
+- Composite unique constraint `(device_id, setting_key)` prevents duplicate settings
+- Partial index on `is_locked` for efficient lock queries
+- Proper CASCADE behavior on foreign keys
+- Seed data covers all essential settings for MVP
+
+### Acceptance Criteria Coverage
+
+| AC# | Criterion | Status | Evidence |
+|-----|-----------|--------|----------|
+| 1 | Migration creates `setting_definitions` table | ✅ Pass | Lines 13-25 of 022_device_settings.sql |
+| 2 | Migration creates `device_settings` table | ✅ Pass | Lines 29-50 of 022_device_settings.sql |
+| 3 | `setting_definitions` has required columns | ✅ Pass | key, display_name, description, data_type, default_value, is_lockable, category present |
+| 4 | `device_settings` has required columns | ✅ Pass | device_id, setting_key, value, is_locked, locked_by, locked_at, lock_reason present |
+| 5 | FK device_settings.device_id -> devices.id | ✅ Pass | Line 30: `REFERENCES devices(id) ON DELETE CASCADE` |
+| 6 | FK device_settings.locked_by -> users.id | ✅ Pass | Line 35: `REFERENCES users(id) ON DELETE SET NULL` |
+| 7 | Composite unique constraint | ✅ Pass | Line 43: `CONSTRAINT uq_device_setting UNIQUE` |
+| 8 | Indexes on device_id and setting_key | ✅ Pass | Lines 53-54: Indexes created |
+
+### Test Coverage and Gaps
+- Entity tests exist in persistence layer
+- Domain model tests validate serialization/deserialization
+- **No gap identified** - schema migrations don't require unit tests
+
+### Architectural Alignment
+✅ Follows project's layered architecture:
+- Migration in `crates/persistence/src/migrations/`
+- Entities with SQLx derive macros
+- Domain models with serde serialization
+- Proper separation of DB enums vs domain enums
+
+### Security Notes
+- ✅ Foreign key with `ON DELETE SET NULL` for `locked_by` prevents orphaned lock data
+- ✅ Foreign key with `ON DELETE CASCADE` for `device_id` properly cleans up settings when device deleted
+- ✅ No direct user input in migration (only seeded data)
+
+### Best-Practices and References
+- PostgreSQL JSONB documentation for flexible value storage
+- Partial index pattern for boolean flags is efficient
+- Rust SQLx derive macros for compile-time query checking
+
+### Action Items
+None - Story approved as implemented.
 
