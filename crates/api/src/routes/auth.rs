@@ -211,6 +211,72 @@ pub async fn login(
     Ok(Json(response))
 }
 
+/// Request body for token refresh.
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct RefreshRequest {
+    /// The refresh token to use
+    #[validate(length(min = 1, message = "Refresh token is required"))]
+    pub refresh_token: String,
+}
+
+/// Response body for successful token refresh.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RefreshResponse {
+    pub tokens: TokensResponse,
+}
+
+/// Refresh access token using a valid refresh token.
+///
+/// POST /api/v1/auth/refresh
+pub async fn refresh(
+    State(state): State<AppState>,
+    Json(request): Json<RefreshRequest>,
+) -> Result<Json<RefreshResponse>, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    // Create auth service
+    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
+        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+
+    // Refresh tokens
+    let result = auth_service
+        .refresh(&request.refresh_token)
+        .await
+        .map_err(|e| match e {
+            AuthError::InvalidRefreshToken => {
+                ApiError::Unauthorized("Invalid or expired refresh token".to_string())
+            }
+            AuthError::SessionNotFound => {
+                ApiError::Unauthorized("Session not found or revoked".to_string())
+            }
+            AuthError::UserNotFound => ApiError::Unauthorized("User not found".to_string()),
+            AuthError::UserDisabled => ApiError::Forbidden("User account is disabled".to_string()),
+            AuthError::DatabaseError(db_err) => ApiError::from(db_err),
+            AuthError::TokenError(e) => {
+                tracing::error!("Token error during refresh: {}", e);
+                ApiError::Unauthorized("Invalid or expired refresh token".to_string())
+            }
+            _ => ApiError::Internal(e.to_string()),
+        })?;
+
+    // Build response
+    let response = RefreshResponse {
+        tokens: TokensResponse {
+            access_token: result.access_token,
+            refresh_token: result.refresh_token,
+            token_type: "Bearer".to_string(),
+            expires_in: result.expires_in,
+        },
+    };
+
+    Ok(Json(response))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,6 +377,24 @@ mod tests {
             password: "".to_string(),
             device_id: None,
             device_name: None,
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_refresh_request_validation() {
+        let request = RefreshRequest {
+            refresh_token: "some.refresh.token".to_string(),
+        };
+
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_refresh_request_empty_token() {
+        let request = RefreshRequest {
+            refresh_token: "".to_string(),
         };
 
         assert!(request.validate().is_err());

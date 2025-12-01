@@ -223,7 +223,8 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
     // Auth routes (public, no authentication required)
     let auth_routes = Router::new()
         .route("/api/v1/auth/register", post(auth::register))
-        .route("/api/v1/auth/login", post(auth::login));
+        .route("/api/v1/auth/login", post(auth::login))
+        .route("/api/v1/auth/refresh", post(auth::refresh));
 
     // Public routes (no authentication required)
     let public_routes = Router::new()

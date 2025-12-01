@@ -12,7 +12,7 @@ use crate::config::JwtAuthConfig;
 
 /// Errors that can occur during authentication operations.
 #[derive(Debug, Error)]
-#[allow(dead_code)] // Some variants used in future stories (login, logout, etc.)
+#[allow(dead_code)] // Some variants used in future stories
 pub enum AuthError {
     #[error("Email already registered")]
     EmailAlreadyExists,
@@ -31,6 +31,12 @@ pub enum AuthError {
 
     #[error("User is disabled")]
     UserDisabled,
+
+    #[error("Invalid refresh token")]
+    InvalidRefreshToken,
+
+    #[error("Session not found")]
+    SessionNotFound,
 
     #[error("Token error: {0}")]
     TokenError(#[from] JwtError),
@@ -64,7 +70,15 @@ pub struct TokenPair {
     pub access_token_jti: String,
     pub refresh_token: String,
     pub refresh_token_jti: String,
-    #[allow(dead_code)] // Used in future stories
+    #[allow(dead_code)] // Used for API response
+    pub expires_in: i64,
+}
+
+/// Result of a successful token refresh.
+#[derive(Debug, Clone)]
+pub struct RefreshResult {
+    pub access_token: String,
+    pub refresh_token: String,
     pub expires_in: i64,
 }
 
@@ -77,6 +91,17 @@ struct UserRow {
     display_name: String,
     is_active: bool,
     email_verified: bool,
+}
+
+/// Database row for session query.
+#[derive(Debug, sqlx::FromRow)]
+struct SessionRow {
+    id: Uuid,
+    #[allow(dead_code)] // Used for validation
+    user_id: Uuid,
+    #[allow(dead_code)] // Used for validation
+    refresh_token_hash: String,
+    expires_at: chrono::DateTime<Utc>,
 }
 
 /// Authentication service.
@@ -217,6 +242,96 @@ impl AuthService {
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
             access_token_expires_in: self.access_token_expiry,
+        })
+    }
+
+    /// Refresh access token using a valid refresh token.
+    ///
+    /// Implements token rotation: old refresh token is invalidated and a new one is issued.
+    pub async fn refresh(&self, refresh_token: &str) -> Result<RefreshResult, AuthError> {
+        // Validate the refresh token
+        let claims = self
+            .jwt_config
+            .validate_refresh_token(refresh_token)
+            .map_err(|e| match e {
+                JwtError::TokenExpired => AuthError::InvalidRefreshToken,
+                JwtError::InvalidToken => AuthError::InvalidRefreshToken,
+                _ => AuthError::TokenError(e),
+            })?;
+
+        // Parse user ID from claims
+        let user_id =
+            Uuid::parse_str(&claims.sub).map_err(|_| AuthError::InvalidRefreshToken)?;
+
+        // Hash the JTI to find the session
+        let jti_hash = sha256_hex(&claims.jti);
+
+        // Find and validate the session
+        let session: Option<SessionRow> = sqlx::query_as(
+            r#"
+            SELECT id, user_id, refresh_token_hash, expires_at
+            FROM user_sessions
+            WHERE refresh_token_hash = $1 AND user_id = $2
+            "#,
+        )
+        .bind(&jti_hash)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let session = session.ok_or(AuthError::SessionNotFound)?;
+
+        // Check if session is expired
+        if session.expires_at < Utc::now() {
+            // Delete expired session
+            sqlx::query("DELETE FROM user_sessions WHERE id = $1")
+                .bind(session.id)
+                .execute(&self.pool)
+                .await?;
+            return Err(AuthError::InvalidRefreshToken);
+        }
+
+        // Check if user is still active
+        let user_active: Option<(bool,)> =
+            sqlx::query_as("SELECT is_active FROM users WHERE id = $1")
+                .bind(user_id)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        let (is_active,) = user_active.ok_or(AuthError::UserNotFound)?;
+        if !is_active {
+            return Err(AuthError::UserDisabled);
+        }
+
+        // Generate new tokens (rotation)
+        let new_tokens = self.generate_tokens(user_id)?;
+
+        // Update session with new refresh token hash
+        let now = Utc::now();
+        let new_expires_at =
+            now + chrono::Duration::seconds(self.jwt_config.refresh_token_expiry_secs);
+        let new_token_hash = sha256_hex(&new_tokens.access_token_jti);
+        let new_refresh_hash = sha256_hex(&new_tokens.refresh_token_jti);
+
+        sqlx::query(
+            r#"
+            UPDATE user_sessions
+            SET token_hash = $1, refresh_token_hash = $2, expires_at = $3, last_used_at = $4
+            WHERE id = $5
+            "#,
+        )
+        .bind(&new_token_hash)
+        .bind(&new_refresh_hash)
+        .bind(new_expires_at)
+        .bind(now)
+        .bind(session.id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(RefreshResult {
+            access_token: new_tokens.access_token,
+            refresh_token: new_tokens.refresh_token,
+            expires_in: self.access_token_expiry,
         })
     }
 
