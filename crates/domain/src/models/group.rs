@@ -318,6 +318,28 @@ pub struct UpdateRoleResponse {
     pub updated_at: DateTime<Utc>,
 }
 
+// ============================================================================
+// Ownership Transfer DTOs (Story 11.6)
+// ============================================================================
+
+/// Request to transfer group ownership.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferOwnershipRequest {
+    /// The user ID of the new owner (must be existing group member).
+    pub new_owner_id: Uuid,
+}
+
+/// Response after transferring group ownership.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferOwnershipResponse {
+    pub group_id: Uuid,
+    pub previous_owner_id: Uuid,
+    pub new_owner_id: Uuid,
+    pub transferred_at: DateTime<Utc>,
+}
+
 /// Helper function to generate URL-safe slug from name.
 pub fn generate_slug(name: &str) -> String {
     name.to_lowercase()

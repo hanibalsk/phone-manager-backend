@@ -304,7 +304,12 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             delete(invites::revoke_invite),
         )
         // Join group with invite code (Story 11.5)
-        .route("/api/v1/groups/join", post(groups::join_group));
+        .route("/api/v1/groups/join", post(groups::join_group))
+        // Ownership transfer (Story 11.6)
+        .route(
+            "/api/v1/groups/:group_id/transfer",
+            post(groups::transfer_ownership),
+        );
 
     // Public routes (no authentication required)
     let public_routes = Router::new()

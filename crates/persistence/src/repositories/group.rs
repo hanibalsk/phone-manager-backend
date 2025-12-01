@@ -489,6 +489,54 @@ impl GroupRepository {
         timer.record();
         result
     }
+
+    // =========================================================================
+    // Ownership Transfer (Story 11.6)
+    // =========================================================================
+
+    /// Transfer group ownership atomically.
+    /// The current owner becomes admin, and the new owner gets the owner role.
+    pub async fn transfer_ownership(
+        &self,
+        group_id: Uuid,
+        current_owner_id: Uuid,
+        new_owner_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        let timer = QueryTimer::new("transfer_ownership");
+
+        // Start a transaction for atomic role swap
+        let mut tx = self.pool.begin().await?;
+
+        // Demote current owner to admin
+        sqlx::query(
+            r#"
+            UPDATE group_memberships
+            SET role = 'admin', updated_at = NOW()
+            WHERE group_id = $1 AND user_id = $2
+            "#,
+        )
+        .bind(group_id)
+        .bind(current_owner_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // Promote new owner
+        sqlx::query(
+            r#"
+            UPDATE group_memberships
+            SET role = 'owner', updated_at = NOW()
+            WHERE group_id = $1 AND user_id = $2
+            "#,
+        )
+        .bind(group_id)
+        .bind(new_owner_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        timer.record();
+        Ok(())
+    }
 }
 
 #[cfg(test)]

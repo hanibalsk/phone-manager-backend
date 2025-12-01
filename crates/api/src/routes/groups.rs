@@ -9,8 +9,8 @@ use chrono::Utc;
 use domain::models::group::{
     generate_slug, CreateGroupRequest, CreateGroupResponse, GroupDetail, GroupRole, GroupSummary,
     ListGroupsQuery, ListGroupsResponse, ListMembersQuery, ListMembersResponse, MemberResponse,
-    MembershipInfo, Pagination, UpdateGroupRequest, UpdateRoleRequest, UpdateRoleResponse,
-    UserPublic,
+    MembershipInfo, Pagination, TransferOwnershipRequest, TransferOwnershipResponse,
+    UpdateGroupRequest, UpdateRoleRequest, UpdateRoleResponse, UserPublic,
 };
 use domain::models::invite::{JoinGroupInfo, JoinGroupRequest, JoinGroupResponse, JoinMembershipInfo};
 use persistence::repositories::{GroupRepository, InviteRepository};
@@ -718,6 +718,78 @@ pub async fn join_group(
             role: membership.role.into(),
             joined_at: membership.joined_at,
         },
+    }))
+}
+
+// =============================================================================
+// Ownership Transfer (Story 11.6)
+// =============================================================================
+
+/// Transfer group ownership to another member.
+///
+/// POST /api/v1/groups/:group_id/transfer
+///
+/// Requires JWT authentication. Only the owner can transfer ownership.
+/// Target user must be an existing member of the group.
+/// The current owner will be demoted to admin.
+pub async fn transfer_ownership(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(group_id): Path<Uuid>,
+    Json(request): Json<TransferOwnershipRequest>,
+) -> Result<Json<TransferOwnershipResponse>, ApiError> {
+    let repo = GroupRepository::new(state.pool.clone());
+
+    // Check user is a member of the group and get their role
+    let actor_membership = repo
+        .get_membership(group_id, user_auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Group not found or you are not a member".to_string()))?;
+
+    let actor_role: GroupRole = actor_membership.role.into();
+
+    // Only owner can transfer ownership
+    if !actor_role.can_transfer_ownership() {
+        return Err(ApiError::Forbidden(
+            "Only the group owner can transfer ownership".to_string(),
+        ));
+    }
+
+    // Cannot transfer to yourself
+    if request.new_owner_id == user_auth.user_id {
+        return Err(ApiError::Validation(
+            "Cannot transfer ownership to yourself".to_string(),
+        ));
+    }
+
+    // Check target user is a member of the group
+    let _target_membership = repo
+        .get_membership(group_id, request.new_owner_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::Validation(
+                "Target user is not a member of this group".to_string(),
+            )
+        })?;
+
+    // Transfer ownership atomically
+    repo.transfer_ownership(group_id, user_auth.user_id, request.new_owner_id)
+        .await?;
+
+    let transferred_at = Utc::now();
+
+    info!(
+        group_id = %group_id,
+        previous_owner_id = %user_auth.user_id,
+        new_owner_id = %request.new_owner_id,
+        "Group ownership transferred"
+    );
+
+    Ok(Json(TransferOwnershipResponse {
+        group_id,
+        previous_owner_id: user_auth.user_id,
+        new_owner_id: request.new_owner_id,
+        transferred_at,
     }))
 }
 
