@@ -59,6 +59,7 @@ hex = "0.4"
 rand = "0.8"
 base64 = "0.21"
 argon2 = "0.5"
+jsonwebtoken = "9.3"
 
 # Metrics
 metrics = "0.22"
