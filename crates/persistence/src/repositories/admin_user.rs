@@ -325,11 +325,11 @@ impl AdminUserRepository {
         let entities = sqlx::query_as::<_, UserGroupEntity>(
             r#"
             SELECT
-                g.group_id,
+                g.id as group_id,
                 g.name,
                 gm.role
             FROM group_memberships gm
-            JOIN groups g ON g.group_id = gm.group_id
+            JOIN groups g ON g.id = gm.group_id
             WHERE gm.user_id = $1
             ORDER BY g.name ASC
             "#,

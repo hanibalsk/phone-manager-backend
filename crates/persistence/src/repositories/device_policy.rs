@@ -242,10 +242,12 @@ impl DevicePolicyRepository {
     }
 
     /// Apply policy to specific devices.
+    /// Only affects devices that belong to the specified organization.
     pub async fn apply_to_devices(
         &self,
         policy_id: Uuid,
         device_ids: &[Uuid],
+        organization_id: Uuid,
         replace_existing: bool,
     ) -> Result<i64, sqlx::Error> {
         let result = if replace_existing {
@@ -254,11 +256,12 @@ impl DevicePolicyRepository {
                 r#"
                 UPDATE devices
                 SET policy_id = $1
-                WHERE id = ANY($2)
+                WHERE device_id = ANY($2) AND organization_id = $3
                 "#,
             )
             .bind(policy_id)
             .bind(device_ids)
+            .bind(organization_id)
             .execute(&self.pool)
             .await?
         } else {
@@ -267,11 +270,12 @@ impl DevicePolicyRepository {
                 r#"
                 UPDATE devices
                 SET policy_id = $1
-                WHERE id = ANY($2) AND policy_id IS NULL
+                WHERE device_id = ANY($2) AND organization_id = $3 AND policy_id IS NULL
                 "#,
             )
             .bind(policy_id)
             .bind(device_ids)
+            .bind(organization_id)
             .execute(&self.pool)
             .await?
         };
@@ -280,34 +284,41 @@ impl DevicePolicyRepository {
     }
 
     /// Apply policy to all devices in a group.
+    /// Only affects devices that belong to the specified organization.
+    /// Uses group UUID to find devices via groups.slug -> devices.group_id JOIN.
     pub async fn apply_to_group(
         &self,
         policy_id: Uuid,
         group_id: Uuid,
+        organization_id: Uuid,
         replace_existing: bool,
     ) -> Result<i64, sqlx::Error> {
         let result = if replace_existing {
             sqlx::query(
                 r#"
-                UPDATE devices
+                UPDATE devices d
                 SET policy_id = $1
-                WHERE group_id = $2
+                FROM groups g
+                WHERE d.group_id = g.slug AND g.id = $2 AND d.organization_id = $3
                 "#,
             )
             .bind(policy_id)
-            .bind(group_id.to_string())
+            .bind(group_id)
+            .bind(organization_id)
             .execute(&self.pool)
             .await?
         } else {
             sqlx::query(
                 r#"
-                UPDATE devices
+                UPDATE devices d
                 SET policy_id = $1
-                WHERE group_id = $2 AND policy_id IS NULL
+                FROM groups g
+                WHERE d.group_id = g.slug AND g.id = $2 AND d.organization_id = $3 AND d.policy_id IS NULL
                 "#,
             )
             .bind(policy_id)
-            .bind(group_id.to_string())
+            .bind(group_id)
+            .bind(organization_id)
             .execute(&self.pool)
             .await?
         };
@@ -328,20 +339,23 @@ impl DevicePolicyRepository {
     }
 
     /// Remove policy from specific devices.
+    /// Only affects devices that belong to the specified organization.
     pub async fn unapply_from_devices(
         &self,
         policy_id: Uuid,
         device_ids: &[Uuid],
+        organization_id: Uuid,
     ) -> Result<i64, sqlx::Error> {
         let result = sqlx::query(
             r#"
             UPDATE devices
             SET policy_id = NULL
-            WHERE id = ANY($1) AND policy_id = $2
+            WHERE device_id = ANY($1) AND policy_id = $2 AND organization_id = $3
             "#,
         )
         .bind(device_ids)
         .bind(policy_id)
+        .bind(organization_id)
         .execute(&self.pool)
         .await?;
 
@@ -349,20 +363,25 @@ impl DevicePolicyRepository {
     }
 
     /// Remove policy from all devices in a group.
+    /// Only affects devices that belong to the specified organization.
+    /// Uses group UUID to find devices via groups.slug -> devices.group_id JOIN.
     pub async fn unapply_from_group(
         &self,
         policy_id: Uuid,
         group_id: Uuid,
+        organization_id: Uuid,
     ) -> Result<i64, sqlx::Error> {
         let result = sqlx::query(
             r#"
-            UPDATE devices
+            UPDATE devices d
             SET policy_id = NULL
-            WHERE group_id = $1 AND policy_id = $2
+            FROM groups g
+            WHERE d.group_id = g.slug AND g.id = $1 AND d.policy_id = $2 AND d.organization_id = $3
             "#,
         )
-        .bind(group_id.to_string())
+        .bind(group_id)
         .bind(policy_id)
+        .bind(organization_id)
         .execute(&self.pool)
         .await?;
 

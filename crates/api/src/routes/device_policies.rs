@@ -271,14 +271,14 @@ pub async fn apply_policy(
     // Apply to individual devices
     if !device_ids.is_empty() {
         devices_affected += repo
-            .apply_to_devices(policy_id, &device_ids, request.replace_existing)
+            .apply_to_devices(policy_id, &device_ids, org_id, request.replace_existing)
             .await?;
     }
 
     // Apply to groups
     for group_id in &group_ids {
         let affected = repo
-            .apply_to_group(policy_id, *group_id, request.replace_existing)
+            .apply_to_group(policy_id, *group_id, org_id, request.replace_existing)
             .await?;
         devices_affected += affected;
         groups_count += 1;
@@ -343,13 +343,13 @@ pub async fn unapply_policy(
     // Unapply from individual devices
     if !device_ids.is_empty() {
         devices_affected += repo
-            .unapply_from_devices(policy_id, &device_ids)
+            .unapply_from_devices(policy_id, &device_ids, org_id)
             .await?;
     }
 
     // Unapply from groups
     for group_id in &group_ids {
-        let affected = repo.unapply_from_group(policy_id, *group_id).await?;
+        let affected = repo.unapply_from_group(policy_id, *group_id, org_id).await?;
         devices_affected += affected;
         groups_count += 1;
     }

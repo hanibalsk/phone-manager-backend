@@ -32,19 +32,19 @@ impl AdminGroupRepository {
         let row = sqlx::query_as::<_, AdminGroupSummaryEntity>(
             r#"
             WITH org_groups AS (
-                SELECT DISTINCT g.group_id
+                SELECT DISTINCT g.id
                 FROM groups g
-                JOIN group_memberships gm ON gm.group_id = g.group_id
+                JOIN group_memberships gm ON gm.group_id = g.id
                 JOIN org_users ou ON ou.user_id = gm.user_id
                 WHERE ou.organization_id = $1
             )
             SELECT
-                COUNT(DISTINCT g.group_id) as total_groups,
-                COUNT(DISTINCT g.group_id) FILTER (WHERE g.is_active = true) as active_groups,
-                COALESCE(SUM((SELECT COUNT(*) FROM group_memberships gm2 WHERE gm2.group_id = g.group_id)), 0) as total_members,
+                COUNT(DISTINCT g.id) as total_groups,
+                COUNT(DISTINCT g.id) FILTER (WHERE g.is_active = true) as active_groups,
+                COALESCE(SUM((SELECT COUNT(*) FROM group_memberships gm2 WHERE gm2.group_id = g.id)), 0) as total_members,
                 COALESCE(SUM((SELECT COUNT(*) FROM devices d WHERE d.group_id = g.slug AND d.active = true)), 0) as total_devices
             FROM groups g
-            WHERE g.group_id IN (SELECT group_id FROM org_groups)
+            WHERE g.id IN (SELECT id FROM org_groups)
             "#,
         )
         .bind(org_id)
@@ -69,15 +69,15 @@ impl AdminGroupRepository {
     ) -> Result<i64, sqlx::Error> {
         let mut query = r#"
             WITH org_groups AS (
-                SELECT DISTINCT g.group_id
+                SELECT DISTINCT g.id
                 FROM groups g
-                JOIN group_memberships gm ON gm.group_id = g.group_id
+                JOIN group_memberships gm ON gm.group_id = g.id
                 JOIN org_users ou ON ou.user_id = gm.user_id
                 WHERE ou.organization_id = $1
             )
-            SELECT COUNT(DISTINCT g.group_id)
+            SELECT COUNT(DISTINCT g.id)
             FROM groups g
-            WHERE g.group_id IN (SELECT group_id FROM org_groups)
+            WHERE g.id IN (SELECT id FROM org_groups)
             "#
         .to_string();
 
@@ -144,14 +144,14 @@ impl AdminGroupRepository {
 
         let mut query = r#"
             WITH org_groups AS (
-                SELECT DISTINCT g.group_id
+                SELECT DISTINCT g.id
                 FROM groups g
-                JOIN group_memberships gm ON gm.group_id = g.group_id
+                JOIN group_memberships gm ON gm.group_id = g.id
                 JOIN org_users ou ON ou.user_id = gm.user_id
                 WHERE ou.organization_id = $1
             )
             SELECT
-                g.group_id,
+                g.id as group_id,
                 g.name,
                 g.slug,
                 g.description,
@@ -159,7 +159,7 @@ impl AdminGroupRepository {
                 g.is_active,
                 g.created_at,
                 COALESCE((
-                    SELECT COUNT(*) FROM group_memberships gm WHERE gm.group_id = g.group_id
+                    SELECT COUNT(*) FROM group_memberships gm WHERE gm.group_id = g.id
                 ), 0) as member_count,
                 COALESCE((
                     SELECT COUNT(*) FROM devices d WHERE d.group_id = g.slug AND d.active = true
@@ -168,9 +168,9 @@ impl AdminGroupRepository {
                 owner.email as owner_email,
                 owner.display_name as owner_display_name
             FROM groups g
-            LEFT JOIN group_memberships owner_gm ON owner_gm.group_id = g.group_id AND owner_gm.role = 'owner'
+            LEFT JOIN group_memberships owner_gm ON owner_gm.group_id = g.id AND owner_gm.role = 'owner'
             LEFT JOIN users owner ON owner.id = owner_gm.user_id
-            WHERE g.group_id IN (SELECT group_id FROM org_groups)
+            WHERE g.id IN (SELECT id FROM org_groups)
             "#
         .to_string();
 
@@ -265,14 +265,14 @@ impl AdminGroupRepository {
         let entity = sqlx::query_as::<_, AdminGroupProfileEntity>(
             r#"
             WITH org_groups AS (
-                SELECT DISTINCT g.group_id
+                SELECT DISTINCT g.id
                 FROM groups g
-                JOIN group_memberships gm ON gm.group_id = g.group_id
+                JOIN group_memberships gm ON gm.group_id = g.id
                 JOIN org_users ou ON ou.user_id = gm.user_id
                 WHERE ou.organization_id = $1
             )
             SELECT
-                g.group_id,
+                g.id as group_id,
                 g.name,
                 g.slug,
                 g.description,
@@ -282,13 +282,13 @@ impl AdminGroupRepository {
                 g.created_by,
                 g.created_at,
                 COALESCE((
-                    SELECT COUNT(*) FROM group_memberships gm WHERE gm.group_id = g.group_id
+                    SELECT COUNT(*) FROM group_memberships gm WHERE gm.group_id = g.id
                 ), 0) as member_count,
                 COALESCE((
                     SELECT COUNT(*) FROM devices d WHERE d.group_id = g.slug AND d.active = true
                 ), 0) as device_count
             FROM groups g
-            WHERE g.group_id = $2 AND g.group_id IN (SELECT group_id FROM org_groups)
+            WHERE g.id = $2 AND g.id IN (SELECT id FROM org_groups)
             "#,
         )
         .bind(org_id)
@@ -413,7 +413,7 @@ impl AdminGroupRepository {
         updates.push("updated_at = NOW()".to_string());
 
         let query = format!(
-            "UPDATE groups SET {} WHERE group_id = $1",
+            "UPDATE groups SET {} WHERE id = $1",
             updates.join(", ")
         );
 
@@ -442,7 +442,7 @@ impl AdminGroupRepository {
             r#"
             UPDATE groups
             SET is_active = false, updated_at = NOW()
-            WHERE group_id = $1 AND is_active = true
+            WHERE id = $1 AND is_active = true
             "#,
         )
         .bind(group_id)
@@ -463,9 +463,9 @@ impl AdminGroupRepository {
             SELECT EXISTS (
                 SELECT 1
                 FROM groups g
-                JOIN group_memberships gm ON gm.group_id = g.group_id
+                JOIN group_memberships gm ON gm.group_id = g.id
                 JOIN org_users ou ON ou.user_id = gm.user_id
-                WHERE g.group_id = $1 AND ou.organization_id = $2
+                WHERE g.id = $1 AND ou.organization_id = $2
             )
             "#,
         )
