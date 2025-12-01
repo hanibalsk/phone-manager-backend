@@ -88,4 +88,53 @@
 |------|--------|
 | 2025-12-01 | Story created |
 | 2025-12-01 | Story completed |
+| 2025-12-01 | Senior Developer Review notes appended |
+
+---
+
+## Senior Developer Review (AI)
+
+### Reviewer
+Martin Janci
+
+### Date
+2025-12-01
+
+### Outcome
+**Approve**
+
+### Summary
+Story 10.6 implementation is complete. Device registration now supports optional JWT authentication via OptionalUserAuth extractor, enabling automatic device linking for authenticated users while maintaining backward compatibility with API-key-only registration.
+
+### Key Findings
+
+**Positive Findings:**
+1. ✅ **OptionalUserAuth integration**: Gracefully handles both authenticated and unauthenticated requests
+2. ✅ **Automatic linking**: First device for a user becomes primary
+3. ✅ **Conflict detection**: Returns 409 if device already owned by another user
+4. ✅ **Backward compatible**: Null fields not serialized (skip_serializing_if)
+5. ✅ **All tests pass**: 73 tests passing
+
+### Acceptance Criteria Coverage
+
+| AC | Description | Status |
+|----|-------------|--------|
+| 1 | Supports both API key and JWT | ✅ Met |
+| 2 | JWT present → device linked to user | ✅ Met |
+| 3 | API key only → no owner (backward compatible) | ✅ Met |
+| 4 | Sets owner_user_id, linked_at when JWT authenticated | ✅ Met |
+| 5a | No owner → link to user | ✅ Met |
+| 5b | Same owner → update device | ✅ Met |
+| 5c | Different owner → 409 Conflict | ✅ Met |
+| 6 | Response includes owner fields | ✅ Met |
+| 7 | Backward compatibility maintained | ✅ Met |
+
+### Security Notes
+
+1. ✅ OptionalUserAuth doesn't fail request if no JWT - maintains API key path
+2. ✅ Ownership conflict properly detected and rejected
+
+### Action Items
+
+None - implementation is approved for merge.
 
