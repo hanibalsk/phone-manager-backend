@@ -2,6 +2,7 @@
 //!
 //! Entities are direct mappings to database rows.
 
+pub mod admin_group;
 pub mod admin_user;
 pub mod api_key;
 pub mod audit_export_job;
@@ -26,6 +27,10 @@ pub mod trip_path_correction;
 pub mod unlock_request;
 pub mod user;
 
+pub use admin_group::{
+    AdminGroupEntity, AdminGroupProfileEntity, AdminGroupSummaryEntity, GroupDeviceEntity,
+    GroupMemberEntity,
+};
 pub use admin_user::{
     AdminUserEntity, AdminUserProfileEntity, AdminUserSummaryEntity, RecentActionEntity,
     UserDeviceEntity, UserGroupEntity,

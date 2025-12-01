@@ -1,5 +1,6 @@
 //! Domain models for Phone Manager.
 
+pub mod admin_group;
 pub mod admin_user;
 pub mod audit_log;
 pub mod bulk_import;
@@ -99,4 +100,9 @@ pub use admin_user::{
     AdminUserProfile, AdminUserQuery, AdminUserSortField, AdminUserSummary, RecentAction,
     RemoveUserResponse, SortOrder as AdminSortOrder, UpdateAdminUserRequest, UpdateAdminUserResponse,
     UserActivitySummary, UserDeviceInfo, UserGroupInfo,
+};
+pub use admin_group::{
+    AdminGroupDetailResponse, AdminGroupItem, AdminGroupListResponse, AdminGroupPagination,
+    AdminGroupProfile, AdminGroupQuery, AdminGroupSortField, AdminGroupSummary, DeactivateGroupResponse,
+    GroupDeviceInfo, GroupMemberInfo, GroupOwnerInfo, UpdateAdminGroupRequest, UpdateAdminGroupResponse,
 };
