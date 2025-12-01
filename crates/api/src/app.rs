@@ -19,8 +19,8 @@ use crate::middleware::{
     security_headers_middleware, trace_id, RateLimiterState,
 };
 use crate::routes::{
-    admin, auth, devices, geofences, groups, health, locations, movement_events, openapi, privacy,
-    proximity_alerts, trips, users, versioning,
+    admin, auth, devices, geofences, groups, health, invites, locations, movement_events, openapi,
+    privacy, proximity_alerts, trips, users, versioning,
 };
 use crate::services::map_matching::MapMatchingClient;
 
@@ -289,11 +289,26 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/v1/groups/:group_id/members/:user_id/role",
             put(groups::update_member_role),
+        )
+        // Invite management (Story 11.4)
+        .route(
+            "/api/v1/groups/:group_id/invites",
+            post(invites::create_invite),
+        )
+        .route(
+            "/api/v1/groups/:group_id/invites",
+            get(invites::list_invites),
+        )
+        .route(
+            "/api/v1/groups/:group_id/invites/:invite_id",
+            delete(invites::revoke_invite),
         );
 
     // Public routes (no authentication required)
     let public_routes = Router::new()
         .route("/api/health", get(health::health_check))
+        // Public invite info (Story 11.4)
+        .route("/api/v1/invites/:code", get(invites::get_invite_info))
         .route("/api/health/ready", get(health::ready))
         .route("/api/health/live", get(health::live))
         .route("/metrics", get(metrics_handler));

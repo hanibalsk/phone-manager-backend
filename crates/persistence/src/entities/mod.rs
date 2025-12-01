@@ -7,6 +7,7 @@ pub mod device;
 pub mod geofence;
 pub mod group;
 pub mod idempotency_key;
+pub mod invite;
 pub mod location;
 pub mod movement_event;
 pub mod proximity_alert;
@@ -21,6 +22,7 @@ pub use group::{
     GroupEntity, GroupMembershipEntity, GroupRoleDb, GroupWithMembershipEntity, MemberWithUserEntity,
 };
 pub use idempotency_key::IdempotencyKeyEntity;
+pub use invite::{GroupInviteEntity, InviteWithCreatorEntity, InviteWithGroupEntity};
 pub use location::LocationEntity;
 pub use movement_event::MovementEventEntity;
 pub use proximity_alert::ProximityAlertEntity;

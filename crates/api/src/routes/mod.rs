@@ -6,6 +6,7 @@ pub mod devices;
 pub mod geofences;
 pub mod groups;
 pub mod health;
+pub mod invites;
 pub mod locations;
 pub mod movement_events;
 pub mod openapi;
