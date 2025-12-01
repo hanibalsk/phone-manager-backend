@@ -19,7 +19,7 @@ use crate::middleware::{
     security_headers_middleware, trace_id, RateLimiterState,
 };
 use crate::routes::{
-    admin, auth, devices, geofences, health, locations, movement_events, openapi, privacy,
+    admin, auth, devices, geofences, groups, health, locations, movement_events, openapi, privacy,
     proximity_alerts, trips, users, versioning,
 };
 use crate::services::map_matching::MapMatchingClient;
@@ -264,6 +264,15 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             post(users::transfer_device),
         );
 
+    // Group management routes (require JWT authentication)
+    // The UserAuth extractor handles JWT validation directly
+    let group_routes = Router::new()
+        .route("/api/v1/groups", post(groups::create_group))
+        .route("/api/v1/groups", get(groups::list_groups))
+        .route("/api/v1/groups/:group_id", get(groups::get_group))
+        .route("/api/v1/groups/:group_id", put(groups::update_group))
+        .route("/api/v1/groups/:group_id", delete(groups::delete_group));
+
     // Public routes (no authentication required)
     let public_routes = Router::new()
         .route("/api/health", get(health::health_check))
@@ -283,6 +292,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .merge(public_routes)
         .merge(auth_routes)
         .merge(user_routes)
+        .merge(group_routes)
         .merge(openapi_routes)
         .merge(protected_routes)
         .merge(admin_routes)
