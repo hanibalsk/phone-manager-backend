@@ -47,11 +47,12 @@ impl UserAuth {
 
     /// Creates a JwtConfig from JwtAuthConfig.
     pub fn create_jwt_config(config: &JwtAuthConfig) -> Result<JwtConfig, String> {
-        JwtConfig::new(
+        JwtConfig::with_leeway(
             &config.private_key,
             &config.public_key,
             config.access_token_expiry_secs,
             config.refresh_token_expiry_secs,
+            config.leeway_secs,
         )
         .map_err(|e| format!("Failed to initialize JWT config: {}", e))
     }

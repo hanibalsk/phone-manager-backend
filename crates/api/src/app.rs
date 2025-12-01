@@ -19,8 +19,8 @@ use crate::middleware::{
     security_headers_middleware, trace_id, RateLimiterState,
 };
 use crate::routes::{
-    admin, auth, devices, geofences, groups, health, invites, locations, movement_events, openapi,
-    privacy, proximity_alerts, trips, users, versioning,
+    admin, auth, device_settings, devices, geofences, groups, health, invites, locations,
+    movement_events, openapi, privacy, proximity_alerts, trips, users, versioning,
 };
 use crate::services::map_matching::MapMatchingClient;
 
@@ -224,6 +224,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
     let auth_routes = Router::new()
         .route("/api/v1/auth/register", post(auth::register))
         .route("/api/v1/auth/login", post(auth::login))
+        .route("/api/v1/auth/oauth", post(auth::oauth_login))
         .route("/api/v1/auth/refresh", post(auth::refresh))
         .route("/api/v1/auth/logout", post(auth::logout))
         .route(
@@ -262,6 +263,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/v1/users/:user_id/devices/:device_id/transfer",
             post(users::transfer_device),
+        )
+        // Device settings endpoints (Story 12.2)
+        .route(
+            "/api/v1/devices/:device_id/settings",
+            get(device_settings::get_device_settings),
         );
 
     // Group management routes (require JWT authentication)

@@ -62,6 +62,8 @@ pub struct JwtConfig {
     pub access_token_expiry_secs: i64,
     /// Refresh token expiration in seconds (default: 604800 = 7 days)
     pub refresh_token_expiry_secs: i64,
+    /// Leeway in seconds for clock skew tolerance (default: 30)
+    pub leeway_secs: u64,
 }
 
 impl std::fmt::Debug for JwtConfig {
@@ -69,11 +71,15 @@ impl std::fmt::Debug for JwtConfig {
         f.debug_struct("JwtConfig")
             .field("access_token_expiry_secs", &self.access_token_expiry_secs)
             .field("refresh_token_expiry_secs", &self.refresh_token_expiry_secs)
+            .field("leeway_secs", &self.leeway_secs)
             .field("encoding_key", &"[REDACTED]")
             .field("decoding_key", &"[REDACTED]")
             .finish()
     }
 }
+
+/// Default leeway in seconds for clock skew tolerance
+pub const DEFAULT_LEEWAY_SECS: u64 = 30;
 
 impl JwtConfig {
     /// Creates a new JwtConfig from RSA key pair in PEM format.
@@ -89,6 +95,30 @@ impl JwtConfig {
         access_token_expiry_secs: i64,
         refresh_token_expiry_secs: i64,
     ) -> Result<Self, JwtError> {
+        Self::with_leeway(
+            private_key_pem,
+            public_key_pem,
+            access_token_expiry_secs,
+            refresh_token_expiry_secs,
+            DEFAULT_LEEWAY_SECS,
+        )
+    }
+
+    /// Creates a new JwtConfig from RSA key pair in PEM format with custom leeway.
+    ///
+    /// # Arguments
+    /// * `private_key_pem` - RSA private key in PEM format
+    /// * `public_key_pem` - RSA public key in PEM format
+    /// * `access_token_expiry_secs` - Access token expiration in seconds
+    /// * `refresh_token_expiry_secs` - Refresh token expiration in seconds
+    /// * `leeway_secs` - Leeway in seconds for clock skew tolerance
+    pub fn with_leeway(
+        private_key_pem: &str,
+        public_key_pem: &str,
+        access_token_expiry_secs: i64,
+        refresh_token_expiry_secs: i64,
+        leeway_secs: u64,
+    ) -> Result<Self, JwtError> {
         let encoding_key = EncodingKey::from_rsa_pem(private_key_pem.as_bytes())
             .map_err(|e| JwtError::InvalidKey(format!("Invalid private key: {}", e)))?;
 
@@ -100,6 +130,7 @@ impl JwtConfig {
             decoding_key,
             access_token_expiry_secs,
             refresh_token_expiry_secs,
+            leeway_secs,
         })
     }
 
@@ -112,6 +143,7 @@ impl JwtConfig {
             decoding_key: DecodingKey::from_secret(secret.as_bytes()),
             access_token_expiry_secs: 900,
             refresh_token_expiry_secs: 604800,
+            leeway_secs: 0, // Strict for testing - no leeway
         }
     }
 
@@ -157,9 +189,9 @@ impl JwtConfig {
     pub fn validate_token(&self, token: &str) -> Result<Claims, JwtError> {
         let mut validation = Validation::new(self.algorithm());
         validation.validate_exp = true;
-        // Set leeway to 0 for strict expiration checking
-        // Default is 60 seconds which is too lenient for our use case
-        validation.leeway = 0;
+        // Set leeway for clock skew tolerance (default: 30 seconds)
+        // This allows for minor clock differences between client and server
+        validation.leeway = self.leeway_secs;
 
         let token_data = decode::<Claims>(token, &self.decoding_key, &validation).map_err(|e| {
             match e.kind() {

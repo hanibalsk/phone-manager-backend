@@ -199,6 +199,11 @@ pub struct JwtAuthConfig {
     /// Refresh token expiration in seconds (default: 2592000 = 30 days)
     #[serde(default = "default_refresh_token_expiry")]
     pub refresh_token_expiry_secs: i64,
+
+    /// Leeway in seconds for clock skew tolerance (default: 30)
+    /// Allows tokens to be accepted if they expired within this many seconds
+    #[serde(default = "default_jwt_leeway")]
+    pub leeway_secs: u64,
 }
 
 fn default_access_token_expiry() -> i64 {
@@ -207,6 +212,10 @@ fn default_access_token_expiry() -> i64 {
 
 fn default_refresh_token_expiry() -> i64 {
     2592000 // 30 days
+}
+
+fn default_jwt_leeway() -> u64 {
+    30 // 30 seconds for clock skew tolerance
 }
 
 /// Configuration validation error
@@ -289,6 +298,7 @@ impl Config {
             public_key = "test-public-key"
             access_token_expiry_secs = 3600
             refresh_token_expiry_secs = 2592000
+            leeway_secs = 30
         "#;
 
         let mut builder = config::Config::builder()

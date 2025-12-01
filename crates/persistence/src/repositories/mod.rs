@@ -9,6 +9,7 @@ pub mod invite;
 pub mod location;
 pub mod movement_event;
 pub mod proximity_alert;
+pub mod setting;
 pub mod trip;
 pub mod trip_path_correction;
 pub mod user;
@@ -22,6 +23,7 @@ pub use invite::InviteRepository;
 pub use location::{LocationHistoryQuery, LocationInput, LocationRepository};
 pub use movement_event::{MovementEventInput, MovementEventQuery, MovementEventRepository};
 pub use proximity_alert::ProximityAlertRepository;
+pub use setting::SettingRepository;
 pub use trip::{TripInput, TripQuery, TripRepository, TripUpdateInput};
 pub use trip_path_correction::{
     TripPathCorrectionInput, TripPathCorrectionRepository, TripPathCorrectionUpdateInput,

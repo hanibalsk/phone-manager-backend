@@ -102,3 +102,8 @@ access_token_expiry_secs = 3600
 
 # Refresh token expiration in seconds (default: 30 days)
 refresh_token_expiry_secs = 2592000
+
+# Leeway in seconds for clock skew tolerance (default: 30 seconds)
+# Allows tokens to be accepted if they expired within this many seconds
+# This compensates for minor clock differences between client and server
+leeway_secs = 30

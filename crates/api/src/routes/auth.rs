@@ -145,6 +145,27 @@ pub struct LoginRequest {
     pub device_name: Option<String>,
 }
 
+/// Request body for OAuth sign-in.
+#[derive(Debug, Clone, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct OAuthLoginRequest {
+    /// OAuth provider (google or apple)
+    #[validate(length(min = 1, message = "Provider is required"))]
+    pub provider: String,
+
+    /// ID token from the OAuth provider
+    #[validate(length(min = 1, message = "ID token is required"))]
+    pub id_token: String,
+
+    /// Optional device ID making the request
+    #[allow(dead_code)] // Used in future story for device linking
+    pub device_id: Option<String>,
+
+    /// Optional device name
+    #[allow(dead_code)] // Used in future story for device linking
+    pub device_name: Option<String>,
+}
+
 /// Response body for successful login.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -197,6 +218,68 @@ pub async fn login(
             avatar_url: None,
             email_verified: result.email_verified,
             auth_provider: "email".to_string(),
+            organization_id: None,
+            created_at: chrono::Utc::now().to_rfc3339(),
+        },
+        tokens: TokensResponse {
+            access_token: result.access_token,
+            refresh_token: result.refresh_token,
+            token_type: "Bearer".to_string(),
+            expires_in: result.access_token_expires_in,
+        },
+    };
+
+    Ok(Json(response))
+}
+
+/// OAuth sign-in with Google or Apple.
+///
+/// POST /api/v1/auth/oauth
+pub async fn oauth_login(
+    State(state): State<AppState>,
+    Json(request): Json<OAuthLoginRequest>,
+) -> Result<Json<LoginResponse>, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    // Create auth service
+    let auth_service = AuthService::new(state.pool.clone(), &state.config.jwt)
+        .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))?;
+
+    // OAuth login
+    let result = auth_service
+        .oauth_login(&request.provider, &request.id_token)
+        .await
+        .map_err(|e| match e {
+            AuthError::InvalidOAuthToken => {
+                ApiError::Unauthorized("Invalid or expired OAuth token".to_string())
+            }
+            AuthError::UnsupportedOAuthProvider => {
+                ApiError::Validation("Unsupported OAuth provider. Use 'google' or 'apple'.".to_string())
+            }
+            AuthError::OAuthProviderError(msg) => {
+                tracing::error!("OAuth provider error: {}", msg);
+                ApiError::Internal("OAuth provider error".to_string())
+            }
+            AuthError::UserDisabled => ApiError::Forbidden("User account is disabled".to_string()),
+            AuthError::DatabaseError(db_err) => ApiError::from(db_err),
+            _ => ApiError::Internal(e.to_string()),
+        })?;
+
+    // Determine auth provider for response
+    let auth_provider = request.provider.to_lowercase();
+
+    // Build response
+    let response = LoginResponse {
+        user: UserResponse {
+            id: result.user_id.to_string(),
+            email: result.email,
+            display_name: result.display_name,
+            avatar_url: None,
+            email_verified: result.email_verified,
+            auth_provider,
             organization_id: None,
             created_at: chrono::Utc::now().to_rfc3339(),
         },
@@ -780,5 +863,63 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("message"));
         assert!(json.contains("Verification sent"));
+    }
+
+    #[test]
+    fn test_oauth_login_request_validation() {
+        let request = OAuthLoginRequest {
+            provider: "google".to_string(),
+            id_token: "some.id.token".to_string(),
+            device_id: None,
+            device_name: None,
+        };
+
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_oauth_login_request_empty_provider() {
+        let request = OAuthLoginRequest {
+            provider: "".to_string(),
+            id_token: "some.id.token".to_string(),
+            device_id: None,
+            device_name: None,
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_oauth_login_request_empty_token() {
+        let request = OAuthLoginRequest {
+            provider: "google".to_string(),
+            id_token: "".to_string(),
+            device_id: None,
+            device_name: None,
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_oauth_login_request_with_device() {
+        let request = OAuthLoginRequest {
+            provider: "apple".to_string(),
+            id_token: "some.id.token".to_string(),
+            device_id: Some("device-123".to_string()),
+            device_name: Some("My iPhone".to_string()),
+        };
+
+        assert!(request.validate().is_ok());
+        assert_eq!(request.device_id, Some("device-123".to_string()));
+    }
+
+    #[test]
+    fn test_oauth_login_request_deserialization() {
+        let json = r#"{"provider": "google", "idToken": "abc.def.ghi"}"#;
+        let request: OAuthLoginRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.provider, "google");
+        assert_eq!(request.id_token, "abc.def.ghi");
+        assert!(request.device_id.is_none());
     }
 }

@@ -2,6 +2,7 @@
 
 pub mod admin;
 pub mod auth;
+pub mod device_settings;
 pub mod devices;
 pub mod geofences;
 pub mod groups;
