@@ -250,6 +250,15 @@ pub struct BulkUpdateLocksResponse {
     pub notification_sent: bool,
 }
 
+/// Request for settings sync.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncSettingsRequest {
+    /// Last sync timestamp from device (optional, if not provided all settings are returned)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_synced_at: Option<DateTime<Utc>>,
+}
+
 /// Response for settings sync.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

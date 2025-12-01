@@ -284,6 +284,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             post(device_settings::lock_setting)
                 .delete(device_settings::unlock_setting),
         )
+        // Settings sync endpoint (Story 12.7)
+        .route(
+            "/api/v1/devices/:device_id/settings/sync",
+            post(device_settings::sync_settings),
+        )
         // Unlock request endpoint (Story 12.6)
         .route(
             "/api/v1/devices/:device_id/settings/:key/unlock-request",

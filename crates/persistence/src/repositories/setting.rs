@@ -324,6 +324,30 @@ impl SettingRepository {
         timer.record();
         Ok(result)
     }
+
+    /// Get settings modified since a timestamp.
+    pub async fn get_settings_modified_since(
+        &self,
+        device_id: Uuid,
+        since: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Vec<DeviceSettingEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("get_settings_modified_since");
+        let result = sqlx::query_as::<_, DeviceSettingEntity>(
+            r#"
+            SELECT id, device_id, setting_key, value, is_locked, locked_by,
+                   locked_at, lock_reason, updated_by, updated_at, created_at
+            FROM device_settings
+            WHERE device_id = $1 AND updated_at > $2
+            ORDER BY setting_key
+            "#,
+        )
+        .bind(device_id)
+        .bind(since)
+        .fetch_all(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
 }
 
 #[cfg(test)]

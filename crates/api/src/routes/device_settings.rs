@@ -10,8 +10,9 @@ use chrono::Utc;
 use domain::models::setting::{
     BulkUpdateLocksRequest, BulkUpdateLocksResponse, GetSettingsResponse, ListLocksResponse,
     LockInfo, LockSettingRequest, LockSettingResponse, LockUpdateResult, LockerInfo,
-    SettingCategory, SettingDataType, SettingDefinition, SettingValue, SkippedLockUpdate,
-    UnlockSettingResponse, UpdateSettingRequest, UpdateSettingsRequest, UpdateSettingsResponse,
+    SettingCategory, SettingChange, SettingDataType, SettingDefinition, SettingValue,
+    SkippedLockUpdate, SyncSettingsRequest, SyncSettingsResponse, UnlockSettingResponse,
+    UpdateSettingRequest, UpdateSettingsRequest, UpdateSettingsResponse,
 };
 use domain::models::unlock_request::{
     CreateUnlockRequestRequest, CreateUnlockRequestResponse, DeviceInfo,
@@ -1182,6 +1183,126 @@ pub async fn respond_to_unlock_request(
         responded_at: updated.responded_at.unwrap_or_else(Utc::now),
         note: updated.response_note,
         setting_unlocked,
+    }))
+}
+
+/// Sync device settings.
+///
+/// POST /api/v1/devices/:device_id/settings/sync
+///
+/// Returns all settings and highlights changes since last sync.
+/// Requires JWT authentication.
+/// Device owner or group admin can trigger sync.
+pub async fn sync_settings(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(device_id): Path<Uuid>,
+    Json(request): Json<SyncSettingsRequest>,
+) -> Result<Json<SyncSettingsResponse>, ApiError> {
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let setting_repo = SettingRepository::new(state.pool.clone());
+    let group_repo = GroupRepository::new(state.pool.clone());
+
+    // Get the device
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Authorization check: must be owner or admin of device's group
+    let is_authorized = check_settings_authorization(
+        &device_repo,
+        &group_repo,
+        &device,
+        user_auth.user_id,
+    )
+    .await?;
+
+    if !is_authorized {
+        return Err(ApiError::Forbidden(
+            "Not authorized to sync this device's settings".to_string(),
+        ));
+    }
+
+    let synced_at = Utc::now();
+
+    // Get all setting definitions for defaults
+    let definitions = setting_repo.get_all_definitions().await?;
+
+    // Get all device settings
+    let device_settings = setting_repo.get_device_settings(device_id).await?;
+
+    // Build settings map with defaults first, then override with device values
+    let mut settings: HashMap<String, SettingValue> = HashMap::new();
+
+    // Add all definitions with defaults
+    for def in &definitions {
+        settings.insert(
+            def.key.clone(),
+            SettingValue {
+                value: def.default_value.clone(),
+                is_locked: false,
+                locked_by: None,
+                locked_at: None,
+                lock_reason: None,
+                updated_at: def.created_at,
+                updated_by: None,
+                error: None,
+            },
+        );
+    }
+
+    // Override with device-specific values
+    for ds in &device_settings {
+        settings.insert(
+            ds.setting_key.clone(),
+            SettingValue {
+                value: ds.value.clone(),
+                is_locked: ds.is_locked,
+                locked_by: ds.locked_by,
+                locked_at: ds.locked_at,
+                lock_reason: ds.lock_reason.clone(),
+                updated_at: ds.updated_at,
+                updated_by: ds.updated_by,
+                error: None,
+            },
+        );
+    }
+
+    // Determine changes since last sync
+    let changes_applied: Vec<SettingChange> = if let Some(last_sync) = request.last_synced_at {
+        // Get settings modified since last sync
+        let modified = setting_repo
+            .get_settings_modified_since(device_id, last_sync)
+            .await?;
+
+        modified
+            .into_iter()
+            .map(|s| SettingChange {
+                key: s.setting_key.clone(),
+                old_value: None, // We don't track previous values currently
+                new_value: s.value,
+                reason: s.lock_reason, // Use lock_reason as change reason if available
+            })
+            .collect()
+    } else {
+        // First sync - no changes to report, device should apply all settings
+        Vec::new()
+    };
+
+    info!(
+        device_id = %device_id,
+        user_id = %user_auth.user_id,
+        settings_count = settings.len(),
+        changes_count = changes_applied.len(),
+        last_synced_at = ?request.last_synced_at,
+        "Settings synced"
+    );
+
+    Ok(Json(SyncSettingsResponse {
+        synced_at,
+        settings,
+        changes_applied,
     }))
 }
 
