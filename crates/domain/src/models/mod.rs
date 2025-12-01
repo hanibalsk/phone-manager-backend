@@ -7,6 +7,7 @@ pub mod invite;
 pub mod location;
 pub mod movement_event;
 pub mod proximity_alert;
+pub mod setting;
 pub mod trip;
 pub mod trip_path_correction;
 pub mod user;
@@ -18,6 +19,10 @@ pub use invite::GroupInvite;
 pub use location::Location;
 pub use movement_event::MovementEvent;
 pub use proximity_alert::ProximityAlert;
+pub use setting::{
+    DeviceSetting, GetSettingsResponse, SettingCategory, SettingDataType, SettingDefinition,
+    SettingValue,
+};
 pub use trip::Trip;
 pub use trip_path_correction::TripPathCorrection;
 pub use user::{OAuthAccount, OAuthProvider, User, UserSession};
