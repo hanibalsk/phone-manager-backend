@@ -1,6 +1,7 @@
 //! Domain models for Phone Manager.
 
 pub mod device;
+pub mod device_policy;
 pub mod geofence;
 pub mod group;
 pub mod invite;
@@ -16,6 +17,11 @@ pub mod unlock_request;
 pub mod user;
 
 pub use device::Device;
+pub use device_policy::{
+    AppliedToCount, ApplyPolicyRequest, ApplyPolicyResponse, CreateDevicePolicyRequest,
+    DevicePolicy, DevicePolicyPagination, DevicePolicyResponse, ListDevicePoliciesQuery,
+    ListDevicePoliciesResponse, PolicyTarget, PolicyTargetType, UpdateDevicePolicyRequest,
+};
 pub use geofence::Geofence;
 pub use group::{Group, GroupMembership, GroupRole};
 pub use invite::GroupInvite;

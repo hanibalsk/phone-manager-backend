@@ -19,8 +19,9 @@ use crate::middleware::{
     security_headers_middleware, trace_id, RateLimiterState,
 };
 use crate::routes::{
-    admin, auth, device_settings, devices, geofences, groups, health, invites, locations,
-    movement_events, openapi, organizations, privacy, proximity_alerts, trips, users, versioning,
+    admin, auth, device_policies, device_settings, devices, geofences, groups, health, invites,
+    locations, movement_events, openapi, organizations, privacy, proximity_alerts, trips, users,
+    versioning,
 };
 use crate::services::map_matching::MapMatchingClient;
 use domain::services::{MockNotificationService, NotificationService};
@@ -233,6 +234,22 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/admin/v1/organizations/:org_id/users/:user_id",
             put(organizations::update_org_user)
                 .delete(organizations::remove_org_user),
+        )
+        // Device policy management routes (Story 13.3)
+        .route(
+            "/api/admin/v1/organizations/:org_id/policies",
+            post(device_policies::create_policy)
+                .get(device_policies::list_policies),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/policies/:policy_id",
+            get(device_policies::get_policy)
+                .put(device_policies::update_policy)
+                .delete(device_policies::delete_policy),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/policies/:policy_id/apply",
+            post(device_policies::apply_policy),
         )
         // Rate limiting for admin routes (separate, higher limit could be configured)
         .route_layer(middleware::from_fn_with_state(
