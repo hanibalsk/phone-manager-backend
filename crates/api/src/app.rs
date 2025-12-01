@@ -20,7 +20,7 @@ use crate::middleware::{
 };
 use crate::routes::{
     admin, auth, device_settings, devices, geofences, groups, health, invites, locations,
-    movement_events, openapi, privacy, proximity_alerts, trips, users, versioning,
+    movement_events, openapi, organizations, privacy, proximity_alerts, trips, users, versioning,
 };
 use crate::services::map_matching::MapMatchingClient;
 use domain::services::{MockNotificationService, NotificationService};
@@ -207,6 +207,22 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             post(admin::reactivate_device),
         )
         .route("/api/v1/admin/stats", get(admin::get_admin_stats))
+        // Organization management routes (Story 13.1)
+        .route(
+            "/api/admin/v1/organizations",
+            post(organizations::create_organization)
+                .get(organizations::list_organizations),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id",
+            get(organizations::get_organization)
+                .put(organizations::update_organization)
+                .delete(organizations::delete_organization),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/usage",
+            get(organizations::get_organization_usage),
+        )
         // Rate limiting for admin routes (separate, higher limit could be configured)
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
