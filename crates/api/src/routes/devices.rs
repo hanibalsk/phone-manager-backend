@@ -13,6 +13,7 @@ use validator::Validate;
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::extractors::OptionalUserAuth;
 use domain::models::device::{
     DeviceLastLocation, DeviceSummary, RegisterDeviceRequest, RegisterDeviceResponse,
 };
@@ -33,8 +34,12 @@ pub struct GetDevicesResponse {
 /// Register or update a device.
 ///
 /// POST /api/v1/devices/register
+///
+/// Supports both API key authentication (legacy) and JWT authentication.
+/// When JWT authenticated, device is automatically linked to the user.
 pub async fn register_device(
     State(state): State<AppState>,
+    optional_user: OptionalUserAuth,
     Json(request): Json<RegisterDeviceRequest>,
 ) -> Result<Json<RegisterDeviceResponse>, ApiError> {
     // Validate the request
@@ -60,6 +65,17 @@ pub async fn register_device(
         .as_ref()
         .map(|d| d.group_id != request.group_id)
         .unwrap_or(false);
+
+    // If user is authenticated and device already exists with a different owner, reject
+    if let (Some(ref user_auth), Some(ref existing)) = (&optional_user.0, &existing_device) {
+        if let Some(owner_id) = existing.owner_user_id {
+            if owner_id != user_auth.user_id {
+                return Err(ApiError::Conflict(
+                    "Device is already linked to another user".to_string(),
+                ));
+            }
+        }
+    }
 
     // Check group capacity if this is a new device or changing groups
     if is_new_device || is_changing_group {
@@ -87,20 +103,51 @@ pub async fn register_device(
         )
         .await?;
 
-    info!(
-        device_id = %device.device_id,
-        group_id = %device.group_id,
-        is_new = is_new_device,
-        "Device registered"
-    );
+    // If user is authenticated and device doesn't have an owner, link it
+    let final_device = if let Some(user_auth) = optional_user.0 {
+        if device.owner_user_id.is_none() {
+            // Link device to user (first device becomes primary)
+            let user_has_other_devices = !repo
+                .find_devices_by_user(user_auth.user_id, false)
+                .await?
+                .is_empty();
+            let is_primary = !user_has_other_devices;
 
-    Ok(Json(RegisterDeviceResponse {
-        device_id: device.device_id,
-        display_name: device.display_name,
-        group_id: device.group_id,
-        created_at: device.created_at,
-        updated_at: device.updated_at,
-    }))
+            let linked = repo
+                .link_device_to_user(request.device_id, user_auth.user_id, None, is_primary)
+                .await?;
+
+            info!(
+                device_id = %device.device_id,
+                group_id = %device.group_id,
+                user_id = %user_auth.user_id,
+                is_new = is_new_device,
+                is_primary = is_primary,
+                "Device registered and linked to user"
+            );
+
+            domain::models::Device::from(linked)
+        } else {
+            info!(
+                device_id = %device.device_id,
+                group_id = %device.group_id,
+                user_id = %user_auth.user_id,
+                is_new = is_new_device,
+                "Device registered (already linked)"
+            );
+            domain::models::Device::from(device)
+        }
+    } else {
+        info!(
+            device_id = %device.device_id,
+            group_id = %device.group_id,
+            is_new = is_new_device,
+            "Device registered (no user auth)"
+        );
+        domain::models::Device::from(device)
+    };
+
+    Ok(Json(RegisterDeviceResponse::from(final_device)))
 }
 
 /// Get all active devices in a group with last location.

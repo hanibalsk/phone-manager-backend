@@ -62,6 +62,15 @@ pub struct RegisterDeviceResponse {
     pub group_id: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Owner user ID if device was linked during registration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_user_id: Option<Uuid>,
+    /// Timestamp when device was linked to owner
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linked_at: Option<DateTime<Utc>>,
+    /// Whether this is the user's primary device
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_primary: Option<bool>,
 }
 
 /// Last known location for a device (used in device listings).
@@ -111,6 +120,13 @@ impl From<Device> for RegisterDeviceResponse {
             group_id: device.group_id,
             created_at: device.created_at,
             updated_at: device.updated_at,
+            owner_user_id: device.owner_user_id,
+            linked_at: device.linked_at,
+            is_primary: if device.owner_user_id.is_some() {
+                Some(device.is_primary)
+            } else {
+                None
+            },
         }
     }
 }
