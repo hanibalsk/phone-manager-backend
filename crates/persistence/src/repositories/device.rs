@@ -408,6 +408,108 @@ impl DeviceRepository {
         result
     }
 
+    /// Create a new managed device (for enrollment).
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_managed_device(
+        &self,
+        device_id: Uuid,
+        display_name: &str,
+        group_id: &str,
+        platform: &str,
+        fcm_token: Option<&str>,
+        organization_id: Uuid,
+        policy_id: Option<Uuid>,
+        enrollment_token_id: Uuid,
+    ) -> Result<DeviceEntity, sqlx::Error> {
+        let now = Utc::now();
+        let timer = QueryTimer::new("create_managed_device");
+
+        let result = sqlx::query_as::<_, DeviceEntity>(
+            r#"
+            INSERT INTO devices (
+                device_id, display_name, group_id, platform, fcm_token,
+                active, created_at, updated_at, last_seen_at, is_primary,
+                organization_id, is_managed, enrollment_status, policy_id,
+                enrolled_at, enrolled_via_token_id
+            )
+            VALUES ($1, $2, $3, $4, $5, true, $6, $6, $6, false, $7, true, 'enrolled', $8, $6, $9)
+            ON CONFLICT (device_id) DO UPDATE SET
+                display_name = EXCLUDED.display_name,
+                group_id = EXCLUDED.group_id,
+                platform = EXCLUDED.platform,
+                fcm_token = EXCLUDED.fcm_token,
+                active = true,
+                updated_at = EXCLUDED.updated_at,
+                last_seen_at = EXCLUDED.last_seen_at,
+                organization_id = EXCLUDED.organization_id,
+                is_managed = true,
+                enrollment_status = 'enrolled',
+                policy_id = EXCLUDED.policy_id,
+                enrolled_at = COALESCE(devices.enrolled_at, EXCLUDED.enrolled_at),
+                enrolled_via_token_id = EXCLUDED.enrolled_via_token_id
+            RETURNING id, device_id, display_name, group_id, platform, fcm_token,
+                      active, created_at, updated_at, last_seen_at,
+                      owner_user_id, organization_id, is_primary, linked_at
+            "#,
+        )
+        .bind(device_id)
+        .bind(display_name)
+        .bind(group_id)
+        .bind(platform)
+        .bind(fcm_token)
+        .bind(now)
+        .bind(organization_id)
+        .bind(policy_id)
+        .bind(enrollment_token_id)
+        .fetch_one(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
+    /// Update device enrollment fields.
+    pub async fn update_enrollment(
+        &self,
+        id: i64,
+        organization_id: Uuid,
+        group_id: Option<&str>,
+        policy_id: Option<Uuid>,
+        enrollment_status: &str,
+        enrollment_token_id: Option<Uuid>,
+    ) -> Result<DeviceEntity, sqlx::Error> {
+        let now = Utc::now();
+        let timer = QueryTimer::new("update_enrollment");
+
+        let result = sqlx::query_as::<_, DeviceEntity>(
+            r#"
+            UPDATE devices
+            SET organization_id = $2,
+                group_id = COALESCE($3, group_id),
+                policy_id = $4,
+                is_managed = true,
+                enrollment_status = $5::enrollment_status,
+                enrolled_at = COALESCE(enrolled_at, $6),
+                enrolled_via_token_id = COALESCE($7, enrolled_via_token_id),
+                updated_at = $6
+            WHERE id = $1
+            RETURNING id, device_id, display_name, group_id, platform, fcm_token,
+                      active, created_at, updated_at, last_seen_at,
+                      owner_user_id, organization_id, is_primary, linked_at
+            "#,
+        )
+        .bind(id)
+        .bind(organization_id)
+        .bind(group_id)
+        .bind(policy_id)
+        .bind(enrollment_status)
+        .bind(now)
+        .bind(enrollment_token_id)
+        .fetch_one(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
     /// Get admin statistics about devices and locations.
     pub async fn get_admin_stats(&self) -> Result<AdminStats, sqlx::Error> {
         let device_stats: (i64, i64) = sqlx::query_as(

@@ -2,6 +2,8 @@
 
 pub mod device;
 pub mod device_policy;
+pub mod device_token;
+pub mod enrollment;
 pub mod enrollment_token;
 pub mod geofence;
 pub mod group;
@@ -57,3 +59,11 @@ pub use unlock_request::{
     UnlockRequestStatus,
 };
 pub use user::{OAuthAccount, OAuthProvider, User, UserSession};
+pub use device_token::{
+    DeviceToken, EnrollmentStatus, calculate_device_token_expiry, extract_device_token_prefix,
+    generate_device_token, DEFAULT_TOKEN_EXPIRY_DAYS, DEVICE_TOKEN_PREFIX,
+};
+pub use enrollment::{
+    DeviceInfo, EnrollDeviceRequest, EnrollDeviceResponse, EnrolledDevice, EnrollmentGroupInfo,
+    EnrollmentPolicyInfo,
+};

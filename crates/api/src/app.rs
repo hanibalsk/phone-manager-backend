@@ -19,9 +19,9 @@ use crate::middleware::{
     security_headers_middleware, trace_id, RateLimiterState,
 };
 use crate::routes::{
-    admin, auth, device_policies, device_settings, devices, enrollment_tokens, geofences, groups,
-    health, invites, locations, movement_events, openapi, organizations, privacy, proximity_alerts,
-    trips, users, versioning,
+    admin, auth, device_policies, device_settings, devices, enrollment, enrollment_tokens,
+    geofences, groups, health, invites, locations, movement_events, openapi, organizations,
+    privacy, proximity_alerts, trips, users, versioning,
 };
 use crate::services::map_matching::MapMatchingClient;
 use domain::services::{MockNotificationService, NotificationService};
@@ -425,6 +425,8 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route("/api/health", get(health::health_check))
         // Public invite info (Story 11.4)
         .route("/api/v1/invites/:code", get(invites::get_invite_info))
+        // Device enrollment (Story 13.5) - token is the auth
+        .route("/api/v1/devices/enroll", post(enrollment::enroll_device))
         .route("/api/health/ready", get(health::ready))
         .route("/api/health/live", get(health::live))
         .route("/metrics", get(metrics_handler));

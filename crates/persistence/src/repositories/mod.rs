@@ -3,6 +3,7 @@
 pub mod api_key;
 pub mod device;
 pub mod device_policy;
+pub mod device_token;
 pub mod enrollment_token;
 pub mod geofence;
 pub mod group;
@@ -22,6 +23,7 @@ pub mod user;
 pub use api_key::ApiKeyRepository;
 pub use device::{AdminStats, DeviceRepository};
 pub use device_policy::DevicePolicyRepository;
+pub use device_token::DeviceTokenRepository;
 pub use enrollment_token::EnrollmentTokenRepository;
 pub use geofence::GeofenceRepository;
 pub use group::GroupRepository;
