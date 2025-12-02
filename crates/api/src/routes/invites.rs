@@ -102,8 +102,8 @@ pub async fn create_invite(
         "Invite created"
     );
 
-    // Generate invite URL (using a placeholder domain)
-    let invite_url = format!("https://phonemanager.com/join/{}", code);
+    // Generate invite URL using configured app base URL
+    let invite_url = format!("{}/join/{}", state.config.server.app_base_url, code);
 
     Ok((
         StatusCode::CREATED,

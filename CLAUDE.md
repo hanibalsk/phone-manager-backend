@@ -67,6 +67,13 @@ Environment prefix: `PM__` (double underscore separator)
 ```bash
 # Required
 PM__DATABASE__URL=postgres://user:pass@host:5432/db
+PM__JWT__PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+PM__JWT__PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+
+# Required for production (have example.com defaults)
+PM__SERVER__APP_BASE_URL=https://app.yourcompany.com  # Used for invite URLs, deep links
+PM__EMAIL__SENDER_EMAIL=noreply@yourcompany.com       # Email sender address
+PM__EMAIL__BASE_URL=https://app.yourcompany.com       # Links in emails
 
 # Optional with defaults
 PM__SERVER__PORT=8080
@@ -74,6 +81,11 @@ PM__LOGGING__LEVEL=info
 PM__SECURITY__RATE_LIMIT_PER_MINUTE=100
 PM__LIMITS__MAX_DEVICES_PER_GROUP=20
 PM__LIMITS__MAX_BATCH_SIZE=50
+
+# FCM Push Notifications (optional)
+PM__FCM__ENABLED=true
+PM__FCM__PROJECT_ID=your-firebase-project
+PM__FCM__CREDENTIALS=/path/to/service-account.json
 ```
 
 ## Core Domains

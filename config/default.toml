@@ -15,6 +15,10 @@ request_timeout_secs = 30
 # Maximum request body size in bytes (1MB default)
 max_body_size = 1048576
 
+# Base URL for the mobile app (used in invite URLs, deep links, QR codes)
+# MUST be configured in production via PM__SERVER__APP_BASE_URL
+app_base_url = "https://app.example.com"
+
 [database]
 # Database connection URL (REQUIRED - must be set via environment)
 # Format: postgres://user:password@host:port/database
@@ -134,7 +138,8 @@ provider = "console"
 # ses_region = "us-east-1"
 
 # Sender email address (From header)
-sender_email = "noreply@phonemanager.app"
+# MUST be configured in production via PM__EMAIL__SENDER_EMAIL
+sender_email = "noreply@example.com"
 
 # Sender name (From header)
 sender_name = "Phone Manager"

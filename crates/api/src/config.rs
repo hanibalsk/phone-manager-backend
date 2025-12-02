@@ -158,7 +158,8 @@ fn default_max_body_size() -> usize {
     1_048_576
 }
 fn default_app_base_url() -> String {
-    "https://app.phonemanager.io".to_string()
+    // Placeholder - must be configured via PM__SERVER__APP_BASE_URL for production
+    "https://app.example.com".to_string()
 }
 fn default_max_connections() -> u32 {
     20
@@ -344,7 +345,8 @@ fn default_smtp_tls() -> bool {
 }
 
 fn default_sender_email() -> String {
-    "noreply@phonemanager.app".to_string()
+    // Placeholder - must be configured via PM__EMAIL__SENDER_EMAIL for production
+    "noreply@example.com".to_string()
 }
 
 fn default_sender_name() -> String {
