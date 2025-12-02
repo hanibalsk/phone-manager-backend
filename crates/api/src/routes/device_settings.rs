@@ -25,7 +25,7 @@ use domain::services::{
 };
 use persistence::entities::UnlockRequestStatusDb;
 use persistence::repositories::{
-    DeviceRepository, GroupRepository, SettingRepository, UnlockRequestRepository, UserRepository,
+    DeviceRepository, GroupRepository, OrgUserRepository, SettingRepository, UnlockRequestRepository, UserRepository,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -69,6 +69,7 @@ pub async fn get_device_settings(
     let device_repo = DeviceRepository::new(state.pool.clone());
     let setting_repo = SettingRepository::new(state.pool.clone());
     let group_repo = GroupRepository::new(state.pool.clone());
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
 
     // Get the device
     let device = device_repo
@@ -76,10 +77,11 @@ pub async fn get_device_settings(
         .await?
         .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
 
-    // Authorization check: must be owner, or admin of device's group
+    // Authorization check: must be owner, or admin of device's group, or org admin
     let is_authorized = check_settings_authorization(
         &device_repo,
         &group_repo,
+        Some(&org_user_repo),
         &device,
         user_auth.user_id,
     )
@@ -188,6 +190,7 @@ pub async fn update_device_settings(
     let device_repo = DeviceRepository::new(state.pool.clone());
     let setting_repo = SettingRepository::new(state.pool.clone());
     let group_repo = GroupRepository::new(state.pool.clone());
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
 
     // Get the device
     let device = device_repo
@@ -199,6 +202,7 @@ pub async fn update_device_settings(
     let is_authorized = check_settings_authorization(
         &device_repo,
         &group_repo,
+        Some(&org_user_repo),
         &device,
         user_auth.user_id,
     )
@@ -356,6 +360,7 @@ pub async fn update_device_setting(
     let device_repo = DeviceRepository::new(state.pool.clone());
     let setting_repo = SettingRepository::new(state.pool.clone());
     let group_repo = GroupRepository::new(state.pool.clone());
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
 
     // Get the device
     let device = device_repo
@@ -367,6 +372,7 @@ pub async fn update_device_setting(
     let is_authorized = check_settings_authorization(
         &device_repo,
         &group_repo,
+        Some(&org_user_repo),
         &device,
         user_auth.user_id,
     )
@@ -461,6 +467,7 @@ pub async fn get_setting_locks(
     let device_repo = DeviceRepository::new(state.pool.clone());
     let setting_repo = SettingRepository::new(state.pool.clone());
     let group_repo = GroupRepository::new(state.pool.clone());
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
 
     // Get the device
     let device = device_repo
@@ -472,6 +479,7 @@ pub async fn get_setting_locks(
     let is_authorized = check_settings_authorization(
         &device_repo,
         &group_repo,
+        Some(&org_user_repo),
         &device,
         user_auth.user_id,
     )
@@ -891,6 +899,7 @@ fn validate_value_type(value: &serde_json::Value, expected: &SettingDataType) ->
 async fn check_settings_authorization(
     _device_repo: &DeviceRepository,
     group_repo: &GroupRepository,
+    org_user_repo: Option<&OrgUserRepository>,
     device: &persistence::entities::DeviceEntity,
     user_id: Uuid,
 ) -> Result<bool, ApiError> {
@@ -899,26 +908,29 @@ async fn check_settings_authorization(
         return Ok(true);
     }
 
-    // Check if user is an admin/owner of a group the device belongs to
-    // The device.group_id is a legacy string field. We need to check if user
-    // has admin/owner role in any group where they can manage this device.
+    // Check if user is an admin/owner of the device's group
+    // The device.group_id stores the group slug (legacy string field)
     if !device.group_id.is_empty() {
         // Get all groups where user is admin or owner
         let user_groups = group_repo.find_user_groups(user_id, None).await?;
         for group in user_groups {
             let role: domain::models::GroupRole = group.role.into();
-            if role.can_manage_members() {
-                // User is admin/owner of at least one group
-                // In production, we'd check if the device is in THIS group
-                // For now, admin of any group can access any device (simplified)
-                // TODO: Implement proper device-group relationship check
+            // User must be admin/owner of THIS specific group (matching by slug)
+            if role.can_manage_members() && group.slug == device.group_id {
                 return Ok(true);
             }
         }
     }
 
-    // TODO: Check organization admin for B2B devices
-    // if device.organization_id.is_some() { ... }
+    // Check organization admin for B2B devices
+    if let (Some(org_id), Some(repo)) = (device.organization_id, org_user_repo) {
+        if let Ok(Some(org_user)) = repo.find_by_org_and_user(org_id, user_id).await {
+            // Organization owners and admins can manage device settings
+            if org_user.role.has_at_least(domain::models::OrgUserRole::Admin) {
+                return Ok(true);
+            }
+        }
+    }
 
     // Default: only owner can access
     Ok(false)
@@ -1067,6 +1079,7 @@ pub async fn create_unlock_request(
     let setting_repo = SettingRepository::new(state.pool.clone());
     let unlock_repo = UnlockRequestRepository::new(state.pool.clone());
     let group_repo = GroupRepository::new(state.pool.clone());
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
 
     // Get the device
     let device = device_repo
@@ -1078,6 +1091,7 @@ pub async fn create_unlock_request(
     let is_authorized = check_settings_authorization(
         &device_repo,
         &group_repo,
+        Some(&org_user_repo),
         &device,
         user_auth.user_id,
     )
@@ -1368,6 +1382,7 @@ pub async fn sync_settings(
     let device_repo = DeviceRepository::new(state.pool.clone());
     let setting_repo = SettingRepository::new(state.pool.clone());
     let group_repo = GroupRepository::new(state.pool.clone());
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
 
     // Get the device
     let device = device_repo
@@ -1375,10 +1390,11 @@ pub async fn sync_settings(
         .await?
         .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
 
-    // Authorization check: must be owner or admin of device's group
+    // Authorization check: must be owner or admin of device's group, or org admin
     let is_authorized = check_settings_authorization(
         &device_repo,
         &group_repo,
+        Some(&org_user_repo),
         &device,
         user_auth.user_id,
     )

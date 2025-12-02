@@ -20,6 +20,9 @@ pub struct Config {
     /// OAuth provider configuration
     #[serde(default)]
     pub oauth: OAuthConfig,
+    /// Firebase Cloud Messaging configuration
+    #[serde(default)]
+    pub fcm: FcmConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -36,6 +39,10 @@ pub struct ServerConfig {
     #[serde(default = "default_max_body_size")]
     #[allow(dead_code)] // Used in future stories for request body size limiting
     pub max_body_size: usize,
+
+    /// Base URL for the mobile app (used in enrollment QR codes, deep links, etc.)
+    #[serde(default = "default_app_base_url")]
+    pub app_base_url: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -149,6 +156,9 @@ fn default_request_timeout() -> u64 {
 }
 fn default_max_body_size() -> usize {
     1_048_576
+}
+fn default_app_base_url() -> String {
+    "https://app.phonemanager.io".to_string()
 }
 fn default_max_connections() -> u32 {
     20
@@ -361,6 +371,42 @@ pub struct OAuthConfig {
     pub apple_team_id: String,
 }
 
+/// Firebase Cloud Messaging configuration for push notifications.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct FcmConfig {
+    /// Whether FCM is enabled
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Firebase project ID
+    #[serde(default)]
+    pub project_id: String,
+
+    /// Path to service account JSON file, or JSON string itself
+    #[serde(default)]
+    pub credentials: String,
+
+    /// Request timeout in milliseconds
+    #[serde(default = "default_fcm_timeout_ms")]
+    pub timeout_ms: u64,
+
+    /// Maximum retries for failed requests
+    #[serde(default = "default_fcm_max_retries")]
+    pub max_retries: u32,
+
+    /// Whether to use high priority for data messages
+    #[serde(default)]
+    pub high_priority: bool,
+}
+
+fn default_fcm_timeout_ms() -> u64 {
+    10000 // 10 seconds
+}
+
+fn default_fcm_max_retries() -> u32 {
+    3
+}
+
 /// Configuration validation error
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigValidationError {
@@ -456,6 +502,14 @@ impl Config {
             google_client_id = ""
             apple_client_id = ""
             apple_team_id = ""
+
+            [fcm]
+            enabled = false
+            project_id = ""
+            credentials = ""
+            timeout_ms = 10000
+            max_retries = 3
+            high_priority = false
         "#;
 
         let mut builder = config::Config::builder()

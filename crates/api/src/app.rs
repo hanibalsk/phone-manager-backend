@@ -24,6 +24,7 @@ use crate::routes::{
     fleet, geofences, groups, health, invites, locations, movement_events, openapi, organizations,
     privacy, proximity_alerts, trips, users, versioning,
 };
+use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
 use domain::services::{MockNotificationService, NotificationService};
 
@@ -101,10 +102,26 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         None
     };
 
-    // Create notification service (using mock for now, can be replaced with FCM client later)
-    let notification_service: Arc<dyn NotificationService> =
-        Arc::new(MockNotificationService::new());
-    tracing::info!("Notification service initialized (mock mode)");
+    // Create notification service (FCM if enabled and configured, otherwise mock)
+    let notification_service: Arc<dyn NotificationService> = if config.fcm.enabled {
+        match FcmNotificationService::new(config.fcm.clone()) {
+            Ok(service) => {
+                tracing::info!(
+                    project_id = %config.fcm.project_id,
+                    high_priority = %config.fcm.high_priority,
+                    "FCM notification service initialized"
+                );
+                Arc::new(service)
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to create FCM notification service, falling back to mock");
+                Arc::new(MockNotificationService::new())
+            }
+        }
+    } else {
+        tracing::info!("Notification service initialized (mock mode - FCM disabled)");
+        Arc::new(MockNotificationService::new())
+    };
 
     let state = AppState {
         pool,

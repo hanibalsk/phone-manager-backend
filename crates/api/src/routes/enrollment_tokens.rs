@@ -13,6 +13,7 @@ use validator::Validate;
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::extractors::UserAuth;
 use domain::models::{
     calculate_expiry, extract_prefix, generate_token, CreateEnrollmentTokenRequest,
     EnrollmentToken, EnrollmentTokenPagination, EnrollmentTokenResponse, ListEnrollmentTokensQuery,
@@ -22,8 +23,11 @@ use domain::models::{
 /// Create a new enrollment token.
 ///
 /// POST /api/admin/v1/organizations/:org_id/enrollment-tokens
+///
+/// Requires JWT authentication.
 pub async fn create_enrollment_token(
     State(state): State<AppState>,
+    user_auth: UserAuth,
     Path(org_id): Path<Uuid>,
     Json(request): Json<CreateEnrollmentTokenRequest>,
 ) -> Result<(StatusCode, Json<EnrollmentTokenResponse>), ApiError> {
@@ -41,7 +45,7 @@ pub async fn create_enrollment_token(
     // Calculate expiry if specified
     let expires_at = request.expires_in_days.map(calculate_expiry);
 
-    // Create token
+    // Create token with creator tracking
     let enrollment_token = repo
         .create(
             org_id,
@@ -52,7 +56,7 @@ pub async fn create_enrollment_token(
             request.max_uses,
             expires_at,
             request.auto_assign_user_by_email,
-            None, // TODO: Add created_by from auth context when available
+            Some(user_auth.user_id),
         )
         .await?;
 
@@ -60,6 +64,7 @@ pub async fn create_enrollment_token(
         token_id = %enrollment_token.id,
         organization_id = %org_id,
         token_prefix = %token_prefix,
+        created_by = %user_auth.user_id,
         "Enrollment token created"
     );
 
@@ -179,10 +184,10 @@ pub async fn get_enrollment_token_qr(
         ));
     }
 
-    // Build enrollment URL
-    // TODO: Make base URL configurable
+    // Build enrollment URL using configured app base URL
     let enrollment_url = format!(
-        "https://app.phonemanager.io/enroll?token={}",
+        "{}/enroll?token={}",
+        state.config.server.app_base_url.trim_end_matches('/'),
         token.token
     );
 
