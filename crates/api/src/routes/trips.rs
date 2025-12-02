@@ -185,17 +185,17 @@ pub async fn update_trip_state(
     if request.state == TripState::Completed {
         if request.end_timestamp.is_none() {
             return Err(ApiError::Validation(
-                "endTimestamp is required for COMPLETED state".to_string(),
+                "end_timestamp is required for COMPLETED state".to_string(),
             ));
         }
         if request.end_latitude.is_none() {
             return Err(ApiError::Validation(
-                "endLatitude is required for COMPLETED state".to_string(),
+                "end_latitude is required for COMPLETED state".to_string(),
             ));
         }
         if request.end_longitude.is_none() {
             return Err(ApiError::Validation(
-                "endLongitude is required for COMPLETED state".to_string(),
+                "end_longitude is required for COMPLETED state".to_string(),
             ));
         }
     }

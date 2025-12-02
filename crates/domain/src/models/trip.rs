@@ -106,7 +106,7 @@ pub struct Trip {
 pub struct CreateTripRequest {
     pub device_id: Uuid,
 
-    #[validate(length(min = 1, max = 100, message = "localTripId must be 1-100 characters"))]
+    #[validate(length(min = 1, max = 100, message = "local_trip_id must be 1-100 characters"))]
     pub local_trip_id: String,
 
     #[validate(custom(function = "shared::validation::validate_timestamp"))]

@@ -130,12 +130,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_redirect_devices_list_with_query() {
-        let uri: Uri = "/api/devices?groupId=family".parse().unwrap();
+        let uri: Uri = "/api/devices?group_id=family".parse().unwrap();
         let response = redirect_devices_list(uri).await;
         assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY);
         assert_eq!(
             response.headers().get(header::LOCATION).unwrap(),
-            "/api/v1/devices?groupId=family"
+            "/api/v1/devices?group_id=family"
         );
     }
 

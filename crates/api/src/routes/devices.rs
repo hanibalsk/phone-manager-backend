@@ -159,7 +159,7 @@ pub async fn get_group_devices(
 ) -> Result<Json<GetDevicesResponse>, ApiError> {
     let group_id = query
         .group_id
-        .ok_or_else(|| ApiError::Validation("groupId query parameter is required".to_string()))?;
+        .ok_or_else(|| ApiError::Validation("group_id query parameter is required".to_string()))?;
 
     let repo = DeviceRepository::new(state.pool.clone());
     let devices = repo.find_devices_with_last_location(&group_id).await?;
