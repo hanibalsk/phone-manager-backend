@@ -151,7 +151,7 @@ impl FcmNotificationService {
         let client = Client::builder()
             .timeout(Duration::from_millis(config.timeout_ms))
             .build()
-            .map_err(|e| FcmError::HttpError(e))?;
+            .map_err(FcmError::HttpError)?;
 
         Ok(Self {
             client,

@@ -417,6 +417,9 @@ pub enum ConfigValidationError {
 
     #[error("Invalid configuration value: {0}")]
     InvalidValue(String),
+
+    #[error("Production configuration error: {0}")]
+    ProductionConfig(String),
 }
 
 impl Config {
@@ -550,6 +553,72 @@ impl Config {
         }
 
         Ok(())
+    }
+
+    /// Validate production-critical configuration values.
+    ///
+    /// This method checks for placeholder values that must be configured
+    /// for production deployments. Call this at startup to catch misconfigurations.
+    ///
+    /// Returns warnings for non-critical issues that should be reviewed.
+    pub fn validate_production(&self) -> Result<Vec<String>, ConfigValidationError> {
+        let mut warnings = Vec::new();
+
+        // Check for placeholder app_base_url
+        if self.server.app_base_url == "https://app.example.com" {
+            return Err(ConfigValidationError::ProductionConfig(
+                "PM__SERVER__APP_BASE_URL is still set to placeholder 'https://app.example.com'. \
+                 This must be configured for production to generate valid deep links and invite URLs."
+                    .to_string(),
+            ));
+        }
+
+        // Check for placeholder sender_email when email is enabled
+        if self.email.enabled && self.email.sender_email == "noreply@example.com" {
+            return Err(ConfigValidationError::ProductionConfig(
+                "PM__EMAIL__SENDER_EMAIL is still set to placeholder 'noreply@example.com'. \
+                 This must be configured for production email delivery."
+                    .to_string(),
+            ));
+        }
+
+        // Warn about email base_url when email is enabled
+        if self.email.enabled && self.email.base_url.is_empty() {
+            warnings.push(
+                "PM__EMAIL__BASE_URL is not set. Email links will not work correctly.".to_string(),
+            );
+        }
+
+        // Warn about FCM configuration when enabled
+        if self.fcm.enabled {
+            if self.fcm.project_id.is_empty() {
+                return Err(ConfigValidationError::ProductionConfig(
+                    "PM__FCM__PROJECT_ID must be set when FCM is enabled.".to_string(),
+                ));
+            }
+            if self.fcm.credentials.is_empty() {
+                return Err(ConfigValidationError::ProductionConfig(
+                    "PM__FCM__CREDENTIALS must be set when FCM is enabled.".to_string(),
+                ));
+            }
+        }
+
+        // Warn about OAuth configuration if client IDs are empty
+        if self.oauth.google_client_id.is_empty() && self.oauth.apple_client_id.is_empty() {
+            warnings.push(
+                "No OAuth providers configured. Social login will not be available.".to_string(),
+            );
+        }
+
+        Ok(warnings)
+    }
+
+    /// Check if running with development/placeholder configuration.
+    ///
+    /// Returns true if any placeholder values are detected.
+    pub fn is_development_config(&self) -> bool {
+        self.server.app_base_url == "https://app.example.com"
+            || self.email.sender_email == "noreply@example.com"
     }
 
     pub fn socket_addr(&self) -> SocketAddr {

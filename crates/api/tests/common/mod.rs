@@ -6,20 +6,7 @@
 use axum::Router;
 use phone_manager_api::{app::create_app, config::Config};
 use sqlx::{postgres::PgPoolOptions, PgPool};
-use std::sync::Once;
 use std::time::Duration;
-
-static INIT: Once = Once::new();
-
-/// Initialize tracing for tests (only once).
-pub fn init_tracing() {
-    INIT.call_once(|| {
-        tracing_subscriber::fmt()
-            .with_env_filter("phone_manager_api=debug,sqlx=warn")
-            .with_test_writer()
-            .init();
-    });
-}
 
 /// Create a test database pool.
 ///
@@ -31,9 +18,9 @@ pub async fn create_test_pool() -> PgPool {
     });
 
     PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(20)
         .min_connections(1)
-        .acquire_timeout(Duration::from_secs(10))
+        .acquire_timeout(Duration::from_secs(30))
         .connect(&database_url)
         .await
         .expect("Failed to connect to test database")
@@ -68,27 +55,6 @@ pub async fn run_migrations(pool: &PgPool) {
                 sqlx::postgres::PgQueryResult::default()
             });
     }
-}
-
-/// Clean up test data from the database.
-///
-/// This function truncates all user-related tables to ensure a clean slate for tests.
-pub async fn cleanup_test_data(pool: &PgPool) {
-    // Truncate tables in order respecting foreign keys
-    sqlx::query("TRUNCATE TABLE user_sessions CASCADE")
-        .execute(pool)
-        .await
-        .ok();
-
-    sqlx::query("TRUNCATE TABLE oauth_accounts CASCADE")
-        .execute(pool)
-        .await
-        .ok();
-
-    sqlx::query("TRUNCATE TABLE users CASCADE")
-        .execute(pool)
-        .await
-        .ok();
 }
 
 /// Test configuration with valid RSA keys for JWT.

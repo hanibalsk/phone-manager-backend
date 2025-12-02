@@ -86,7 +86,27 @@ PM__LIMITS__MAX_BATCH_SIZE=50
 PM__FCM__ENABLED=true
 PM__FCM__PROJECT_ID=your-firebase-project
 PM__FCM__CREDENTIALS=/path/to/service-account.json
+
+# OAuth Social Login (optional)
+PM__OAUTH__GOOGLE_CLIENT_ID=your-google-oauth-client-id
+PM__OAUTH__APPLE_CLIENT_ID=your-apple-service-id
+PM__OAUTH__APPLE_TEAM_ID=your-apple-team-id
+
+# Auth Rate Limiting (per IP, optional)
+PM__SECURITY__FORGOT_PASSWORD_RATE_LIMIT_PER_HOUR=5
+PM__SECURITY__REQUEST_VERIFICATION_RATE_LIMIT_PER_HOUR=3
 ```
+
+### Production Configuration Validation
+
+The application validates configuration on startup:
+- **Development mode**: If placeholder values detected (`app.example.com`, `noreply@example.com`), logs a warning
+- **Production mode**: Fails to start if critical configuration is missing or invalid
+
+Critical production requirements:
+- `PM__SERVER__APP_BASE_URL` must not be `https://app.example.com`
+- `PM__EMAIL__SENDER_EMAIL` must not be `noreply@example.com` (when email enabled)
+- `PM__FCM__PROJECT_ID` and `PM__FCM__CREDENTIALS` required when FCM enabled
 
 ## Core Domains
 
@@ -120,8 +140,11 @@ PM__FCM__CREDENTIALS=/path/to/service-account.json
 - Haversine distance calculation (PostgreSQL function)
 
 ### Authentication
-- API key-based (SHA-256 hashed storage)
-- Rate limiting per API key
+- API key-based (SHA-256 hashed storage) for device/admin APIs
+- JWT-based authentication for user APIs
+- OAuth social login (Google, Apple) with proper token validation
+- Rate limiting per API key and per IP for auth endpoints
+- Per-IP rate limiting for forgot password (5/hour) and verification (3/hour)
 - Key prefix for identification
 
 ## API Endpoints

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use std::time::Duration;
-use tracing::info;
+use tracing::{info, warn};
 
 use phone_manager_api::{app, config, jobs, middleware};
 
@@ -20,6 +20,24 @@ async fn main() -> Result<()> {
     info!("Prometheus metrics initialized");
 
     info!("Starting Phone Manager API v{}", env!("CARGO_PKG_VERSION"));
+
+    // Validate production configuration
+    // In development mode (detected by placeholder values), log warnings instead of failing
+    if config.is_development_config() {
+        warn!("Running with development/placeholder configuration - not suitable for production");
+    } else {
+        // In production mode, validate and fail on critical misconfigurations
+        match config.validate_production() {
+            Ok(warnings) => {
+                for warning in warnings {
+                    warn!("Configuration warning: {}", warning);
+                }
+            }
+            Err(e) => {
+                return Err(anyhow::anyhow!("Production configuration error: {}", e));
+            }
+        }
+    }
 
     // Create database pool
     let db_config = persistence::db::DatabaseConfig {
