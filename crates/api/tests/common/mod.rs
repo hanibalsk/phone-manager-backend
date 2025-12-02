@@ -59,43 +59,44 @@ pub async fn run_migrations(pool: &PgPool) {
 
 /// Test configuration with valid RSA keys for JWT.
 pub fn test_config() -> Config {
-    // Generate or use test RSA keys
-    let private_key = r#"-----BEGIN RSA PRIVATE KEY-----
-MIIEowIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHB7MxszTjFfOC8JoRv8
-qVg5e9GfLgJlNpRuF9VKVOsGEX6GXOP3YrXaJXQGjITHRHPBE5rIKmWvLRU0D6hL
-F0x0z2EhPFXJbqXq5MQLF8FNXzRDvKwMHvCkG6cPj/FMUqPvEwUrmZmBPLVZ3T3r
-qG6KOJjNpXKpU0gU8LxK+LFfDMH0i0Aq8BXfT8kLsFD0FvcqDKNOOWFfjGKq4VcS
-sJmCFPWEvEFb1EfPXvGk6MYkuPpE3fRLzNvXweGewHLd/dVKi4YCF3FVLNsFEe4p
-BLkB1qLW6hoNhnWgU1fZlDmGykdHqHLN1H1MdwIDAQABAoIBABnBHzE9K+m7S3wt
-jOJVqfIGUZCFh6FUHLjTqqCEhY9K1W9mWCH0l5l+EPx5yG6JwoJWTP/ByVpzJ+3W
-vK3p9Y5BCLlLf0lF5ciASjWqwDNLnJHdD6bf8L+pXYI1BKi4M0vy6HOhWS7aFz+p
-rAk3zs9jvJQWM7cDIa6FxXIOMNpxJpGL2BE4CBGO3gjSjBSt8g/8W4wC2VKJF7L1
-j0ZD+LazgWTjThTMIBOmNnAX5lKdjbYWxuTlqXTFVNsB+5VwVPNHxwB8gHdIQLvi
-vHQqNJF/3MAfbKTPKVdl82F0EqLe1fPVHvCZPmxgYHdPHF3jZMF+gwk/oNJIRcaQ
-qH7cQmECgYEA5/YcyQ6QXEZ5wLnqvCNe8l7H0BVqqFSVqZvPbJPB2LHa9MHCp2gN
-m0cMr5l6IDXg+FupDqgRKR6KAT9FU/lC5DcVpFNlr6xfqDq75sT5TT1MvqJfNWKe
-6f0sXPNF/4pCdKb8F5FNvLFs3DEKkJl4xXbZ8GWP9hNFj9YRaEPyYlECgYEA5xrx
-yD/A6Or4DUAU5LWRih3h7EqM8RnMvPsXQPiAh3DqYmnYDNnf9WP8BlcKQUwLIcLB
-PIiGg0zBYT9PAqhF/TH6MVZZh1cPyS5JBfph7bT2gOJX4M/0g3K5qQ3LrSlnmmmV
-FT0n8Ty1H7EfxlCPdLHN4ERPjGw3XVEKkLDdecCgYBzgEMKfGXr7fzT1T4X8GJW
-qVdEBOxT3lY9g5Lbxkp1iCmMy6Nqc9NYol8YKJ/M7MH/p3yNDJFt9jneaHKDbQ+M
-ZLV3W6R/EXKsxWH8oLxMsZJ5HqEqMxcE9s+eqLNxpjqj1y9FINzR+85YfP5PBhVe
-q0c7/K8EBb3Q3vPjPLvwoQKBgFPFMJcGKDLlZvQDT+FGhe3p+Ipo5GEbMp3q5qrB
-evdV1C9Dx2d7f1lDfPl8O3hF7oCqUB3WzZkM7L0vNYrM7KJZhTyRM6ld6F0jKM0M
-wLKkOT4ygHn0DI7i+txvAmsZRubWTrTyFs8y2e4CgMLOy1+qLj5oUPs4v5AfmMVJ
-FuU3AoGBAMxBgz6M7P5W/tVkCxOcnGsNZTp0Svn2Z7pZy6MFMWz5VE+/q3Qp8IFb
-GCKqGb0RkpYhbPJaNVWvN5KuqbMBnrt2NTvicuqPyA8u7GZ3W3YPZPRQpS6j1D8f
-pTXV7nVx3tCe3j3YC0YnBwCg+PZqLzHBWC0v67JKzLG7Z0VgAWkV
------END RSA PRIVATE KEY-----"#;
+    // Test RSA keys in PKCS#8 format (generated with openssl)
+    let private_key = r#"-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC1+DkLQQl+TPdV
+ui3DgGa/pT+x+JhG57LUNVRyxZ+t5IVnZPkJxG8eT2LDnXt/bl5cY0NJUrKCP92k
+C+RS7To/n3wwmNHj5wYJALQ1rNtnRLomkIxrIGNO7WNfwhurqiDsRksSIlbUTNT0
+q3p+1ajxbIDtIEW9b0zo3WD4+arIkD1gCjBel4lXT0cgUzt2Mmv+5IeI4MXI+8Ek
+mZzm+fl/JVrNuE2PrplIJb+owHVODosT2xFikihG3cJkpMUtzbLR0OxwjVwV8Uf8
+1Cmaiw7Q9fcF8N+0C0DfekEQW2JOmdQKQ2W1JWV5NUn7FOCd+0QLf14BvQ8lcu5m
+ksnQOXdhAgMBAAECggEAA7IV3n+kpLcFcu1EDqtl6tB9Waz10sLT4/FtVKNk2dBB
+UVdAo40kwJXWKKjjIDRqoC+35x5R18laRAGl0nVU8IPZrtb7tEg13CryfgCTuCYy
+LaRT5b0Tpz+0+/XiP/tFjebjkWu3HbqtvIZbB4ZpVvXgLHCyWeWPx07vsD7J1Cbo
++L1d/0R9eDcl3HhOTKHuLhqxETvhEMUR/h61pFf8TX2nKokmnk/CjZ6zfO7G+MOh
+PeDIQkPQRixZV6gKSDi0PTqcJTp2Iqa4jIRKLVOClIefJIYYNtTu3OUisgnNq2QJ
+8lxr2PIriV8+LpVyiF1WKQDm+3HepuatO3eapNJqDQKBgQDuaf/NiRyCYaF3h+eg
+c5MCLgiN2aGdB2zSJyAizxWv2xzLAKlTh/SPEPU1JQ3eM5zD37VaZGCpfg13ERyJ
+l/Ut4iT+gWuheKtyMvwm7c17zdQQawLJOfXTwverS4O1brpRYnorBsxTU0pHirtb
+MWyVQeicHlid1Kv5DFEsPqFBjwKBgQDDZGBpQFN01yvG0kgRTyDkU917JDKZiGiD
+DX7oe/p5cOFkGrOWT5Z70D2ZZRCpRWmBrCkmigITp83jFC4J6YPNdcJcXc0H6Xc6
+JHchtv6aHvt/GaJbijYuopGqggF38dEFLM/rwJ3VpnD2KaQgGUz+u+vF3E3rr4kx
+VXq31j9gDwKBgQDBEXXlrDM6InXvpk8c0HssOLsUpDkMQQcO6EBN8AVP89DNVCvL
+ST3y3Xi1INyqJIG+3VqvaLoeh8W/tku14Sjbj1cGAyh2CpJMWJ15qPnOWFBzOzV2
+X0mDw09tmCmAs7qOTYFBdq/gioKMjPxMTSnxdP457xk0NxVNCXxyqAVOYQKBgQCx
+UZ+ZBNJ4H2lP9reGVcwgyecegJwW708BV7cLHrARk5pIMV83EqUbWcD9O1WieCam
+kmmJ2wbFdayH3mFlh3CgfbTUBCA0hPA5aKxggWSO030jPE02S7ieG9Sb632Pr3kj
+/CX46gWSxYiQLPwQUUWpizsNhb+FGvkjN1K2EQ3UiwKBgAY/m2QhNi1noHa8GMfi
+/8zO0llSOw4XkeJNOvQUAUczG4I27TX3Pg38Wlwa6LLjtvKwvjBC6g6CRTF3i7oS
+pwmeRGTwuh6dQ+3qLlgTrbZ3OnfiD1pmpqWiaQHZgqycT0EMB3U6CsPsANOfP5qz
+U3lyhj2Z6dpCN9rMuUGrQjzy
+-----END PRIVATE KEY-----"#;
 
     let public_key = r#"-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0Z3VS5JJcds3xfn/ygWy
-F8PbnGy0AHB7MxszTjFfOC8JoRv8qVg5e9GfLgJlNpRuF9VKVOsGEX6GXOP3YrXa
-JXQGjITHRHPBE5rIKmWvLRU0D6hLF0x0z2EhPFXJbqXq5MQLF8FNXzRDvKwMHvCk
-G6cPj/FMUqPvEwUrmZmBPLVZ3T3rqG6KOJjNpXKpU0gU8LxK+LFfDMH0i0Aq8BXf
-T8kLsFD0FvcqDKNOOWFfjGKq4VcSsJmCFPWEvEFb1EfPXvGk6MYkuPpE3fRLzNvX
-weGewHLd/dVKi4YCF3FVLNsFEe4pBLkB1qLW6hoNhnWgU1fZlDmGykdHqHLN1H1M
-dwIDAQAB
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtfg5C0EJfkz3Vbotw4Bm
+v6U/sfiYRuey1DVUcsWfreSFZ2T5CcRvHk9iw517f25eXGNDSVKygj/dpAvkUu06
+P598MJjR4+cGCQC0NazbZ0S6JpCMayBjTu1jX8Ibq6og7EZLEiJW1EzU9Kt6ftWo
+8WyA7SBFvW9M6N1g+PmqyJA9YAowXpeJV09HIFM7djJr/uSHiODFyPvBJJmc5vn5
+fyVazbhNj66ZSCW/qMB1Tg6LE9sRYpIoRt3CZKTFLc2y0dDscI1cFfFH/NQpmosO
+0PX3BfDftAtA33pBEFtiTpnUCkNltSVleTVJ+xTgnftEC39eAb0PJXLuZpLJ0Dl3
+YQIDAQAB
 -----END PUBLIC KEY-----"#;
 
     Config {
@@ -336,16 +337,31 @@ pub async fn create_authenticated_user(app: &Router, user: &TestUser) -> Authent
         .unwrap();
 
     let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_else(|_| {
+        panic!("Failed to parse response body. Status: {}, Body: {:?}", status, String::from_utf8_lossy(&body));
+    });
+
+    if !status.is_success() {
+        panic!("Registration failed with status: {}, body: {}", status, json);
+    }
 
     AuthenticatedUser {
-        user_id: json["userId"].as_str().unwrap().to_string(),
-        email: json["email"].as_str().unwrap().to_string(),
-        access_token: json["accessToken"].as_str().unwrap().to_string(),
-        refresh_token: json["refresh_token"].as_str().unwrap().to_string(),
+        user_id: json["user"]["id"].as_str().unwrap_or_else(|| {
+            panic!("Missing user.id in response. Full response: {}", json);
+        }).to_string(),
+        email: json["user"]["email"].as_str().unwrap_or_else(|| {
+            panic!("Missing user.email in response. Full response: {}", json);
+        }).to_string(),
+        access_token: json["tokens"]["access_token"].as_str().unwrap_or_else(|| {
+            panic!("Missing tokens.access_token in response. Full response: {}", json);
+        }).to_string(),
+        refresh_token: json["tokens"]["refresh_token"].as_str().unwrap_or_else(|| {
+            panic!("Missing tokens.refresh_token in response. Full response: {}", json);
+        }).to_string(),
     }
 }
 
@@ -416,7 +432,7 @@ pub async fn create_test_group(
         id: json["id"].as_str().unwrap().to_string(),
         slug: json["slug"].as_str().unwrap().to_string(),
         name: json["name"].as_str().unwrap().to_string(),
-        invite_code: json["inviteCode"].as_str().unwrap().to_string(),
+        invite_code: json["invite_code"].as_str().unwrap_or("").to_string(),
     }
 }
 

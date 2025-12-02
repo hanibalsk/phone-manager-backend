@@ -2,9 +2,9 @@
 # Usage: docker-compose up -d
 
 services:
-  # PostgreSQL 16 Database
+  # PostgreSQL 16 Database with PostGIS
   postgres:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.4-alpine
     container_name: phone-manager-db
     restart: unless-stopped
     environment:

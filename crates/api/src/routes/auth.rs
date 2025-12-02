@@ -27,7 +27,10 @@ fn create_auth_service(state: &AppState) -> Result<AuthService, ApiError> {
         google_client_id,
         apple_client_id,
     )
-    .map_err(|e| ApiError::Internal(format!("Failed to initialize auth service: {}", e)))
+    .map_err(|e| {
+        tracing::error!(error = %e, "Failed to initialize auth service");
+        ApiError::Internal(format!("Failed to initialize auth service: {}", e))
+    })
 }
 
 /// Request body for user registration.
