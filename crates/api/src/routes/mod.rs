@@ -1,6 +1,7 @@
 //! HTTP route handlers.
 
 pub mod admin;
+pub mod frontend;
 pub mod admin_groups;
 pub mod admin_users;
 pub mod audit_logs;

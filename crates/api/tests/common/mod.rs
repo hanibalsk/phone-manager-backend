@@ -177,6 +177,7 @@ dwIDAQAB
             max_retries: 3,
             high_priority: false,
         },
+        frontend: phone_manager_api::config::FrontendConfig::default(),
     }
 }
 

@@ -20,9 +20,10 @@ use crate::middleware::{
     ExportRateLimiterState, RateLimiterState,
 };
 use crate::routes::{
-    admin, admin_groups, admin_users, audit_logs, auth, bulk_import, dashboard, device_policies, device_settings, devices, enrollment, enrollment_tokens,
-    fleet, geofences, groups, health, invites, locations, movement_events, openapi, organizations,
-    privacy, proximity_alerts, trips, users, versioning,
+    admin, admin_groups, admin_users, audit_logs, auth, bulk_import, dashboard, device_policies,
+    device_settings, devices, enrollment, enrollment_tokens, fleet, frontend, geofences, groups,
+    health, invites, locations, movement_events, openapi, organizations, privacy, proximity_alerts,
+    trips, users, versioning,
 };
 use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
@@ -566,7 +567,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route("/api/docs/openapi.yaml", get(openapi::openapi_spec));
 
     // Merge all routes
-    Router::new()
+    let mut app = Router::new()
         .merge(public_routes)
         .merge(auth_routes)
         .merge(user_routes)
@@ -574,9 +575,23 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .merge(openapi_routes)
         .merge(protected_routes)
         .merge(admin_routes)
-        .merge(legacy_routes)
-        // Global middleware (order matters: bottom layers run first)
-        .layer(middleware::from_fn(security_headers_middleware)) // Security headers
+        .merge(legacy_routes);
+
+    // Add frontend serving as fallback if enabled
+    // This must be added after API routes so they take precedence
+    if config.frontend.enabled {
+        tracing::info!(
+            base_dir = %config.frontend.base_dir,
+            staging_hostname = %config.frontend.staging_hostname,
+            production_hostname = %config.frontend.production_hostname,
+            default_environment = %config.frontend.default_environment,
+            "Frontend static file serving enabled"
+        );
+        app = app.fallback(frontend::serve_frontend);
+    }
+
+    // Global middleware (order matters: bottom layers run first)
+    app.layer(middleware::from_fn(security_headers_middleware)) // Security headers
         .layer(CompressionLayer::new())
         .layer(TimeoutLayer::new(Duration::from_secs(
             config.server.request_timeout_secs,

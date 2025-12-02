@@ -95,6 +95,13 @@ PM__OAUTH__APPLE_TEAM_ID=your-apple-team-id
 # Auth Rate Limiting (per IP, optional)
 PM__SECURITY__FORGOT_PASSWORD_RATE_LIMIT_PER_HOUR=5
 PM__SECURITY__REQUEST_VERIFICATION_RATE_LIMIT_PER_HOUR=3
+
+# Admin Frontend Static File Serving (optional)
+PM__FRONTEND__ENABLED=true
+PM__FRONTEND__BASE_DIR=/app/frontend
+PM__FRONTEND__STAGING_HOSTNAME=admin-staging.example.com
+PM__FRONTEND__PRODUCTION_HOSTNAME=admin.example.com
+PM__FRONTEND__DEFAULT_ENVIRONMENT=production
 ```
 
 ### Production Configuration Validation

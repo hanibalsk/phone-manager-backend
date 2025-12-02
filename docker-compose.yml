@@ -41,6 +41,16 @@ services:
       PM__LOGGING__LEVEL: ${LOG_LEVEL:-info}
       PM__LOGGING__FORMAT: ${LOG_FORMAT:-json}
       RUST_BACKTRACE: ${RUST_BACKTRACE:-0}
+      # Frontend static file serving
+      PM__FRONTEND__ENABLED: ${FRONTEND_ENABLED:-false}
+      PM__FRONTEND__BASE_DIR: /app/frontend
+      PM__FRONTEND__STAGING_HOSTNAME: ${FRONTEND_STAGING_HOSTNAME:-}
+      PM__FRONTEND__PRODUCTION_HOSTNAME: ${FRONTEND_PRODUCTION_HOSTNAME:-}
+      PM__FRONTEND__DEFAULT_ENVIRONMENT: ${FRONTEND_DEFAULT_ENVIRONMENT:-production}
+    volumes:
+      # Mount frontend directories (read-only)
+      - ./frontend/staging:/app/frontend/staging:ro
+      - ./frontend/production:/app/frontend/production:ro
     depends_on:
       postgres:
         condition: service_healthy

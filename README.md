@@ -15,6 +15,7 @@ A high-performance Rust backend API for the Phone Manager mobile application. Ha
 - **Prometheus Metrics** - Production-ready observability with request counters and latency histograms
 - **GDPR Compliance** - Data export and hard deletion for privacy compliance
 - **Kubernetes Ready** - Complete deployment manifests with HPA auto-scaling
+- **Admin Frontend Serving** - Serve Next.js static admin UI with hostname-based environment selection
 
 ## Tech Stack
 
@@ -176,6 +177,11 @@ Configuration uses TOML files with environment variable overrides.
 | `PM__LIMITS__LOCATION_RETENTION_DAYS` | No | `30` | Days to retain location data |
 | `PM__DATABASE__MAX_CONNECTIONS` | No | `20` | DB connection pool max |
 | `PM__DATABASE__MIN_CONNECTIONS` | No | `5` | DB connection pool min |
+| `PM__FRONTEND__ENABLED` | No | `false` | Enable static frontend serving |
+| `PM__FRONTEND__BASE_DIR` | No | `/app/frontend` | Base directory for frontend files |
+| `PM__FRONTEND__STAGING_HOSTNAME` | No | - | Hostname for staging environment |
+| `PM__FRONTEND__PRODUCTION_HOSTNAME` | No | - | Hostname for production environment |
+| `PM__FRONTEND__DEFAULT_ENVIRONMENT` | No | `production` | Default when hostname doesn't match |
 
 ### Configuration Files
 
@@ -304,6 +310,65 @@ The deployment includes:
 - **Readiness Probe**: `/api/health/ready` - Removes from load balancer if not ready
 - **Startup Probe**: `/api/health/ready` - Allows 30s for initial startup
 
+## Admin Frontend Serving
+
+The server can serve a Next.js static export admin frontend with hostname-based environment selection.
+
+### Setup
+
+1. **Build your Next.js app** with static export:
+   ```bash
+   cd admin-frontend
+   npm run build  # Produces 'out' directory
+   ```
+
+2. **Copy build output** to the appropriate directory:
+   ```bash
+   # For staging
+   cp -r out/* /path/to/frontend/staging/
+
+   # For production
+   cp -r out/* /path/to/frontend/production/
+   ```
+
+3. **Configure hostnames** in your environment:
+   ```bash
+   PM__FRONTEND__ENABLED=true
+   PM__FRONTEND__STAGING_HOSTNAME=admin-staging.example.com
+   PM__FRONTEND__PRODUCTION_HOSTNAME=admin.example.com
+   ```
+
+### Docker Compose
+
+With Docker Compose, mount your frontend directories:
+
+```yaml
+# In docker-compose.yml
+services:
+  api:
+    volumes:
+      - ./frontend/staging:/app/frontend/staging:ro
+      - ./frontend/production:/app/frontend/production:ro
+    environment:
+      FRONTEND_ENABLED: "true"
+      FRONTEND_STAGING_HOSTNAME: admin-staging.example.com
+      FRONTEND_PRODUCTION_HOSTNAME: admin.example.com
+```
+
+### How It Works
+
+| Request Host | Served From |
+|--------------|-------------|
+| `admin-staging.example.com` | `/app/frontend/staging/` |
+| `admin.example.com` | `/app/frontend/production/` |
+| Any other hostname | Default environment (production) |
+
+**Features:**
+- **SPA Support**: Routes without file extensions serve `index.html`
+- **Cache Headers**: Hashed assets (`/_next/static/*`) cached for 1 year; `index.html` cached for 60 seconds
+- **API Priority**: All `/api/*` routes take precedence over frontend
+- **Security**: Path traversal protection, read-only volume mounts
+
 ## Load Testing
 
 Load tests use [k6](https://k6.io/) and are located in `tests/load/`.
@@ -376,7 +441,7 @@ phone-manager-backend/
 │   │       ├── config.rs         # Configuration loading
 │   │       ├── error.rs          # Error types and responses
 │   │       ├── middleware/       # Auth, rate limit, metrics, security
-│   │       └── routes/           # HTTP route handlers
+│   │       └── routes/           # HTTP route handlers (incl. frontend.rs)
 │   ├── domain/           # Business logic and domain models
 │   ├── persistence/      # Database layer, repositories, migrations
 │   │   └── src/

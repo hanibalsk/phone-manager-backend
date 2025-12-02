@@ -59,6 +59,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -69,6 +70,9 @@ COPY --from=builder /app/target/release/phone-manager /app/phone-manager
 
 # Copy config files
 COPY config/ /app/config/
+
+# Create frontend directories for volume mounts
+RUN mkdir -p /app/frontend/staging /app/frontend/production
 
 # Set ownership
 RUN chown -R appuser:appuser /app

@@ -150,3 +150,33 @@ base_url = ""
 
 # Email template style: html or plain
 template_style = "html"
+
+[frontend]
+# Whether frontend static file serving is enabled
+# Set to true in production via PM__FRONTEND__ENABLED
+enabled = false
+
+# Base directory for frontend static files
+# Contains subdirectories: staging/ and production/
+base_dir = "/app/frontend"
+
+# Hostname for staging environment
+# Requests with this Host header serve from staging/ directory
+# Set via PM__FRONTEND__STAGING_HOSTNAME
+staging_hostname = ""
+
+# Hostname for production environment
+# Requests with this Host header serve from production/ directory
+# Set via PM__FRONTEND__PRODUCTION_HOSTNAME
+production_hostname = ""
+
+# Default environment when hostname doesn't match ("staging" or "production")
+default_environment = "production"
+
+# Cache max-age for immutable assets (hashed files like _next/static/*) in seconds
+# Default: 1 year (31536000)
+immutable_cache_max_age = 31536000
+
+# Cache max-age for mutable assets (index.html) in seconds
+# Default: 1 minute (60)
+mutable_cache_max_age = 60

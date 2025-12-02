@@ -23,6 +23,9 @@ pub struct Config {
     /// Firebase Cloud Messaging configuration
     #[serde(default)]
     pub fcm: FcmConfig,
+    /// Frontend static file serving configuration
+    #[serde(default)]
+    pub frontend: FrontendConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -409,6 +412,68 @@ fn default_fcm_max_retries() -> u32 {
     3
 }
 
+/// Frontend static file serving configuration for admin UI.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FrontendConfig {
+    /// Whether frontend serving is enabled
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Base directory for frontend static files
+    #[serde(default = "default_frontend_base_dir")]
+    pub base_dir: String,
+
+    /// Hostname for staging environment (e.g., "admin-staging.example.com")
+    #[serde(default)]
+    pub staging_hostname: String,
+
+    /// Hostname for production environment (e.g., "admin.example.com")
+    #[serde(default)]
+    pub production_hostname: String,
+
+    /// Default environment when hostname doesn't match ("staging" or "production")
+    #[serde(default = "default_frontend_environment")]
+    pub default_environment: String,
+
+    /// Cache max-age for immutable assets (hashed files) in seconds
+    #[serde(default = "default_immutable_cache_max_age")]
+    pub immutable_cache_max_age: u32,
+
+    /// Cache max-age for mutable assets (index.html) in seconds
+    #[serde(default = "default_mutable_cache_max_age")]
+    pub mutable_cache_max_age: u32,
+}
+
+impl Default for FrontendConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_dir: default_frontend_base_dir(),
+            staging_hostname: String::new(),
+            production_hostname: String::new(),
+            default_environment: default_frontend_environment(),
+            immutable_cache_max_age: default_immutable_cache_max_age(),
+            mutable_cache_max_age: default_mutable_cache_max_age(),
+        }
+    }
+}
+
+fn default_frontend_base_dir() -> String {
+    "/app/frontend".to_string()
+}
+
+fn default_frontend_environment() -> String {
+    "production".to_string()
+}
+
+fn default_immutable_cache_max_age() -> u32 {
+    31536000 // 1 year for hashed assets
+}
+
+fn default_mutable_cache_max_age() -> u32 {
+    60 // 1 minute for index.html
+}
+
 /// Configuration validation error
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigValidationError {
@@ -515,6 +580,15 @@ impl Config {
             timeout_ms = 10000
             max_retries = 3
             high_priority = false
+
+            [frontend]
+            enabled = false
+            base_dir = "/app/frontend"
+            staging_hostname = ""
+            production_hostname = ""
+            default_environment = "production"
+            immutable_cache_max_age = 31536000
+            mutable_cache_max_age = 60
         "#;
 
         let mut builder = config::Config::builder()
