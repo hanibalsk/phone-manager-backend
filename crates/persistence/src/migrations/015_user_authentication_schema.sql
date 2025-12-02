@@ -22,7 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE TRIGGER trg_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at();
+    EXECUTE FUNCTION update_updated_at_column();
 
 -- OAuth accounts table: Links users to external OAuth providers
 CREATE TABLE IF NOT EXISTS oauth_accounts (

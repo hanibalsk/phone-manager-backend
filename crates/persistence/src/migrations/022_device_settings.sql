@@ -28,7 +28,7 @@ CREATE TABLE setting_definitions (
 -- Stores per-device setting values and lock states
 CREATE TABLE device_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    device_id UUID NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
     setting_key VARCHAR(100) NOT NULL REFERENCES setting_definitions(key),
     value JSONB NOT NULL,
     is_locked BOOLEAN NOT NULL DEFAULT false,

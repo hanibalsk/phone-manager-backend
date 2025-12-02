@@ -506,19 +506,18 @@ pub async fn register_test_device(
 pub async fn create_test_api_key(pool: &PgPool, name: &str) -> String {
     // Generate a test API key
     let api_key = format!("pm_test_{}", uuid::Uuid::new_v4().simple());
-    let key_prefix = &api_key[..12];
+    let key_prefix = &api_key[..8]; // key_prefix is VARCHAR(8)
 
     // Hash the key for storage using shared crypto utility
     let key_hash = shared::crypto::sha256_hex(&api_key);
 
-    // Insert into database
+    // Insert into database (id is BIGSERIAL, auto-generated)
     sqlx::query(
         r#"
-        INSERT INTO api_keys (id, name, key_prefix, key_hash, is_active, created_at, last_used_at)
-        VALUES ($1, $2, $3, $4, true, NOW(), NULL)
+        INSERT INTO api_keys (name, key_prefix, key_hash, is_active, created_at, last_used_at)
+        VALUES ($1, $2, $3, true, NOW(), NULL)
         "#
     )
-    .bind(uuid::Uuid::new_v4())
     .bind(name)
     .bind(key_prefix)
     .bind(key_hash)

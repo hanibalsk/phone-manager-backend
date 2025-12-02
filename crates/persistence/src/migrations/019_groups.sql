@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_groups_created_by ON groups(created_by);
 CREATE TRIGGER trg_groups_updated_at
     BEFORE UPDATE ON groups
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at();
+    EXECUTE FUNCTION update_updated_at_column();
 
 -- Group memberships table: Links users to groups with roles
 CREATE TABLE IF NOT EXISTS group_memberships (
@@ -73,7 +73,7 @@ CREATE INDEX IF NOT EXISTS idx_group_memberships_role ON group_memberships(group
 CREATE TRIGGER trg_group_memberships_updated_at
     BEFORE UPDATE ON group_memberships
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at();
+    EXECUTE FUNCTION update_updated_at_column();
 
 -- Function to ensure exactly one owner per group
 CREATE OR REPLACE FUNCTION check_group_has_owner()

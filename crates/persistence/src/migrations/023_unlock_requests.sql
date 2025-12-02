@@ -7,7 +7,7 @@ CREATE TYPE unlock_request_status AS ENUM ('pending', 'approved', 'denied', 'exp
 -- Create unlock_requests table
 CREATE TABLE unlock_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    device_id UUID NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
     setting_key VARCHAR(100) NOT NULL REFERENCES setting_definitions(key) ON DELETE CASCADE,
     requested_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     status unlock_request_status NOT NULL DEFAULT 'pending',

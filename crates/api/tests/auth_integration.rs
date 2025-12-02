@@ -11,7 +11,7 @@ use axum::{
     body::Body,
     http::{header, Method, Request, StatusCode},
 };
-use common::{cleanup_test_data, create_test_pool, run_migrations, test_config, TestUser};
+use common::{cleanup_all_test_data, create_test_pool, run_migrations, test_config, TestUser};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
@@ -41,7 +41,7 @@ async fn parse_response_body(response: axum::response::Response) -> Value {
 async fn test_register_success() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let app = common::create_test_app(config, pool.clone());
@@ -67,14 +67,14 @@ async fn test_register_success() {
     assert!(body.get("refresh_token").is_some());
     assert!(!body["accessToken"].as_str().unwrap().is_empty());
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 #[tokio::test]
 async fn test_register_duplicate_email() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let user = TestUser::new();
@@ -116,14 +116,14 @@ async fn test_register_duplicate_email() {
         .to_lowercase()
         .contains("email"));
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 #[tokio::test]
 async fn test_register_weak_password() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let app = common::create_test_app(config, pool.clone());
@@ -145,14 +145,14 @@ async fn test_register_weak_password() {
             || response.status() == StatusCode::UNPROCESSABLE_ENTITY
     );
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 #[tokio::test]
 async fn test_register_invalid_email() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let app = common::create_test_app(config, pool.clone());
@@ -170,7 +170,7 @@ async fn test_register_invalid_email() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 // ============================================================================
@@ -181,7 +181,7 @@ async fn test_register_invalid_email() {
 async fn test_login_success() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let user = TestUser::new();
@@ -218,14 +218,14 @@ async fn test_login_success() {
     assert!(body.get("accessToken").is_some());
     assert!(body.get("refresh_token").is_some());
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 #[tokio::test]
 async fn test_login_invalid_password() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let user = TestUser::new();
@@ -257,14 +257,14 @@ async fn test_login_invalid_password() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 #[tokio::test]
 async fn test_login_nonexistent_user() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let app = common::create_test_app(config, pool.clone());
@@ -281,14 +281,14 @@ async fn test_login_nonexistent_user() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 #[tokio::test]
 async fn test_login_case_insensitive_email() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let user = TestUser::new();
@@ -320,7 +320,7 @@ async fn test_login_case_insensitive_email() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 // ============================================================================
@@ -331,7 +331,7 @@ async fn test_login_case_insensitive_email() {
 async fn test_refresh_token_success() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let user = TestUser::new();
@@ -368,14 +368,14 @@ async fn test_refresh_token_success() {
     assert!(body.get("accessToken").is_some());
     assert!(body.get("refresh_token").is_some());
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 #[tokio::test]
 async fn test_refresh_token_invalid() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let app = common::create_test_app(config, pool.clone());
@@ -391,7 +391,7 @@ async fn test_refresh_token_invalid() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 // ============================================================================
@@ -402,7 +402,7 @@ async fn test_refresh_token_invalid() {
 async fn test_logout_success() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let user = TestUser::new();
@@ -437,7 +437,7 @@ async fn test_logout_success() {
         response.status() == StatusCode::OK || response.status() == StatusCode::NO_CONTENT
     );
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 // ============================================================================
@@ -448,7 +448,7 @@ async fn test_logout_success() {
 async fn test_access_protected_route_with_valid_token() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let user = TestUser::new();
@@ -483,14 +483,14 @@ async fn test_access_protected_route_with_valid_token() {
     let body = parse_response_body(response).await;
     assert_eq!(body["email"], user.email.to_lowercase());
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 #[tokio::test]
 async fn test_access_protected_route_without_token() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let app = common::create_test_app(config, pool.clone());
@@ -504,14 +504,14 @@ async fn test_access_protected_route_without_token() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 #[tokio::test]
 async fn test_access_protected_route_with_invalid_token() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let app = common::create_test_app(config, pool.clone());
@@ -526,7 +526,7 @@ async fn test_access_protected_route_with_invalid_token() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 // ============================================================================
@@ -537,7 +537,7 @@ async fn test_access_protected_route_with_invalid_token() {
 async fn test_multiple_sessions_same_user() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let user = TestUser::new();
@@ -609,7 +609,7 @@ async fn test_multiple_sessions_same_user() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 // ============================================================================
@@ -620,7 +620,7 @@ async fn test_multiple_sessions_same_user() {
 async fn test_oauth_invalid_provider() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let app = common::create_test_app(config, pool.clone());
@@ -641,14 +641,14 @@ async fn test_oauth_invalid_provider() {
             || response.status() == StatusCode::UNPROCESSABLE_ENTITY
     );
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 #[tokio::test]
 async fn test_oauth_missing_token() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let app = common::create_test_app(config, pool.clone());
@@ -665,7 +665,7 @@ async fn test_oauth_missing_token() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 // ============================================================================
@@ -676,7 +676,7 @@ async fn test_oauth_missing_token() {
 async fn test_forgot_password_existing_user() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let user = TestUser::new();
@@ -712,14 +712,14 @@ async fn test_forgot_password_existing_user() {
             || response.status() == StatusCode::NO_CONTENT
     );
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 #[tokio::test]
 async fn test_forgot_password_nonexistent_user() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let app = common::create_test_app(config, pool.clone());
@@ -740,7 +740,7 @@ async fn test_forgot_password_nonexistent_user() {
             || response.status() == StatusCode::NO_CONTENT
     );
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
 
 // ============================================================================
@@ -751,7 +751,7 @@ async fn test_forgot_password_nonexistent_user() {
 async fn test_verify_email_invalid_token() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 
     let config = test_config();
     let app = common::create_test_app(config, pool.clone());
@@ -772,5 +772,5 @@ async fn test_verify_email_invalid_token() {
             || response.status() == StatusCode::NOT_FOUND
     );
 
-    cleanup_test_data(&pool).await;
+    cleanup_all_test_data(&pool).await;
 }
