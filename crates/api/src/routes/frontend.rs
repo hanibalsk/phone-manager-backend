@@ -171,7 +171,7 @@ fn normalize_path(path: &Path) -> PathBuf {
 /// Next.js static exports put hashed assets in _next/static/
 fn is_immutable_asset(path: &Path) -> bool {
     let path_str = path.to_string_lossy();
-    path_str.contains("/_next/static/") || path_str.contains("\\_next\\static\\")
+    path_str.contains("_next/static/") || path_str.contains("_next\\static\\")
 }
 
 #[cfg(test)]
@@ -232,6 +232,9 @@ mod tests {
         )));
         assert!(is_immutable_asset(Path::new(
             "/app/frontend/production/_next/static/css/abc.css"
+        )));
+        assert!(is_immutable_asset(Path::new(
+            r"C:\frontend\production\_next\static\chunks\hash.js"
         )));
         assert!(!is_immutable_asset(Path::new(
             "/app/frontend/staging/index.html"
