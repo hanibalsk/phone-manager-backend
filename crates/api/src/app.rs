@@ -136,8 +136,10 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
     };
 
     // Build CORS layer based on configuration
-    let cors = if config.security.cors_origins.is_empty() {
-        // Default: allow any origin (for development)
+    let cors = if config.security.cors_origins.is_empty()
+        || config.security.cors_origins.iter().any(|o| o == "*")
+    {
+        // Default: allow any origin (for development or when "*" is specified)
         CorsLayer::new()
             .allow_origin(Any)
             .allow_methods(Any)
