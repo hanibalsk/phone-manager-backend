@@ -9,9 +9,10 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::{
-    cleanup_all_test_data, create_authenticated_user, create_test_app, create_test_pool,
-    delete_request_with_auth, get_request_with_auth, json_request_with_auth, parse_response_body,
-    register_test_device, run_migrations, test_config, TestDevice, TestUser,
+    cleanup_all_test_data, create_authenticated_user, create_test_api_key, create_test_app,
+    create_test_pool, delete_request_with_api_key_and_jwt, get_request_with_api_key_and_jwt,
+    json_request_with_api_key_and_jwt, parse_response_body, register_test_device, run_migrations,
+    test_config, TestDevice, TestUser,
 };
 use serde_json::json;
 use tower::ServiceExt;
@@ -35,7 +36,7 @@ async fn test_register_device_success() {
 
     // Register a device
     let device = TestDevice::new();
-    let response = register_test_device(&app, &auth, &device).await;
+    let response = register_test_device(&app, &pool, &auth, &device).await;
 
     assert!(response.get("device_id").is_some());
     assert_eq!(response["device_id"], device.device_id);
@@ -60,11 +61,12 @@ async fn test_register_device_update_existing() {
 
     // Register a device
     let device = TestDevice::new();
-    let _first_response = register_test_device(&app, &auth, &device).await;
+    let _first_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Update the same device with new display name
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let api_key = create_test_api_key(&pool, "test_update_device").await;
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/devices/register",
         json!({
@@ -75,6 +77,7 @@ async fn test_register_device_update_existing() {
             "os_version": device.os_version,
             "app_version": device.app_version
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -104,7 +107,7 @@ async fn test_register_device_with_jwt_links_to_user() {
 
     // Register a device with JWT auth
     let device = TestDevice::new();
-    let response = register_test_device(&app, &auth, &device).await;
+    let response = register_test_device(&app, &pool, &auth, &device).await;
 
     // The device should be linked to the user (owner_user_id set)
     assert!(response.get("device_id").is_some());
@@ -138,17 +141,18 @@ async fn test_register_device_group_capacity_limit() {
     // Register first device
     let device1 = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let _response1 = register_test_device(&app, &auth, &device1).await;
+    let _response1 = register_test_device(&app, &pool, &auth, &device1).await;
 
     // Register second device
     let device2 = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let _response2 = register_test_device(&app, &auth, &device2).await;
+    let _response2 = register_test_device(&app, &pool, &auth, &device2).await;
 
     // Third device should fail due to capacity limit
     let device3 = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let api_key = create_test_api_key(&pool, "test_capacity_limit").await;
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/devices/register",
         json!({
@@ -159,6 +163,7 @@ async fn test_register_device_group_capacity_limit() {
             "os_version": device3.os_version,
             "app_version": device3.app_version
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -166,7 +171,7 @@ async fn test_register_device_group_capacity_limit() {
     assert_eq!(response.status(), StatusCode::CONFLICT);
 
     let body = parse_response_body(response).await;
-    assert!(body["error"]
+    assert!(body["message"]
         .as_str()
         .unwrap_or("")
         .contains("maximum device limit"));
@@ -188,7 +193,8 @@ async fn test_register_device_invalid_data() {
     let auth = create_authenticated_user(&app, &user).await;
 
     // Try to register with invalid UUID
-    let request = json_request_with_auth(
+    let api_key = create_test_api_key(&pool, "test_invalid_data").await;
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/devices/register",
         json!({
@@ -197,6 +203,7 @@ async fn test_register_device_invalid_data() {
             "group_id": "test-group",
             "platform": "android"
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -224,7 +231,8 @@ async fn test_register_device_empty_display_name() {
     let auth = create_authenticated_user(&app, &user).await;
 
     // Try to register with empty display name
-    let request = json_request_with_auth(
+    let api_key = create_test_api_key(&pool, "test_empty_name").await;
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/devices/register",
         json!({
@@ -233,6 +241,7 @@ async fn test_register_device_empty_display_name() {
             "group_id": "test-group",
             "platform": "android"
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -269,16 +278,18 @@ async fn test_get_group_devices_success() {
     // Register two devices in the same group
     let device1 = TestDevice::new().with_group(&group_id).with_name("Device 1");
     let app = create_test_app(config.clone(), pool.clone());
-    let _response1 = register_test_device(&app, &auth, &device1).await;
+    let _response1 = register_test_device(&app, &pool, &auth, &device1).await;
 
     let device2 = TestDevice::new().with_group(&group_id).with_name("Device 2");
     let app = create_test_app(config.clone(), pool.clone());
-    let _response2 = register_test_device(&app, &auth, &device2).await;
+    let _response2 = register_test_device(&app, &pool, &auth, &device2).await;
 
     // Get devices in the group
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let api_key = create_test_api_key(&pool, "test_get_devices").await;
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices?group_id={}", group_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -314,8 +325,10 @@ async fn test_get_group_devices_empty_group() {
     let auth = create_authenticated_user(&app, &user).await;
 
     // Get devices from a group that has no devices
-    let request = get_request_with_auth(
+    let api_key = create_test_api_key(&pool, "test_empty_group").await;
+    let request = get_request_with_api_key_and_jwt(
         "/api/v1/devices?group_id=nonexistent-group",
+        &api_key,
         &auth.access_token,
     );
 
@@ -343,7 +356,8 @@ async fn test_get_group_devices_missing_group_id() {
     let auth = create_authenticated_user(&app, &user).await;
 
     // Get devices without group_id parameter
-    let request = get_request_with_auth("/api/v1/devices", &auth.access_token);
+    let api_key = create_test_api_key(&pool, "test_missing_group_id").await;
+    let request = get_request_with_api_key_and_jwt("/api/v1/devices", &api_key, &auth.access_token);
 
     let response = app.oneshot(request).await.unwrap();
     // Should fail validation - group_id is required
@@ -374,13 +388,15 @@ async fn test_delete_device_success() {
 
     // Register a device
     let device = TestDevice::new();
-    let response = register_test_device(&app, &auth, &device).await;
+    let response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = response["device_id"].as_str().unwrap();
 
     // Delete the device
     let app = create_test_app(config.clone(), pool.clone());
-    let request = delete_request_with_auth(
+    let api_key = create_test_api_key(&pool, "test_delete_device").await;
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}", device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -389,8 +405,10 @@ async fn test_delete_device_success() {
 
     // Verify device is no longer in the group list (soft deleted)
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let api_key2 = create_test_api_key(&pool, "test_delete_device_verify").await;
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices?group_id={}", device.group_id),
+        &api_key2,
         &auth.access_token,
     );
 
@@ -417,8 +435,10 @@ async fn test_delete_device_not_found() {
 
     // Try to delete a non-existent device
     let fake_device_id = uuid::Uuid::new_v4();
-    let request = delete_request_with_auth(
+    let api_key = create_test_api_key(&pool, "test_delete_not_found").await;
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}", fake_device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -442,8 +462,12 @@ async fn test_delete_device_invalid_uuid() {
     let auth = create_authenticated_user(&app, &user).await;
 
     // Try to delete with invalid UUID
-    let request =
-        delete_request_with_auth("/api/v1/devices/not-a-valid-uuid", &auth.access_token);
+    let api_key = create_test_api_key(&pool, "test_delete_invalid_uuid").await;
+    let request = delete_request_with_api_key_and_jwt(
+        "/api/v1/devices/not-a-valid-uuid",
+        &api_key,
+        &auth.access_token,
+    );
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);

@@ -237,9 +237,9 @@ pub async fn cleanup_all_test_data(pool: &PgPool) {
         "org_users",
         "organizations",
         // Device settings and unlock
+        // Note: setting_definitions is reference data seeded in migrations, don't delete it
         "unlock_requests",
         "device_settings",
-        "setting_definitions",
         // Groups
         "group_invites",
         "group_memberships",
@@ -487,15 +487,22 @@ pub async fn parse_response_body(response: axum::response::Response) -> serde_js
 }
 
 /// Register a device via the API.
+///
+/// Requires both API key (for the middleware) and JWT (for user linking).
+/// The pool parameter is used to create a test API key.
 pub async fn register_test_device(
     app: &Router,
+    pool: &PgPool,
     auth: &AuthenticatedUser,
     device: &TestDevice,
 ) -> serde_json::Value {
     use axum::http::Method;
     use tower::ServiceExt;
 
-    let request = json_request_with_auth(
+    // Create an API key for this test
+    let api_key = create_test_api_key(pool, "test_device_registration").await;
+
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/devices/register",
         serde_json::json!({
@@ -506,6 +513,7 @@ pub async fn register_test_device(
             "os_version": device.os_version,
             "app_version": device.app_version
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -517,7 +525,7 @@ pub async fn register_test_device(
 // API Key Authentication Helpers (for Admin Endpoints)
 // =============================================================================
 
-/// Create an admin API key for testing.
+/// Create an API key for testing (non-admin).
 ///
 /// Returns the raw API key (unhashed) for use in requests.
 pub async fn create_test_api_key(pool: &PgPool, name: &str) -> String {
@@ -531,8 +539,8 @@ pub async fn create_test_api_key(pool: &PgPool, name: &str) -> String {
     // Insert into database (id is BIGSERIAL, auto-generated)
     sqlx::query(
         r#"
-        INSERT INTO api_keys (name, key_prefix, key_hash, is_active, created_at, last_used_at)
-        VALUES ($1, $2, $3, true, NOW(), NULL)
+        INSERT INTO api_keys (name, key_prefix, key_hash, is_active, is_admin, created_at, last_used_at)
+        VALUES ($1, $2, $3, true, false, NOW(), NULL)
         "#
     )
     .bind(name)
@@ -541,6 +549,34 @@ pub async fn create_test_api_key(pool: &PgPool, name: &str) -> String {
     .execute(pool)
     .await
     .expect("Failed to create test API key");
+
+    api_key
+}
+
+/// Create an admin API key for testing (with is_admin = true).
+///
+/// Returns the raw API key (unhashed) for use in requests.
+pub async fn create_test_admin_api_key(pool: &PgPool, name: &str) -> String {
+    // Generate a test API key
+    let api_key = format!("pm_admin_{}", uuid::Uuid::new_v4().simple());
+    let key_prefix = &api_key[..8]; // key_prefix is VARCHAR(8)
+
+    // Hash the key for storage using shared crypto utility
+    let key_hash = shared::crypto::sha256_hex(&api_key);
+
+    // Insert into database with is_admin = true
+    sqlx::query(
+        r#"
+        INSERT INTO api_keys (name, key_prefix, key_hash, is_active, is_admin, created_at, last_used_at)
+        VALUES ($1, $2, $3, true, true, NOW(), NULL)
+        "#
+    )
+    .bind(name)
+    .bind(key_prefix)
+    .bind(key_hash)
+    .execute(pool)
+    .await
+    .expect("Failed to create test admin API key");
 
     api_key
 }
@@ -559,6 +595,28 @@ pub fn json_request_with_api_key(
         .uri(uri)
         .header(header::CONTENT_TYPE, "application/json")
         .header("X-API-Key", api_key)
+        .body(Body::from(serde_json::to_string(&body).unwrap()))
+        .unwrap()
+}
+
+/// Build a JSON request with both API key and JWT authentication.
+/// This is needed for endpoints that require API key (via middleware)
+/// but also support optional JWT for user linking.
+pub fn json_request_with_api_key_and_jwt(
+    method: axum::http::Method,
+    uri: &str,
+    body: serde_json::Value,
+    api_key: &str,
+    jwt_token: &str,
+) -> axum::http::Request<axum::body::Body> {
+    use axum::{body::Body, http::{header, Request}};
+
+    Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json")
+        .header("X-API-Key", api_key)
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .body(Body::from(serde_json::to_string(&body).unwrap()))
         .unwrap()
 }
@@ -601,6 +659,40 @@ pub fn put_request_with_api_key(
         .header(header::CONTENT_TYPE, "application/json")
         .header("X-API-Key", api_key)
         .body(Body::from(serde_json::to_string(&body).unwrap()))
+        .unwrap()
+}
+
+/// Build a GET request with both API key and JWT authentication.
+pub fn get_request_with_api_key_and_jwt(
+    uri: &str,
+    api_key: &str,
+    jwt_token: &str,
+) -> axum::http::Request<axum::body::Body> {
+    use axum::{body::Body, http::{header, Method, Request}};
+
+    Request::builder()
+        .method(Method::GET)
+        .uri(uri)
+        .header("X-API-Key", api_key)
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .body(Body::empty())
+        .unwrap()
+}
+
+/// Build a DELETE request with both API key and JWT authentication.
+pub fn delete_request_with_api_key_and_jwt(
+    uri: &str,
+    api_key: &str,
+    jwt_token: &str,
+) -> axum::http::Request<axum::body::Body> {
+    use axum::{body::Body, http::{header, Method, Request}};
+
+    Request::builder()
+        .method(Method::DELETE)
+        .uri(uri)
+        .header("X-API-Key", api_key)
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .body(Body::empty())
         .unwrap()
 }
 
@@ -668,4 +760,27 @@ pub async fn create_test_organization(
         name: body["organization"]["name"].as_str().unwrap().to_string(),
         slug: body["organization"]["slug"].as_str().unwrap().to_string(),
     }
+}
+
+/// Seed setting definitions if they don't exist.
+/// This is reference data that should persist across tests.
+pub async fn seed_setting_definitions(pool: &PgPool) {
+    sqlx::query(
+        r#"
+        INSERT INTO setting_definitions (key, display_name, description, data_type, default_value, is_lockable, category, sort_order)
+        VALUES
+            ('tracking_enabled', 'Location Tracking', 'Enable or disable location tracking', 'boolean', 'true', true, 'tracking', 1),
+            ('tracking_interval_minutes', 'Tracking Interval', 'Minutes between location updates', 'integer', '5', true, 'tracking', 2),
+            ('movement_detection_enabled', 'Movement Detection', 'Enable automatic movement detection', 'boolean', 'true', true, 'tracking', 3),
+            ('secret_mode_enabled', 'Secret Mode', 'Hide device location from other group members', 'boolean', 'false', true, 'privacy', 10),
+            ('battery_optimization_enabled', 'Battery Optimization', 'Reduce tracking frequency when battery is low', 'boolean', 'true', false, 'battery', 20),
+            ('notification_sounds_enabled', 'Notification Sounds', 'Play sounds for notifications', 'boolean', 'true', false, 'notifications', 30),
+            ('geofence_notifications_enabled', 'Geofence Alerts', 'Receive notifications for geofence events', 'boolean', 'true', true, 'notifications', 31),
+            ('sos_enabled', 'SOS Feature', 'Enable emergency SOS functionality', 'boolean', 'true', true, 'privacy', 11)
+        ON CONFLICT (key) DO NOTHING
+        "#,
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to seed setting definitions");
 }

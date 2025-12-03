@@ -170,7 +170,7 @@ impl DashboardRepository {
         let row = sqlx::query(
             r#"
             SELECT
-                (SELECT COUNT(*) FROM enrollment_tokens WHERE organization_id = $1 AND is_active = true AND expires_at > $2) as active_tokens,
+                (SELECT COUNT(*) FROM enrollment_tokens WHERE organization_id = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > $2)) as active_tokens,
                 (SELECT COUNT(*) FROM devices WHERE organization_id = $1 AND enrolled_at >= $3) as enrolled_this_month
             "#,
         )

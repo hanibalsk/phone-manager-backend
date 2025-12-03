@@ -177,7 +177,7 @@ impl AuditLogRepository {
     ) -> Result<Option<AuditLog>, sqlx::Error> {
         let entity = sqlx::query_as::<_, AuditLogEntity>(
             r#"
-            SELECT id, organization_id, timestamp, actor_id, actor_type, actor_email,
+            SELECT id, organization_id, timestamp, actor_id, actor_type::text, actor_email,
                    action, resource_type, resource_id, resource_name, changes, metadata,
                    ip_address::text, user_agent, created_at
             FROM audit_logs
@@ -220,7 +220,7 @@ impl AuditLogRepository {
         // Get audit logs
         let list_query = format!(
             r#"
-            SELECT id, organization_id, timestamp, actor_id, actor_type, actor_email,
+            SELECT id, organization_id, timestamp, actor_id, actor_type::text, actor_email,
                    action, resource_type, resource_id, resource_name, changes, metadata,
                    ip_address::text, user_agent, created_at
             FROM audit_logs
@@ -272,7 +272,7 @@ impl AuditLogRepository {
 
         let list_query = format!(
             r#"
-            SELECT id, organization_id, timestamp, actor_id, actor_type, actor_email,
+            SELECT id, organization_id, timestamp, actor_id, actor_type::text, actor_email,
                    action, resource_type, resource_id, resource_name, changes, metadata,
                    ip_address::text, user_agent, created_at
             FROM audit_logs
