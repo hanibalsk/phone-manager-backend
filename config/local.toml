@@ -1,0 +1,28 @@
+# Local development configuration
+# Serves admin portal from phone-manager/admin-portal/.local-deploy directory
+
+[logging]
+level = "debug"
+format = "pretty"
+
+[security]
+cors_origins = ["*"]
+
+[frontend]
+# Enable frontend serving for local development
+enabled = true
+
+# Point to local deploy directory that contains staging/ subdirectory
+# Run: npm run deploy:local in admin-portal to set this up
+base_dir = "../phone-manager/admin-portal/.local-deploy"
+
+# For local dev, use localhost variants
+staging_hostname = "localhost"
+production_hostname = "127.0.0.1"
+
+# Default to staging for local development
+default_environment = "staging"
+
+# Shorter cache for development
+immutable_cache_max_age = 60
+mutable_cache_max_age = 0

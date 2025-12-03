@@ -143,9 +143,13 @@ impl AuthService {
         google_client_id: Option<String>,
         apple_client_id: Option<String>,
     ) -> Result<Self, AuthError> {
+        // Convert literal \n sequences to actual newlines (for env var compatibility)
+        let private_key = jwt_config.private_key.replace("\\n", "\n");
+        let public_key = jwt_config.public_key.replace("\\n", "\n");
+
         let jwt = JwtConfig::new(
-            &jwt_config.private_key,
-            &jwt_config.public_key,
+            &private_key,
+            &public_key,
             jwt_config.access_token_expiry_secs,
             jwt_config.refresh_token_expiry_secs,
         )
