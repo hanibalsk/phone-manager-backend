@@ -1,0 +1,4171 @@
+openapi: "3.1.0"
+info:
+  title: Phone Manager API
+  version: "0.1.0"
+  description: |
+    REST API for the Phone Manager mobile application.
+    Handles device registration, location tracking, group management,
+    user authentication, and trip tracking for family/friends location sharing.
+
+    ## Authentication
+
+    The API supports multiple authentication methods:
+
+    ### JWT Authentication (User APIs)
+    User-facing endpoints use JWT Bearer tokens obtained via `/api/v1/auth/login`.
+    Include the token in the `Authorization` header: `Bearer <access_token>`.
+
+    ### API Key Authentication (Device APIs)
+    Device and admin endpoints require an API key via the `X-API-Key` header.
+    API keys use the format `pm_<key>`.
+
+    ## Rate Limiting
+
+    API requests are rate-limited:
+    - Per API key: 100 requests/minute (default)
+    - Forgot password: 5 requests/hour per IP
+    - Request verification: 3 requests/hour per IP
+
+    When rate limited, responses include a `Retry-After` header.
+
+    ## Idempotency
+
+    Location upload endpoints support idempotent requests via the `Idempotency-Key` header.
+  contact:
+    name: Phone Manager Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.phonemanager.example.com
+    description: Production
+
+tags:
+  - name: Health
+    description: Service health and readiness endpoints
+  - name: Auth
+    description: User authentication and registration
+  - name: Users
+    description: User profile management
+  - name: Groups
+    description: Group management and membership
+  - name: Invites
+    description: Group invite management
+  - name: Devices
+    description: Device registration and management
+  - name: Locations
+    description: Location tracking and upload
+  - name: Trips
+    description: Trip tracking and management
+  - name: Movement Events
+    description: Movement event tracking
+  - name: Device Settings
+    description: Device settings management
+  - name: Geofences
+    description: Per-device geofence management
+  - name: Proximity Alerts
+    description: Proximity alerts between devices
+  - name: Privacy
+    description: GDPR-compliant data export and deletion
+  - name: Enrollment
+    description: Device enrollment for organizations
+  - name: Admin
+    description: Administrative operations
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token from login endpoint
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: "API key for device/admin authentication. Format: pm_<key>"
+
+  schemas:
+    # ==========================================
+    # Auth Schemas
+    # ==========================================
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - display_name
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "user@example.com"
+        password:
+          type: string
+          minLength: 8
+          description: Password (min 8 characters)
+          example: "SecureP@ss123!"
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Display name
+          example: "John Doe"
+        device_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional device to link during registration
+        device_name:
+          type: string
+          nullable: true
+          description: Display name for the linked device
+
+    RegisterResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserResponse"
+        tokens:
+          $ref: "#/components/schemas/TokensResponse"
+        device_linked:
+          type: boolean
+          example: false
+        requires_email_verification:
+          type: boolean
+          example: true
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          minLength: 1
+          example: "SecureP@ss123!"
+        device_id:
+          type: string
+          format: uuid
+          nullable: true
+        device_name:
+          type: string
+          nullable: true
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserResponse"
+        tokens:
+          $ref: "#/components/schemas/TokensResponse"
+
+    OAuthLoginRequest:
+      type: object
+      required:
+        - provider
+        - id_token
+      properties:
+        provider:
+          type: string
+          enum: [google, apple]
+          description: OAuth provider
+          example: "google"
+        id_token:
+          type: string
+          description: OAuth ID token from provider
+        device_id:
+          type: string
+          format: uuid
+          nullable: true
+        device_name:
+          type: string
+          nullable: true
+
+    RefreshRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          description: Refresh token from login
+
+    RefreshResponse:
+      type: object
+      properties:
+        tokens:
+          $ref: "#/components/schemas/TokensResponse"
+
+    LogoutRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+        all_devices:
+          type: boolean
+          default: false
+          description: Logout from all devices
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - new_password
+      properties:
+        token:
+          type: string
+          description: Reset token from email
+        new_password:
+          type: string
+          minLength: 8
+
+    VerifyEmailRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          description: Verification token from email
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          nullable: true
+        email_verified:
+          type: boolean
+        auth_provider:
+          type: string
+          enum: [email, google, apple]
+        organization_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    TokensResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: "Bearer"
+        expires_in:
+          type: integer
+          description: Token expiration in seconds
+          example: 3600
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+    # ==========================================
+    # User Profile Schemas
+    # ==========================================
+    ProfileResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          nullable: true
+        email_verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+
+    LinkDeviceRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        is_primary:
+          type: boolean
+          default: false
+
+    LinkedDeviceResponse:
+      type: object
+      properties:
+        device:
+          $ref: "#/components/schemas/DeviceInfo"
+        linked:
+          type: boolean
+
+    UserDeviceResponse:
+      type: object
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        platform:
+          type: string
+        is_primary:
+          type: boolean
+        linked_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    ListUserDevicesResponse:
+      type: object
+      properties:
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserDeviceResponse"
+        count:
+          type: integer
+
+    TransferDeviceRequest:
+      type: object
+      required:
+        - new_owner_id
+      properties:
+        new_owner_id:
+          type: string
+          format: uuid
+
+    TransferDeviceResponse:
+      type: object
+      properties:
+        device:
+          $ref: "#/components/schemas/DeviceInfo"
+        previous_owner_id:
+          type: string
+          format: uuid
+        new_owner_id:
+          type: string
+          format: uuid
+        transferred:
+          type: boolean
+
+    # ==========================================
+    # Group Schemas
+    # ==========================================
+    CreateGroupRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "Family"
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        icon_emoji:
+          type: string
+          maxLength: 10
+          nullable: true
+          example: "👨‍👩‍👧‍👦"
+        max_devices:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+
+    UpdateGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        icon_emoji:
+          type: string
+          maxLength: 10
+          nullable: true
+        max_devices:
+          type: integer
+          minimum: 1
+          maximum: 100
+
+    GroupSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        icon_emoji:
+          type: string
+          nullable: true
+        member_count:
+          type: integer
+        device_count:
+          type: integer
+        my_role:
+          $ref: "#/components/schemas/GroupRole"
+        created_at:
+          type: string
+          format: date-time
+
+    GroupDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        icon_emoji:
+          type: string
+          nullable: true
+        max_devices:
+          type: integer
+        member_count:
+          type: integer
+        device_count:
+          type: integer
+        my_role:
+          $ref: "#/components/schemas/GroupRole"
+        owner:
+          $ref: "#/components/schemas/MemberSummary"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ListGroupsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupSummary"
+        count:
+          type: integer
+
+    GroupRole:
+      type: string
+      enum: [owner, admin, member, viewer]
+      description: Role in the group
+
+    MemberSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          nullable: true
+
+    MemberResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          nullable: true
+        role:
+          $ref: "#/components/schemas/GroupRole"
+        joined_at:
+          type: string
+          format: date-time
+
+    ListMembersResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberResponse"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    UpdateRoleRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          $ref: "#/components/schemas/GroupRole"
+
+    JoinGroupRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          pattern: "^[A-Z0-9]{3}-[A-Z0-9]{3}-[A-Z0-9]{3}$"
+          description: Invite code (format XXX-XXX-XXX)
+          example: "ABC-123-XYZ"
+
+    JoinGroupResponse:
+      type: object
+      properties:
+        group:
+          $ref: "#/components/schemas/GroupSummary"
+        membership:
+          type: object
+          properties:
+            role:
+              $ref: "#/components/schemas/GroupRole"
+            joined_at:
+              type: string
+              format: date-time
+
+    TransferOwnershipRequest:
+      type: object
+      required:
+        - new_owner_id
+      properties:
+        new_owner_id:
+          type: string
+          format: uuid
+
+    # ==========================================
+    # Invite Schemas
+    # ==========================================
+    CreateInviteRequest:
+      type: object
+      properties:
+        preset_role:
+          $ref: "#/components/schemas/GroupRole"
+          default: member
+          description: Cannot be 'owner'
+        max_uses:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 1
+        expires_in_hours:
+          type: integer
+          minimum: 1
+          maximum: 168
+          default: 24
+
+    CreateInviteResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          example: "ABC-123-XYZ"
+        invite_url:
+          type: string
+          format: uri
+        preset_role:
+          $ref: "#/components/schemas/GroupRole"
+        max_uses:
+          type: integer
+        uses_remaining:
+          type: integer
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    InviteSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        preset_role:
+          $ref: "#/components/schemas/GroupRole"
+        max_uses:
+          type: integer
+        use_count:
+          type: integer
+        expires_at:
+          type: string
+          format: date-time
+        created_by:
+          $ref: "#/components/schemas/MemberSummary"
+        created_at:
+          type: string
+          format: date-time
+
+    ListInvitesResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InviteSummary"
+
+    PublicInviteInfo:
+      type: object
+      properties:
+        group:
+          type: object
+          properties:
+            name:
+              type: string
+            icon_emoji:
+              type: string
+              nullable: true
+            member_count:
+              type: integer
+        preset_role:
+          $ref: "#/components/schemas/GroupRole"
+        expires_at:
+          type: string
+          format: date-time
+        is_valid:
+          type: boolean
+
+    # ==========================================
+    # Trip Schemas
+    # ==========================================
+    TransportationMode:
+      type: string
+      enum: [STATIONARY, WALKING, RUNNING, CYCLING, IN_VEHICLE, UNKNOWN]
+
+    DetectionSource:
+      type: string
+      enum: [ACTIVITY_RECOGNITION, BLUETOOTH_CAR, ANDROID_AUTO, MULTIPLE, NONE]
+
+    TripState:
+      type: string
+      enum: [ACTIVE, COMPLETED, CANCELLED]
+
+    CreateTripRequest:
+      type: object
+      required:
+        - device_id
+        - local_trip_id
+        - start_timestamp
+        - start_latitude
+        - start_longitude
+        - transportation_mode
+        - detection_source
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        local_trip_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Client-side trip identifier for idempotency
+        start_timestamp:
+          type: integer
+          format: int64
+          description: Timestamp in milliseconds
+        start_latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        start_longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        transportation_mode:
+          $ref: "#/components/schemas/TransportationMode"
+        detection_source:
+          $ref: "#/components/schemas/DetectionSource"
+
+    CreateTripResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        local_trip_id:
+          type: string
+        state:
+          $ref: "#/components/schemas/TripState"
+        start_timestamp:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+
+    UpdateTripRequest:
+      type: object
+      required:
+        - state
+      properties:
+        state:
+          $ref: "#/components/schemas/TripState"
+          description: Must be COMPLETED or CANCELLED
+        end_timestamp:
+          type: integer
+          format: int64
+          description: Required for COMPLETED state
+        end_latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          description: Required for COMPLETED state
+        end_longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          description: Required for COMPLETED state
+
+    TripResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        device_id:
+          type: string
+          format: uuid
+        local_trip_id:
+          type: string
+        state:
+          $ref: "#/components/schemas/TripState"
+        transportation_mode:
+          $ref: "#/components/schemas/TransportationMode"
+        detection_source:
+          $ref: "#/components/schemas/DetectionSource"
+        start_timestamp:
+          type: integer
+          format: int64
+        start_latitude:
+          type: number
+          format: double
+        start_longitude:
+          type: number
+          format: double
+        end_timestamp:
+          type: integer
+          format: int64
+          nullable: true
+        end_latitude:
+          type: number
+          format: double
+          nullable: true
+        end_longitude:
+          type: number
+          format: double
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    GetTripsResponse:
+      type: object
+      properties:
+        trips:
+          type: array
+          items:
+            $ref: "#/components/schemas/TripResponse"
+        pagination:
+          type: object
+          properties:
+            next_cursor:
+              type: string
+              nullable: true
+            has_more:
+              type: boolean
+
+    TripPathResponse:
+      type: object
+      properties:
+        original_path:
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+            minItems: 2
+            maxItems: 2
+          description: Array of [latitude, longitude] coordinates
+        corrected_path:
+          type: array
+          nullable: true
+          items:
+            type: array
+            items:
+              type: number
+            minItems: 2
+            maxItems: 2
+        correction_status:
+          type: string
+          enum: [PENDING, COMPLETED, FAILED, SKIPPED]
+        correction_quality:
+          type: number
+          format: double
+          nullable: true
+
+    # ==========================================
+    # Movement Event Schemas
+    # ==========================================
+    CreateMovementEventRequest:
+      type: object
+      required:
+        - device_id
+        - timestamp
+        - latitude
+        - longitude
+        - accuracy
+        - transportation_mode
+        - confidence
+        - detection_source
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        trip_id:
+          type: string
+          format: uuid
+          nullable: true
+        timestamp:
+          type: integer
+          format: int64
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        accuracy:
+          type: number
+          format: double
+          minimum: 0
+        speed:
+          type: number
+          format: double
+          nullable: true
+        bearing:
+          type: number
+          format: double
+          nullable: true
+        altitude:
+          type: number
+          format: double
+          nullable: true
+        transportation_mode:
+          $ref: "#/components/schemas/TransportationMode"
+        confidence:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        detection_source:
+          $ref: "#/components/schemas/DetectionSource"
+
+    MovementEventResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        device_id:
+          type: string
+          format: uuid
+        trip_id:
+          type: string
+          format: uuid
+          nullable: true
+        timestamp:
+          type: integer
+          format: int64
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        accuracy:
+          type: number
+          format: double
+        speed:
+          type: number
+          format: double
+          nullable: true
+        bearing:
+          type: number
+          format: double
+          nullable: true
+        altitude:
+          type: number
+          format: double
+          nullable: true
+        transportation_mode:
+          $ref: "#/components/schemas/TransportationMode"
+        confidence:
+          type: number
+          format: double
+        detection_source:
+          $ref: "#/components/schemas/DetectionSource"
+        created_at:
+          type: string
+          format: date-time
+
+    BatchMovementEventRequest:
+      type: object
+      required:
+        - device_id
+        - events
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        events:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required:
+              - timestamp
+              - latitude
+              - longitude
+              - accuracy
+              - transportation_mode
+              - confidence
+              - detection_source
+            properties:
+              trip_id:
+                type: string
+                format: uuid
+                nullable: true
+              timestamp:
+                type: integer
+                format: int64
+              latitude:
+                type: number
+                format: double
+              longitude:
+                type: number
+                format: double
+              accuracy:
+                type: number
+                format: double
+              speed:
+                type: number
+                format: double
+                nullable: true
+              bearing:
+                type: number
+                format: double
+                nullable: true
+              altitude:
+                type: number
+                format: double
+                nullable: true
+              transportation_mode:
+                $ref: "#/components/schemas/TransportationMode"
+              confidence:
+                type: number
+                format: double
+              detection_source:
+                $ref: "#/components/schemas/DetectionSource"
+
+    BatchMovementEventResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        processed_count:
+          type: integer
+
+    GetMovementEventsResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/MovementEventResponse"
+        pagination:
+          type: object
+          properties:
+            next_cursor:
+              type: string
+              nullable: true
+            has_more:
+              type: boolean
+
+    # ==========================================
+    # Device Settings Schemas
+    # ==========================================
+    SettingValue:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          description: JSON value (type depends on setting)
+        is_locked:
+          type: boolean
+        locked_by:
+          type: string
+          format: uuid
+          nullable: true
+        locked_at:
+          type: string
+          format: date-time
+          nullable: true
+        lock_reason:
+          type: string
+          nullable: true
+
+    GetSettingsResponse:
+      type: object
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        settings:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/SettingValue"
+        last_synced_at:
+          type: string
+          format: date-time
+          nullable: true
+        definitions:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              type:
+                type: string
+              default_value: {}
+              description:
+                type: string
+              is_lockable:
+                type: boolean
+
+    UpdateSettingsRequest:
+      type: object
+      required:
+        - settings
+      properties:
+        settings:
+          type: object
+          additionalProperties: {}
+          description: Key-value pairs of settings to update
+
+    UpdateSettingsResponse:
+      type: object
+      properties:
+        updated:
+          type: array
+          items:
+            type: string
+        locked:
+          type: array
+          items:
+            type: string
+          description: Keys that couldn't be updated due to locks
+        invalid:
+          type: array
+          items:
+            type: string
+          description: Keys that were invalid
+        settings:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/SettingValue"
+
+    LockSettingRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+        value:
+          description: Optional value to set when locking
+          nullable: true
+        notify_user:
+          type: boolean
+          default: false
+
+    LockSettingResponse:
+      type: object
+      properties:
+        key:
+          type: string
+        is_locked:
+          type: boolean
+        value: {}
+        locked_by:
+          type: string
+          format: uuid
+        locked_at:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          nullable: true
+
+    ListLocksResponse:
+      type: object
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        locks:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              locked_by:
+                type: string
+                format: uuid
+              locked_at:
+                type: string
+                format: date-time
+              reason:
+                type: string
+                nullable: true
+        locked_count:
+          type: integer
+        total_lockable:
+          type: integer
+
+    SyncSettingsRequest:
+      type: object
+      properties:
+        last_synced_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    SyncSettingsResponse:
+      type: object
+      properties:
+        synced_at:
+          type: string
+          format: date-time
+        settings:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/SettingValue"
+        changes_applied:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              action:
+                type: string
+                enum: [updated, locked, unlocked]
+
+    # ==========================================
+    # Unlock Request Schemas
+    # ==========================================
+    UnlockRequestStatus:
+      type: string
+      enum: [pending, approved, denied, expired]
+
+    CreateUnlockRequestRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+
+    UnlockRequestResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        device_id:
+          type: string
+          format: uuid
+        setting_key:
+          type: string
+        status:
+          $ref: "#/components/schemas/UnlockRequestStatus"
+        reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    RespondToUnlockRequestRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: "#/components/schemas/UnlockRequestStatus"
+          description: Must be 'approved' or 'denied'
+        note:
+          type: string
+          nullable: true
+
+    RespondToUnlockRequestResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/UnlockRequestStatus"
+        responded_by:
+          type: string
+          format: uuid
+        responded_at:
+          type: string
+          format: date-time
+        note:
+          type: string
+          nullable: true
+        setting_unlocked:
+          type: boolean
+
+    ListUnlockRequestsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnlockRequestResponse"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    # ==========================================
+    # Enrollment Schemas
+    # ==========================================
+    EnrollDeviceRequest:
+      type: object
+      required:
+        - enrollment_token
+        - device_uuid
+        - display_name
+      properties:
+        enrollment_token:
+          type: string
+          minLength: 10
+        device_uuid:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        device_info:
+          type: object
+          nullable: true
+          properties:
+            manufacturer:
+              type: string
+            model:
+              type: string
+            os_version:
+              type: string
+        fcm_token:
+          type: string
+          nullable: true
+        platform:
+          type: string
+          default: android
+
+    EnrollDeviceResponse:
+      type: object
+      properties:
+        device:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            display_name:
+              type: string
+            organization_id:
+              type: string
+              format: uuid
+            group_id:
+              type: string
+              format: uuid
+              nullable: true
+        device_token:
+          type: string
+          description: API key for the enrolled device
+        device_token_expires_at:
+          type: string
+          format: date-time
+        policy:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+        group:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+
+    # ==========================================
+    # Device Schemas (existing)
+    # ==========================================
+    DeviceInfo:
+      type: object
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        platform:
+          type: string
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    RegisterDeviceRequest:
+      type: object
+      required:
+        - deviceId
+        - displayName
+        - groupId
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 50
+          example: "John's iPhone"
+        groupId:
+          type: string
+          minLength: 2
+          maxLength: 50
+          pattern: "^[a-zA-Z0-9_-]+$"
+          example: "family-group"
+        platform:
+          type: string
+          default: android
+        fcmToken:
+          type: string
+          nullable: true
+
+    RegisterDeviceResponse:
+      type: object
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        groupId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DeviceSummary:
+      type: object
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        lastLocation:
+          $ref: "#/components/schemas/DeviceLastLocation"
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    DeviceLastLocation:
+      type: object
+      nullable: true
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        timestamp:
+          type: string
+          format: date-time
+        accuracy:
+          type: number
+          format: double
+
+    GetDevicesResponse:
+      type: object
+      properties:
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceSummary"
+
+    # ==========================================
+    # Location Schemas (existing)
+    # ==========================================
+    UploadLocationRequest:
+      type: object
+      required:
+        - deviceId
+        - timestamp
+        - latitude
+        - longitude
+        - accuracy
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        timestamp:
+          type: integer
+          format: int64
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        accuracy:
+          type: number
+          format: double
+          minimum: 0
+        altitude:
+          type: number
+          format: double
+          nullable: true
+        bearing:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 360
+          nullable: true
+        speed:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+        provider:
+          type: string
+          nullable: true
+        batteryLevel:
+          type: integer
+          minimum: 0
+          maximum: 100
+          nullable: true
+        networkType:
+          type: string
+          nullable: true
+
+    LocationData:
+      type: object
+      required:
+        - timestamp
+        - latitude
+        - longitude
+        - accuracy
+      properties:
+        timestamp:
+          type: integer
+          format: int64
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        accuracy:
+          type: number
+          format: double
+        altitude:
+          type: number
+          format: double
+          nullable: true
+        bearing:
+          type: number
+          format: double
+          nullable: true
+        speed:
+          type: number
+          format: double
+          nullable: true
+        provider:
+          type: string
+          nullable: true
+        batteryLevel:
+          type: integer
+          nullable: true
+        networkType:
+          type: string
+          nullable: true
+
+    BatchUploadRequest:
+      type: object
+      required:
+        - deviceId
+        - locations
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        locations:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/LocationData"
+
+    UploadLocationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        processedCount:
+          type: integer
+
+    LocationHistoryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        accuracy:
+          type: number
+          format: double
+        altitude:
+          type: number
+          format: double
+          nullable: true
+        bearing:
+          type: number
+          format: double
+          nullable: true
+        speed:
+          type: number
+          format: double
+          nullable: true
+        provider:
+          type: string
+          nullable: true
+        batteryLevel:
+          type: integer
+          nullable: true
+        networkType:
+          type: string
+          nullable: true
+        capturedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    LocationHistoryResponse:
+      type: object
+      properties:
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocationHistoryItem"
+        pagination:
+          $ref: "#/components/schemas/PaginationInfo"
+        simplification:
+          $ref: "#/components/schemas/SimplificationInfo"
+          nullable: true
+
+    PaginationInfo:
+      type: object
+      properties:
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+
+    SimplificationInfo:
+      type: object
+      properties:
+        applied:
+          type: boolean
+        tolerance:
+          type: number
+          format: double
+        originalCount:
+          type: integer
+        simplifiedCount:
+          type: integer
+        reductionPercent:
+          type: number
+          format: double
+
+    # ==========================================
+    # Geofence Schemas (existing)
+    # ==========================================
+    GeofenceEventType:
+      type: string
+      enum: [enter, exit, dwell]
+
+    CreateGeofenceRequest:
+      type: object
+      required:
+        - deviceId
+        - name
+        - latitude
+        - longitude
+        - radiusMeters
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        radiusMeters:
+          type: number
+          format: float
+          minimum: 20
+          maximum: 50000
+        eventTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeofenceEventType"
+          default: [enter, exit]
+        active:
+          type: boolean
+          default: true
+        metadata:
+          type: object
+          nullable: true
+
+    UpdateGeofenceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        radiusMeters:
+          type: number
+          format: float
+          minimum: 20
+          maximum: 50000
+        eventTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeofenceEventType"
+        active:
+          type: boolean
+        metadata:
+          type: object
+          nullable: true
+
+    GeofenceResponse:
+      type: object
+      properties:
+        geofenceId:
+          type: string
+          format: uuid
+        deviceId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        radiusMeters:
+          type: number
+          format: float
+        eventTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeofenceEventType"
+        active:
+          type: boolean
+        metadata:
+          type: object
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ListGeofencesResponse:
+      type: object
+      properties:
+        geofences:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeofenceResponse"
+        total:
+          type: integer
+
+    # ==========================================
+    # Proximity Alert Schemas (existing)
+    # ==========================================
+    CreateProximityAlertRequest:
+      type: object
+      required:
+        - sourceDeviceId
+        - targetDeviceId
+        - radiusMeters
+      properties:
+        sourceDeviceId:
+          type: string
+          format: uuid
+        targetDeviceId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 100
+          nullable: true
+        radiusMeters:
+          type: integer
+          minimum: 50
+          maximum: 100000
+        isActive:
+          type: boolean
+          default: true
+        metadata:
+          type: object
+          nullable: true
+
+    UpdateProximityAlertRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          nullable: true
+        radiusMeters:
+          type: integer
+          minimum: 50
+          maximum: 100000
+        isActive:
+          type: boolean
+        metadata:
+          type: object
+          nullable: true
+
+    ProximityAlertResponse:
+      type: object
+      properties:
+        alertId:
+          type: string
+          format: uuid
+        sourceDeviceId:
+          type: string
+          format: uuid
+        targetDeviceId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+        radiusMeters:
+          type: integer
+        isActive:
+          type: boolean
+        isTriggered:
+          type: boolean
+        lastTriggeredAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ListProximityAlertsResponse:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProximityAlertResponse"
+        total:
+          type: integer
+
+    # ==========================================
+    # Health Schemas
+    # ==========================================
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        version:
+          type: string
+        database:
+          type: object
+          properties:
+            connected:
+              type: boolean
+            latencyMs:
+              type: integer
+              nullable: true
+
+    StatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+
+    # ==========================================
+    # Privacy Schemas
+    # ==========================================
+    DataExportResponse:
+      type: object
+      properties:
+        device:
+          $ref: "#/components/schemas/ExportedDevice"
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportedLocation"
+        locationCount:
+          type: integer
+        exportTimestamp:
+          type: string
+          format: date-time
+
+    ExportedDevice:
+      type: object
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        groupId:
+          type: string
+        platform:
+          type: string
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ExportedLocation:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        accuracy:
+          type: number
+          format: double
+        altitude:
+          type: number
+          format: double
+          nullable: true
+        bearing:
+          type: number
+          format: double
+          nullable: true
+        speed:
+          type: number
+          format: double
+          nullable: true
+        provider:
+          type: string
+          nullable: true
+        batteryLevel:
+          type: integer
+          nullable: true
+        networkType:
+          type: string
+          nullable: true
+        capturedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    # ==========================================
+    # Admin Schemas
+    # ==========================================
+    AdminStats:
+      type: object
+      properties:
+        totalDevices:
+          type: integer
+          format: int64
+        activeDevices:
+          type: integer
+          format: int64
+        inactiveDevices:
+          type: integer
+          format: int64
+        totalLocations:
+          type: integer
+          format: int64
+        totalGroups:
+          type: integer
+          format: int64
+
+    AdminOperationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        affectedCount:
+          type: integer
+          format: int64
+        message:
+          type: string
+
+    ReactivateDeviceResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        deviceId:
+          type: string
+          format: uuid
+        message:
+          type: string
+
+    # ==========================================
+    # Common Schemas
+    # ==========================================
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/ValidationDetail"
+
+    ValidationDetail:
+      type: object
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+paths:
+  # ==========================================
+  # Health Endpoints
+  # ==========================================
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Full health check
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Service is unhealthy
+
+  /api/health/live:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      operationId: getLiveness
+      security: []
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+
+  /api/health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      operationId: getReadiness
+      security: []
+      responses:
+        "200":
+          description: Service is ready
+        "503":
+          description: Service is not ready
+
+  # ==========================================
+  # Auth Endpoints
+  # ==========================================
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/oauth:
+    post:
+      tags: [Auth]
+      summary: Login with OAuth provider
+      operationId: oauthLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OAuthLoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      operationId: refresh
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout user
+      operationId: logout
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+      responses:
+        "204":
+          description: Logged out successfully
+
+  /api/v1/auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request password reset
+      description: Rate limited to 5 requests per hour per IP
+      operationId: forgotPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Reset email sent (if account exists)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /api/v1/auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password with token
+      operationId: resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: Verify email address
+      operationId: verifyEmail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailRequest"
+      responses:
+        "200":
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  email_verified:
+                    type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/auth/request-verification:
+    post:
+      tags: [Auth]
+      summary: Request new verification email
+      description: Requires JWT auth. Rate limited to 3 requests per hour per IP
+      operationId: requestVerification
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Verification email sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  # ==========================================
+  # User Endpoints
+  # ==========================================
+  /api/v1/users/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [Users]
+      summary: Update current user profile
+      operationId: updateCurrentUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/users/{user_id}/devices/{device_id}/link:
+    post:
+      tags: [Users]
+      summary: Link a device to user
+      operationId: linkDevice
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkDeviceRequest"
+      responses:
+        "200":
+          description: Device linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkedDeviceResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/users/{user_id}/devices:
+    get:
+      tags: [Users]
+      summary: List user's linked devices
+      operationId: listUserDevices
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: include_inactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: List of devices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUserDevicesResponse"
+
+  /api/v1/users/{user_id}/devices/{device_id}/unlink:
+    delete:
+      tags: [Users]
+      summary: Unlink a device from user
+      operationId: unlinkDevice
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Device unlinked
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/users/{user_id}/devices/{device_id}/transfer:
+    post:
+      tags: [Users]
+      summary: Transfer device to another user
+      operationId: transferDevice
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferDeviceRequest"
+      responses:
+        "200":
+          description: Device transferred
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferDeviceResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ==========================================
+  # Group Endpoints
+  # ==========================================
+  /api/v1/groups:
+    post:
+      tags: [Groups]
+      summary: Create a new group
+      operationId: createGroup
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupRequest"
+      responses:
+        "201":
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    get:
+      tags: [Groups]
+      summary: List user's groups
+      operationId: listGroups
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+          description: Filter by role
+      responses:
+        "200":
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListGroupsResponse"
+
+  /api/v1/groups/{group_id}:
+    get:
+      tags: [Groups]
+      summary: Get group details
+      operationId: getGroup
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Group details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Groups]
+      summary: Update group
+      operationId: updateGroup
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGroupRequest"
+      responses:
+        "200":
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupDetail"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    delete:
+      tags: [Groups]
+      summary: Delete group
+      operationId: deleteGroup
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Group deleted
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/groups/{group_id}/members:
+    get:
+      tags: [Groups]
+      summary: List group members
+      operationId: listMembers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: role
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        "200":
+          description: List of members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListMembersResponse"
+
+  /api/v1/groups/{group_id}/members/{user_id}:
+    get:
+      tags: [Groups]
+      summary: Get member details
+      operationId: getMember
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Member details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Groups]
+      summary: Remove member from group
+      operationId: removeMember
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Member removed
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/groups/{group_id}/members/{user_id}/role:
+    put:
+      tags: [Groups]
+      summary: Update member role
+      operationId: updateMemberRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "200":
+          description: Role updated
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/groups/join:
+    post:
+      tags: [Groups]
+      summary: Join group with invite code
+      operationId: joinGroup
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinGroupRequest"
+      responses:
+        "200":
+          description: Joined group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinGroupResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/groups/{group_id}/transfer:
+    post:
+      tags: [Groups]
+      summary: Transfer group ownership
+      operationId: transferOwnership
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferOwnershipRequest"
+      responses:
+        "200":
+          description: Ownership transferred
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ==========================================
+  # Invite Endpoints
+  # ==========================================
+  /api/v1/groups/{group_id}/invites:
+    post:
+      tags: [Invites]
+      summary: Create group invite
+      operationId: createInvite
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInviteRequest"
+      responses:
+        "201":
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateInviteResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    get:
+      tags: [Invites]
+      summary: List group invites
+      operationId: listInvites
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of invites
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListInvitesResponse"
+
+  /api/v1/groups/{group_id}/invites/{invite_id}:
+    delete:
+      tags: [Invites]
+      summary: Revoke invite
+      operationId: revokeInvite
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invite_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Invite revoked
+
+  /api/v1/invites/{code}:
+    get:
+      tags: [Invites]
+      summary: Get invite info (public)
+      operationId: getInviteInfo
+      security: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invite info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicInviteInfo"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ==========================================
+  # Trip Endpoints
+  # ==========================================
+  /api/v1/trips:
+    post:
+      tags: [Trips]
+      summary: Create a new trip
+      operationId: createTrip
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTripRequest"
+      responses:
+        "201":
+          description: Trip created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateTripResponse"
+        "200":
+          description: Trip already exists (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateTripResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/trips/{trip_id}:
+    patch:
+      tags: [Trips]
+      summary: Update trip state
+      operationId: updateTripState
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: trip_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTripRequest"
+      responses:
+        "200":
+          description: Trip updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/devices/{device_id}/trips:
+    get:
+      tags: [Trips]
+      summary: Get device trips
+      operationId: getDeviceTrips
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: from
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: to
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, COMPLETED, CANCELLED]
+      responses:
+        "200":
+          description: List of trips
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetTripsResponse"
+
+  /api/v1/trips/{trip_id}/movement-events:
+    get:
+      tags: [Trips]
+      summary: Get trip movement events
+      operationId: getTripMovementEvents
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: trip_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        "200":
+          description: Movement events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MovementEventResponse"
+                  count:
+                    type: integer
+
+  /api/v1/trips/{trip_id}/path:
+    get:
+      tags: [Trips]
+      summary: Get trip path with corrections
+      operationId: getTripPath
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: trip_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Trip path data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripPathResponse"
+
+  /api/v1/trips/{trip_id}/correct-path:
+    post:
+      tags: [Trips]
+      summary: Trigger path correction
+      operationId: triggerPathCorrection
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: trip_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "202":
+          description: Path correction started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+
+  # ==========================================
+  # Movement Event Endpoints
+  # ==========================================
+  /api/v1/movement-events:
+    post:
+      tags: [Movement Events]
+      summary: Create movement event
+      operationId: createMovementEvent
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMovementEventRequest"
+      responses:
+        "200":
+          description: Event created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  created_at:
+                    type: string
+                    format: date-time
+
+  /api/v1/movement-events/batch:
+    post:
+      tags: [Movement Events]
+      summary: Create batch movement events
+      operationId: createMovementEventsBatch
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchMovementEventRequest"
+      responses:
+        "200":
+          description: Events created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchMovementEventResponse"
+
+  /api/v1/devices/{device_id}/movement-events:
+    get:
+      tags: [Movement Events]
+      summary: Get device movement events
+      operationId: getDeviceMovementEvents
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: from
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: to
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: Movement events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetMovementEventsResponse"
+
+  # ==========================================
+  # Device Settings Endpoints
+  # ==========================================
+  /api/v1/devices/{device_id}/settings:
+    get:
+      tags: [Device Settings]
+      summary: Get device settings
+      operationId: getDeviceSettings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: include_definitions
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Device settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetSettingsResponse"
+    put:
+      tags: [Device Settings]
+      summary: Update device settings
+      operationId: updateDeviceSettings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: force
+          in: query
+          schema:
+            type: boolean
+            default: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsRequest"
+      responses:
+        "200":
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateSettingsResponse"
+
+  /api/v1/devices/{device_id}/settings/{key}:
+    put:
+      tags: [Device Settings]
+      summary: Update single setting
+      operationId: updateDeviceSetting
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: force
+          in: query
+          schema:
+            type: boolean
+            default: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - value
+              properties:
+                value: {}
+      responses:
+        "200":
+          description: Setting updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingValue"
+
+  /api/v1/devices/{device_id}/settings/locks:
+    get:
+      tags: [Device Settings]
+      summary: Get setting locks
+      operationId: getSettingLocks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Setting locks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListLocksResponse"
+    put:
+      tags: [Device Settings]
+      summary: Bulk update locks
+      operationId: bulkUpdateLocks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - locks
+              properties:
+                locks:
+                  type: object
+                  additionalProperties:
+                    type: boolean
+                reason:
+                  type: string
+                  nullable: true
+                notify_user:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Locks updated
+
+  /api/v1/devices/{device_id}/settings/{key}/lock:
+    post:
+      tags: [Device Settings]
+      summary: Lock a setting
+      operationId: lockSetting
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LockSettingRequest"
+      responses:
+        "200":
+          description: Setting locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LockSettingResponse"
+    delete:
+      tags: [Device Settings]
+      summary: Unlock a setting
+      operationId: unlockSetting
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Setting unlocked
+
+  /api/v1/devices/{device_id}/settings/sync:
+    post:
+      tags: [Device Settings]
+      summary: Sync device settings
+      operationId: syncSettings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncSettingsRequest"
+      responses:
+        "200":
+          description: Settings synced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncSettingsResponse"
+
+  /api/v1/devices/{device_id}/settings/{key}/unlock-request:
+    post:
+      tags: [Device Settings]
+      summary: Create unlock request
+      operationId: createUnlockRequest
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUnlockRequestRequest"
+      responses:
+        "200":
+          description: Unlock request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnlockRequestResponse"
+
+  /api/v1/unlock-requests/{request_id}:
+    put:
+      tags: [Device Settings]
+      summary: Respond to unlock request
+      operationId: respondToUnlockRequest
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RespondToUnlockRequestRequest"
+      responses:
+        "200":
+          description: Response recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RespondToUnlockRequestResponse"
+
+  /api/v1/groups/{group_id}/unlock-requests:
+    get:
+      tags: [Device Settings]
+      summary: List unlock requests for group
+      operationId: listUnlockRequests
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, denied, expired]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        "200":
+          description: Unlock requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUnlockRequestsResponse"
+
+  # ==========================================
+  # Enrollment Endpoints
+  # ==========================================
+  /api/v1/devices/enroll:
+    post:
+      tags: [Enrollment]
+      summary: Enroll device with token
+      description: Enrolls a device using an organization enrollment token. No auth required.
+      operationId: enrollDevice
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrollDeviceRequest"
+      responses:
+        "201":
+          description: Device enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrollDeviceResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ==========================================
+  # Device Endpoints (API Key Auth)
+  # ==========================================
+  /api/v1/devices/register:
+    post:
+      tags: [Devices]
+      summary: Register or update a device
+      operationId: registerDevice
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceRequest"
+      responses:
+        "200":
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterDeviceResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/devices:
+    get:
+      tags: [Devices]
+      summary: List devices in a group
+      operationId: getDevices
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: groupId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of devices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetDevicesResponse"
+
+  /api/v1/devices/{device_id}:
+    delete:
+      tags: [Devices]
+      summary: Deactivate a device
+      operationId: deleteDevice
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Device deactivated
+
+  # ==========================================
+  # Location Endpoints
+  # ==========================================
+  /api/v1/locations:
+    post:
+      tags: [Locations]
+      summary: Upload single location
+      operationId: uploadLocation
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadLocationRequest"
+      responses:
+        "200":
+          description: Location uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadLocationResponse"
+
+  /api/v1/locations/batch:
+    post:
+      tags: [Locations]
+      summary: Upload batch locations
+      operationId: uploadLocationBatch
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchUploadRequest"
+      responses:
+        "200":
+          description: Locations uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadLocationResponse"
+
+  /api/v1/devices/{device_id}/locations:
+    get:
+      tags: [Locations]
+      summary: Get device location history
+      operationId: getLocationHistory
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: from
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: to
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: tolerance
+          in: query
+          schema:
+            type: number
+            format: double
+            minimum: 0
+            maximum: 10000
+          description: Simplification tolerance in meters (disables pagination)
+      responses:
+        "200":
+          description: Location history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationHistoryResponse"
+
+  # ==========================================
+  # Geofence Endpoints
+  # ==========================================
+  /api/v1/geofences:
+    post:
+      tags: [Geofences]
+      summary: Create a geofence
+      operationId: createGeofence
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGeofenceRequest"
+      responses:
+        "201":
+          description: Geofence created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeofenceResponse"
+    get:
+      tags: [Geofences]
+      summary: List geofences
+      operationId: listGeofences
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: deviceId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: includeInactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: List of geofences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListGeofencesResponse"
+
+  /api/v1/geofences/{geofence_id}:
+    get:
+      tags: [Geofences]
+      summary: Get a geofence
+      operationId: getGeofence
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: geofence_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Geofence details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeofenceResponse"
+    patch:
+      tags: [Geofences]
+      summary: Update a geofence
+      operationId: updateGeofence
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: geofence_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGeofenceRequest"
+      responses:
+        "200":
+          description: Geofence updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeofenceResponse"
+    delete:
+      tags: [Geofences]
+      summary: Delete a geofence
+      operationId: deleteGeofence
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: geofence_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Geofence deleted
+
+  # ==========================================
+  # Proximity Alert Endpoints
+  # ==========================================
+  /api/v1/proximity-alerts:
+    post:
+      tags: [Proximity Alerts]
+      summary: Create proximity alert
+      operationId: createProximityAlert
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProximityAlertRequest"
+      responses:
+        "201":
+          description: Alert created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProximityAlertResponse"
+    get:
+      tags: [Proximity Alerts]
+      summary: List proximity alerts
+      operationId: listProximityAlerts
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: sourceDeviceId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: includeInactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListProximityAlertsResponse"
+
+  /api/v1/proximity-alerts/{alert_id}:
+    get:
+      tags: [Proximity Alerts]
+      summary: Get proximity alert
+      operationId: getProximityAlert
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: alert_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Alert details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProximityAlertResponse"
+    patch:
+      tags: [Proximity Alerts]
+      summary: Update proximity alert
+      operationId: updateProximityAlert
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: alert_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProximityAlertRequest"
+      responses:
+        "200":
+          description: Alert updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProximityAlertResponse"
+    delete:
+      tags: [Proximity Alerts]
+      summary: Delete proximity alert
+      operationId: deleteProximityAlert
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: alert_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Alert deleted
+
+  # ==========================================
+  # Privacy Endpoints (GDPR)
+  # ==========================================
+  /api/v1/devices/{device_id}/data-export:
+    get:
+      tags: [Privacy]
+      summary: Export device data (GDPR Article 20)
+      operationId: exportDeviceData
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Data export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataExportResponse"
+
+  /api/v1/devices/{device_id}/data:
+    delete:
+      tags: [Privacy]
+      summary: Delete device data (GDPR Article 17)
+      operationId: deleteDeviceData
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Data deleted
+
+  # ==========================================
+  # Admin Endpoints
+  # ==========================================
+  /api/v1/admin/stats:
+    get:
+      tags: [Admin]
+      summary: Get system statistics
+      operationId: getAdminStats
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: System statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/admin/devices/inactive:
+    delete:
+      tags: [Admin]
+      summary: Delete inactive devices
+      operationId: deleteInactiveDevices
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: olderThanDays
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+      responses:
+        "200":
+          description: Devices deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOperationResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/admin/devices/{device_id}/reactivate:
+    post:
+      tags: [Admin]
+      summary: Reactivate a device
+      operationId: reactivateDevice
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Device reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReactivateDeviceResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"

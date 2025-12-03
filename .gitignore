@@ -184,7 +184,6 @@ docker-compose.*.yml
 
 # Generated documentation
 /doc/
-/docs/api/
 target/doc/
 
 # =============================================================================
