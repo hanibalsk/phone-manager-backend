@@ -9,9 +9,9 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::{
-    cleanup_all_test_data, create_authenticated_user, create_test_app, create_test_pool,
-    get_request_with_auth, json_request_with_auth, parse_response_body, register_test_device,
-    run_migrations, test_config, TestDevice, TestUser,
+    cleanup_all_test_data, create_authenticated_user, create_test_api_key, create_test_app,
+    create_test_pool, get_request_with_api_key_and_jwt, json_request_with_api_key_and_jwt,
+    parse_response_body, register_test_device, run_migrations, test_config, TestDevice, TestUser,
 };
 use serde_json::json;
 use tower::ServiceExt;
@@ -36,9 +36,12 @@ async fn test_upload_location_success() {
     let app = create_test_app(config.clone(), pool.clone());
     let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
+    // Create API key for location upload
+    let api_key = create_test_api_key(&pool, "test_upload_location_success").await;
+
     // Upload a location
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/locations",
         json!({
@@ -48,6 +51,7 @@ async fn test_upload_location_success() {
             "accuracy": 10.5,
             "timestamp": chrono::Utc::now().timestamp_millis()
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -55,8 +59,8 @@ async fn test_upload_location_success() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert!(body.get("processed").is_some());
-    assert_eq!(body["processed"].as_i64().unwrap(), 1);
+    assert!(body.get("processed_count").is_some());
+    assert_eq!(body["processed_count"].as_i64().unwrap(), 1);
 
     cleanup_all_test_data(&pool).await;
 }
@@ -68,15 +72,19 @@ async fn test_upload_location_device_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
     // Create authenticated user but don't register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_upload_location_device_not_found").await;
+
     // Try to upload location for non-existent device
+    let app = create_test_app(config, pool.clone());
     let fake_device_id = uuid::Uuid::new_v4();
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/locations",
         json!({
@@ -86,6 +94,7 @@ async fn test_upload_location_device_not_found() {
             "accuracy": 10.5,
             "timestamp": chrono::Utc::now().timestamp_millis()
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -111,9 +120,12 @@ async fn test_upload_location_invalid_latitude() {
     let app = create_test_app(config.clone(), pool.clone());
     let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_upload_location_invalid_latitude").await;
+
     // Try to upload location with invalid latitude (> 90)
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/locations",
         json!({
@@ -123,6 +135,7 @@ async fn test_upload_location_invalid_latitude() {
             "accuracy": 10.5,
             "timestamp": chrono::Utc::now().timestamp_millis()
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -151,9 +164,12 @@ async fn test_upload_location_invalid_longitude() {
     let app = create_test_app(config.clone(), pool.clone());
     let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_upload_location_invalid_longitude").await;
+
     // Try to upload location with invalid longitude (> 180)
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/locations",
         json!({
@@ -163,6 +179,7 @@ async fn test_upload_location_invalid_longitude() {
             "accuracy": 10.5,
             "timestamp": chrono::Utc::now().timestamp_millis()
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -195,10 +212,13 @@ async fn test_upload_batch_success() {
     let app = create_test_app(config.clone(), pool.clone());
     let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_upload_batch_success").await;
+
     // Upload batch of locations
     let app = create_test_app(config, pool.clone());
     let now = chrono::Utc::now().timestamp_millis();
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/locations/batch",
         json!({
@@ -224,6 +244,7 @@ async fn test_upload_batch_success() {
                 }
             ]
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -231,7 +252,7 @@ async fn test_upload_batch_success() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert_eq!(body["processed"].as_i64().unwrap(), 3);
+    assert_eq!(body["processed_count"].as_i64().unwrap(), 3);
 
     cleanup_all_test_data(&pool).await;
 }
@@ -242,9 +263,7 @@ async fn test_upload_batch_exceeds_limit() {
     run_migrations(&pool).await;
     cleanup_all_test_data(&pool).await;
 
-    let mut config = test_config();
-    config.limits.max_batch_size = 5; // Set low limit for testing
-
+    let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
     // Create authenticated user and register device
@@ -254,10 +273,13 @@ async fn test_upload_batch_exceeds_limit() {
     let app = create_test_app(config.clone(), pool.clone());
     let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
-    // Try to upload batch exceeding limit
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_upload_batch_exceeds_limit").await;
+
+    // Try to upload batch exceeding the hardcoded limit of 50 locations
     let app = create_test_app(config, pool.clone());
     let now = chrono::Utc::now().timestamp_millis();
-    let locations: Vec<serde_json::Value> = (0..10)
+    let locations: Vec<serde_json::Value> = (0..55)
         .map(|i| {
             json!({
                 "latitude": 37.7749 + (i as f64 * 0.0001),
@@ -268,18 +290,19 @@ async fn test_upload_batch_exceeds_limit() {
         })
         .collect();
 
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/locations/batch",
         json!({
             "device_id": device.device_id,
             "locations": locations
         }),
+        &api_key,
         &auth.access_token,
     );
 
     let response = app.oneshot(request).await.unwrap();
-    // Should fail validation
+    // Should fail validation - batch exceeds max of 50 locations
     assert!(
         response.status() == StatusCode::BAD_REQUEST
             || response.status() == StatusCode::UNPROCESSABLE_ENTITY
@@ -304,15 +327,19 @@ async fn test_upload_batch_empty() {
     let app = create_test_app(config.clone(), pool.clone());
     let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_upload_batch_empty").await;
+
     // Try to upload empty batch
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/locations/batch",
         json!({
             "device_id": device.device_id,
             "locations": []
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -346,10 +373,13 @@ async fn test_get_location_history_success() {
     let app = create_test_app(config.clone(), pool.clone());
     let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_get_location_history_success").await;
+
     // Upload some locations
     let app = create_test_app(config.clone(), pool.clone());
     let now = chrono::Utc::now().timestamp_millis();
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/locations/batch",
         json!({
@@ -369,14 +399,16 @@ async fn test_get_location_history_success() {
                 }
             ]
         }),
+        &api_key,
         &auth.access_token,
     );
     let _upload_response = app.oneshot(request).await.unwrap();
 
     // Get location history
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/locations", device.device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -407,6 +439,9 @@ async fn test_get_location_history_with_pagination() {
     let app = create_test_app(config.clone(), pool.clone());
     let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_get_location_history_with_pagination").await;
+
     // Upload some locations
     let app = create_test_app(config.clone(), pool.clone());
     let now = chrono::Utc::now().timestamp_millis();
@@ -421,21 +456,23 @@ async fn test_get_location_history_with_pagination() {
         })
         .collect();
 
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/locations/batch",
         json!({
             "device_id": device.device_id,
             "locations": locations
         }),
+        &api_key,
         &auth.access_token,
     );
     let _upload_response = app.oneshot(request).await.unwrap();
 
     // Get first page with limit
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/locations?limit=2", device.device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -470,10 +507,13 @@ async fn test_get_location_history_with_time_range() {
     let app = create_test_app(config.clone(), pool.clone());
     let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_get_location_history_with_time_range").await;
+
     // Upload some locations at different times
     let app = create_test_app(config.clone(), pool.clone());
     let now = chrono::Utc::now().timestamp_millis();
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/locations/batch",
         json!({
@@ -499,6 +539,7 @@ async fn test_get_location_history_with_time_range() {
                 }
             ]
         }),
+        &api_key,
         &auth.access_token,
     );
     let _upload_response = app.oneshot(request).await.unwrap();
@@ -507,11 +548,12 @@ async fn test_get_location_history_with_time_range() {
     let app = create_test_app(config, pool.clone());
     let from = now - 45000;
     let to = now + 1000;
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!(
             "/api/v1/devices/{}/locations?from={}&to={}",
             device.device_id, from, to
         ),
+        &api_key,
         &auth.access_token,
     );
 
@@ -542,6 +584,9 @@ async fn test_get_location_history_with_simplification() {
     let app = create_test_app(config.clone(), pool.clone());
     let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_get_location_history_with_simplification").await;
+
     // Upload many locations in a line
     let app = create_test_app(config.clone(), pool.clone());
     let now = chrono::Utc::now().timestamp_millis();
@@ -556,24 +601,26 @@ async fn test_get_location_history_with_simplification() {
         })
         .collect();
 
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/locations/batch",
         json!({
             "device_id": device.device_id,
             "locations": locations
         }),
+        &api_key,
         &auth.access_token,
     );
     let _upload_response = app.oneshot(request).await.unwrap();
 
     // Get location history with simplification (RDP algorithm)
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!(
             "/api/v1/devices/{}/locations?tolerance=100",
             device.device_id
         ),
+        &api_key,
         &auth.access_token,
     );
 
@@ -612,10 +659,14 @@ async fn test_get_location_history_empty() {
     let app = create_test_app(config.clone(), pool.clone());
     let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_get_location_history_empty").await;
+
     // Get location history without uploading any locations
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/locations", device.device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -636,16 +687,21 @@ async fn test_get_location_history_device_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
     // Create authenticated user but don't register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
+    // Create API key
+    let api_key = create_test_api_key(&pool, "test_get_location_history_device_not_found").await;
+
     // Try to get location history for non-existent device
+    let app = create_test_app(config, pool.clone());
     let fake_device_id = uuid::Uuid::new_v4();
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/locations", fake_device_id),
+        &api_key,
         &auth.access_token,
     );
 

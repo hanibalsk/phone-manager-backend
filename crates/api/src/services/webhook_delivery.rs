@@ -324,6 +324,18 @@ impl WebhookDeliveryService {
                             "Failed to reset consecutive failures after retry"
                         );
                     }
+
+                    // Update geofence event webhook status if this delivery is associated with an event
+                    if let Some(event_id) = delivery.event_id {
+                        let event_repo = GeofenceEventRepository::new(self.pool.clone());
+                        if let Err(e) = event_repo.update_webhook_status(event_id, true, Some(status_code as i32)).await {
+                            warn!(
+                                event_id = %event_id,
+                                error = %e,
+                                "Failed to update geofence event webhook status after successful retry"
+                            );
+                        }
+                    }
                 } else {
                     warn!(
                         delivery_id = %delivery.delivery_id,

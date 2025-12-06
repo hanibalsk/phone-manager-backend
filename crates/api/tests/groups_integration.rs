@@ -140,7 +140,7 @@ async fn test_list_groups_success() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    let groups = body["groups"].as_array().unwrap();
+    let groups = body["data"].as_array().unwrap();
     assert_eq!(groups.len(), 2);
 
     cleanup_all_test_data(&pool).await;
@@ -166,7 +166,7 @@ async fn test_list_groups_empty() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    let groups = body["groups"].as_array().unwrap();
+    let groups = body["data"].as_array().unwrap();
     assert!(groups.is_empty());
 
     cleanup_all_test_data(&pool).await;
@@ -256,7 +256,7 @@ async fn test_update_group_as_owner() {
     // Update the group
     let app = create_test_app(config, pool.clone());
     let request = json_request_with_auth(
-        Method::PATCH,
+        Method::PUT,
         &format!("/api/v1/groups/{}", created.id),
         json!({
             "name": "Updated Group Name",
@@ -300,7 +300,7 @@ async fn test_update_group_as_member_forbidden() {
         Method::POST,
         "/api/v1/groups/join",
         json!({
-            "invite_code": created.invite_code
+            "code": created.invite_code
         }),
         &member_auth.access_token,
     );
@@ -309,7 +309,7 @@ async fn test_update_group_as_member_forbidden() {
     // Member tries to update group (should be forbidden)
     let app = create_test_app(config, pool.clone());
     let request = json_request_with_auth(
-        Method::PATCH,
+        Method::PUT,
         &format!("/api/v1/groups/{}", created.id),
         json!({
             "name": "Unauthorized Update"
@@ -390,7 +390,7 @@ async fn test_delete_group_as_member_forbidden() {
         Method::POST,
         "/api/v1/groups/join",
         json!({
-            "invite_code": created.invite_code
+            "code": created.invite_code
         }),
         &member_auth.access_token,
     );
@@ -439,7 +439,7 @@ async fn test_join_group_with_invite_code() {
         Method::POST,
         "/api/v1/groups/join",
         json!({
-            "invite_code": created.invite_code
+            "code": created.invite_code
         }),
         &new_member_auth.access_token,
     );
@@ -471,7 +471,7 @@ async fn test_join_group_invalid_invite_code() {
         Method::POST,
         "/api/v1/groups/join",
         json!({
-            "invite_code": "INVALID-CODE"
+            "code": "INV-ALI-DXX"
         }),
         &auth.access_token,
     );
@@ -503,7 +503,7 @@ async fn test_join_group_already_member() {
         Method::POST,
         "/api/v1/groups/join",
         json!({
-            "invite_code": created.invite_code
+            "code": created.invite_code
         }),
         &owner_auth.access_token,
     );
@@ -543,7 +543,7 @@ async fn test_list_group_members() {
         Method::POST,
         "/api/v1/groups/join",
         json!({
-            "invite_code": created.invite_code
+            "code": created.invite_code
         }),
         &member_auth.access_token,
     );
@@ -560,7 +560,7 @@ async fn test_list_group_members() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    let members = body["members"].as_array().unwrap();
+    let members = body["data"].as_array().unwrap();
     assert_eq!(members.len(), 2); // Owner + member
 
     cleanup_all_test_data(&pool).await;
@@ -591,7 +591,7 @@ async fn test_remove_member_as_owner() {
         Method::POST,
         "/api/v1/groups/join",
         json!({
-            "invite_code": created.invite_code
+            "code": created.invite_code
         }),
         &member_auth.access_token,
     );
@@ -639,17 +639,18 @@ async fn test_transfer_ownership_success() {
         Method::POST,
         "/api/v1/groups/join",
         json!({
-            "invite_code": created.invite_code
+            "code": created.invite_code
         }),
         &new_owner_auth.access_token,
     );
-    let _join_response = app.oneshot(request).await.unwrap();
+    let join_response = app.oneshot(request).await.unwrap();
+    assert_eq!(join_response.status(), StatusCode::OK);
 
     // Transfer ownership
     let app = create_test_app(config, pool.clone());
     let request = json_request_with_auth(
         Method::POST,
-        &format!("/api/v1/groups/{}/transfer-ownership", created.id),
+        &format!("/api/v1/groups/{}/transfer", created.id),
         json!({
             "new_owner_id": new_owner_auth.user_id
         }),
@@ -686,7 +687,7 @@ async fn test_transfer_ownership_non_member() {
     let app = create_test_app(config, pool.clone());
     let request = json_request_with_auth(
         Method::POST,
-        &format!("/api/v1/groups/{}/transfer-ownership", created.id),
+        &format!("/api/v1/groups/{}/transfer", created.id),
         json!({
             "new_owner_id": non_member_auth.user_id
         }),

@@ -75,7 +75,12 @@ impl WebhookDeliveryRepository {
             (STATUS_FAILED.to_string(), None)
         } else {
             // Calculate next retry time based on backoff schedule
-            let backoff_index = new_attempts.min(RETRY_BACKOFF_SECONDS.len() as i32 - 1) as usize;
+            // Use (new_attempts - 1) as index since:
+            // - Attempt 1 failed -> use index 0 (immediate retry)
+            // - Attempt 2 failed -> use index 1 (60s)
+            // - Attempt 3 failed -> use index 2 (300s)
+            // - Attempt 4 failed -> use index 3 (900s)
+            let backoff_index = ((new_attempts - 1).max(0) as usize).min(RETRY_BACKOFF_SECONDS.len() - 1);
             let backoff_seconds = RETRY_BACKOFF_SECONDS[backoff_index];
             let next_retry_at = now + Duration::seconds(backoff_seconds);
             (STATUS_PENDING.to_string(), Some(next_retry_at))

@@ -260,6 +260,8 @@ impl WebhookRepository {
 
     /// Open the circuit breaker for a webhook.
     /// The circuit will remain open until the specified time.
+    /// Also resets consecutive_failures to 0 so that after cooldown expires,
+    /// the webhook gets a fresh start (half-open state behavior).
     pub async fn open_circuit(
         &self,
         webhook_id: Uuid,
@@ -270,6 +272,7 @@ impl WebhookRepository {
             r#"
             UPDATE webhooks
             SET circuit_open_until = $2,
+                consecutive_failures = 0,
                 updated_at = NOW()
             WHERE webhook_id = $1
             "#,

@@ -507,20 +507,11 @@ impl GroupRepository {
         // Start a transaction for atomic role swap
         let mut tx = self.pool.begin().await?;
 
-        // Demote current owner to admin
-        sqlx::query(
-            r#"
-            UPDATE group_memberships
-            SET role = 'admin', updated_at = NOW()
-            WHERE group_id = $1 AND user_id = $2
-            "#,
-        )
-        .bind(group_id)
-        .bind(current_owner_id)
-        .execute(&mut *tx)
-        .await?;
+        // IMPORTANT: Promote new owner FIRST, then demote old owner.
+        // This order is required because of the check_group_has_owner trigger
+        // which prevents demoting the last owner before another owner exists.
 
-        // Promote new owner
+        // Promote new owner to owner
         sqlx::query(
             r#"
             UPDATE group_memberships
@@ -530,6 +521,19 @@ impl GroupRepository {
         )
         .bind(group_id)
         .bind(new_owner_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // Demote previous owner to admin
+        sqlx::query(
+            r#"
+            UPDATE group_memberships
+            SET role = 'admin', updated_at = NOW()
+            WHERE group_id = $1 AND user_id = $2
+            "#,
+        )
+        .bind(group_id)
+        .bind(current_owner_id)
         .execute(&mut *tx)
         .await?;
 

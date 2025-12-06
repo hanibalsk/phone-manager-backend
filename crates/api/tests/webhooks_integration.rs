@@ -11,9 +11,10 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::{
-    cleanup_all_test_data, create_authenticated_user, create_test_app, create_test_pool,
-    delete_request_with_auth, get_request_with_auth, json_request_with_auth, parse_response_body,
-    register_test_device, run_migrations, test_config, TestDevice, TestUser,
+    cleanup_all_test_data, create_authenticated_user, create_test_api_key, create_test_app,
+    create_test_pool, delete_request_with_api_key_and_jwt, get_request_with_api_key_and_jwt,
+    json_request_with_api_key_and_jwt, parse_response_body, register_test_device, run_migrations,
+    test_config, TestDevice, TestUser,
 };
 use serde_json::json;
 use tower::ServiceExt;
@@ -34,6 +35,7 @@ async fn test_create_webhook_success() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_create_webhook").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
     let device_response = register_test_device(&app, &pool, &auth, &device).await;
@@ -41,7 +43,7 @@ async fn test_create_webhook_success() {
 
     // Create a webhook
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -51,6 +53,7 @@ async fn test_create_webhook_success() {
             "secret": "my-secret-key-12345",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -78,6 +81,7 @@ async fn test_create_webhook_invalid_name_empty() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_invalid_name").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
     let device_response = register_test_device(&app, &pool, &auth, &device).await;
@@ -85,7 +89,7 @@ async fn test_create_webhook_invalid_name_empty() {
 
     // Try to create webhook with empty name
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -95,6 +99,7 @@ async fn test_create_webhook_invalid_name_empty() {
             "secret": "my-secret-key-12345",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -119,6 +124,7 @@ async fn test_create_webhook_invalid_url_not_https() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_invalid_url").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
     let device_response = register_test_device(&app, &pool, &auth, &device).await;
@@ -126,7 +132,7 @@ async fn test_create_webhook_invalid_url_not_https() {
 
     // Try to create webhook with HTTP URL (not HTTPS)
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -136,6 +142,7 @@ async fn test_create_webhook_invalid_url_not_https() {
             "secret": "my-secret-key-12345",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -160,6 +167,7 @@ async fn test_create_webhook_invalid_secret_too_short() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_short_secret").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
     let device_response = register_test_device(&app, &pool, &auth, &device).await;
@@ -167,7 +175,7 @@ async fn test_create_webhook_invalid_secret_too_short() {
 
     // Try to create webhook with secret too short (< 8 characters)
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -177,6 +185,7 @@ async fn test_create_webhook_invalid_secret_too_short() {
             "secret": "short",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -196,15 +205,17 @@ async fn test_create_webhook_device_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
     // Create authenticated user but don't register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_device_not_found").await;
 
     // Try to create webhook for non-existent device
+    let app = create_test_app(config, pool.clone());
     let fake_device_id = uuid::Uuid::new_v4();
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -214,6 +225,7 @@ async fn test_create_webhook_device_not_found() {
             "secret": "my-secret-key-12345",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -235,6 +247,7 @@ async fn test_create_webhook_duplicate_name_conflict() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_duplicate_name").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
     let device_response = register_test_device(&app, &pool, &auth, &device).await;
@@ -242,7 +255,7 @@ async fn test_create_webhook_duplicate_name_conflict() {
 
     // Create first webhook
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -252,6 +265,7 @@ async fn test_create_webhook_duplicate_name_conflict() {
             "secret": "my-secret-key-12345",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
     let response = app.oneshot(request).await.unwrap();
@@ -259,7 +273,7 @@ async fn test_create_webhook_duplicate_name_conflict() {
 
     // Try to create second webhook with same name
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -269,6 +283,7 @@ async fn test_create_webhook_duplicate_name_conflict() {
             "secret": "different-secret-key",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -294,6 +309,7 @@ async fn test_list_webhooks_success() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_list_webhooks").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
     let device_response = register_test_device(&app, &pool, &auth, &device).await;
@@ -301,7 +317,7 @@ async fn test_list_webhooks_success() {
 
     // Create two webhooks
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -311,12 +327,13 @@ async fn test_list_webhooks_success() {
             "secret": "secret-key-12345",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
     let _response = app.oneshot(request).await.unwrap();
 
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -326,14 +343,16 @@ async fn test_list_webhooks_success() {
             "secret": "another-secret-key",
             "enabled": false
         }),
+        &api_key,
         &auth.access_token,
     );
     let _response = app.oneshot(request).await.unwrap();
 
     // List webhooks for device
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/webhooks?ownerDeviceId={}", device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -360,6 +379,7 @@ async fn test_list_webhooks_empty() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_list_empty").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
     let device_response = register_test_device(&app, &pool, &auth, &device).await;
@@ -367,8 +387,9 @@ async fn test_list_webhooks_empty() {
 
     // List webhooks for device (none exist)
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/webhooks?ownerDeviceId={}", device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -390,14 +411,20 @@ async fn test_list_webhooks_missing_device_id() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
     // Create authenticated user
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_missing_device_id").await;
 
     // List webhooks without device ID
-    let request = get_request_with_auth("/api/v1/webhooks", &auth.access_token);
+    let app = create_test_app(config, pool.clone());
+    let request = get_request_with_api_key_and_jwt(
+        "/api/v1/webhooks",
+        &api_key,
+        &auth.access_token,
+    );
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -421,6 +448,7 @@ async fn test_get_webhook_success() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_get_webhook").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
     let device_response = register_test_device(&app, &pool, &auth, &device).await;
@@ -428,7 +456,7 @@ async fn test_get_webhook_success() {
 
     // Create a webhook
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -438,6 +466,7 @@ async fn test_get_webhook_success() {
             "secret": "secret-key-12345",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
     let create_response = app.oneshot(request).await.unwrap();
@@ -446,8 +475,9 @@ async fn test_get_webhook_success() {
 
     // Get the webhook
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/webhooks/{}", webhook_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -468,16 +498,19 @@ async fn test_get_webhook_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
     // Create authenticated user
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_get_not_found").await;
 
     // Try to get non-existent webhook
+    let app = create_test_app(config, pool.clone());
     let fake_webhook_id = uuid::Uuid::new_v4();
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/webhooks/{}", fake_webhook_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -503,6 +536,7 @@ async fn test_update_webhook_success() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_update_webhook").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
     let device_response = register_test_device(&app, &pool, &auth, &device).await;
@@ -510,7 +544,7 @@ async fn test_update_webhook_success() {
 
     // Create a webhook
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -520,6 +554,7 @@ async fn test_update_webhook_success() {
             "secret": "secret-key-12345",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
     let create_response = app.oneshot(request).await.unwrap();
@@ -528,13 +563,14 @@ async fn test_update_webhook_success() {
 
     // Update the webhook
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::PUT,
         &format!("/api/v1/webhooks/{}", webhook_id),
         json!({
             "name": "Updated Home Assistant",
             "enabled": false
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -555,20 +591,23 @@ async fn test_update_webhook_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
     // Create authenticated user
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_update_not_found").await;
 
     // Try to update non-existent webhook
+    let app = create_test_app(config, pool.clone());
     let fake_webhook_id = uuid::Uuid::new_v4();
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::PUT,
         &format!("/api/v1/webhooks/{}", fake_webhook_id),
         json!({
             "name": "Updated Name"
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -594,6 +633,7 @@ async fn test_delete_webhook_success() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_delete_webhook").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
     let device_response = register_test_device(&app, &pool, &auth, &device).await;
@@ -601,7 +641,7 @@ async fn test_delete_webhook_success() {
 
     // Create a webhook
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -611,6 +651,7 @@ async fn test_delete_webhook_success() {
             "secret": "secret-key-12345",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
     let create_response = app.oneshot(request).await.unwrap();
@@ -619,8 +660,9 @@ async fn test_delete_webhook_success() {
 
     // Delete the webhook
     let app = create_test_app(config.clone(), pool.clone());
-    let request = delete_request_with_auth(
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/webhooks/{}", webhook_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -629,8 +671,9 @@ async fn test_delete_webhook_success() {
 
     // Verify webhook is gone
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/webhooks/{}", webhook_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -647,16 +690,19 @@ async fn test_delete_webhook_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
     // Create authenticated user
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_delete_not_found").await;
 
     // Try to delete non-existent webhook
+    let app = create_test_app(config, pool.clone());
     let fake_webhook_id = uuid::Uuid::new_v4();
-    let request = delete_request_with_auth(
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/webhooks/{}", fake_webhook_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -682,6 +728,7 @@ async fn test_create_webhook_limit_exceeded() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_webhook_limit").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
     let device_response = register_test_device(&app, &pool, &auth, &device).await;
@@ -690,7 +737,7 @@ async fn test_create_webhook_limit_exceeded() {
     // Create 10 webhooks (the limit)
     for i in 0..10 {
         let app = create_test_app(config.clone(), pool.clone());
-        let request = json_request_with_auth(
+        let request = json_request_with_api_key_and_jwt(
             Method::POST,
             "/api/v1/webhooks",
             json!({
@@ -700,6 +747,7 @@ async fn test_create_webhook_limit_exceeded() {
                 "secret": format!("secret-key-{:05}", i),
                 "enabled": true
             }),
+            &api_key,
             &auth.access_token,
         );
         let response = app.oneshot(request).await.unwrap();
@@ -708,7 +756,7 @@ async fn test_create_webhook_limit_exceeded() {
 
     // Try to create 11th webhook (should fail)
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/webhooks",
         json!({
@@ -718,6 +766,7 @@ async fn test_create_webhook_limit_exceeded() {
             "secret": "secret-key-overlimit",
             "enabled": true
         }),
+        &api_key,
         &auth.access_token,
     );
 

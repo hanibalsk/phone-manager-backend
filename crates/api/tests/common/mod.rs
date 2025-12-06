@@ -414,6 +414,7 @@ pub struct CreatedGroup {
 /// Create a group via the API.
 ///
 /// Requires an authenticated user. Returns the created group details.
+/// Also creates a default invite code for the group.
 pub async fn create_test_group(
     app: &Router,
     auth: &AuthenticatedUser,
@@ -422,6 +423,7 @@ pub async fn create_test_group(
     use axum::{body::Body, http::{header, Method, Request}};
     use tower::ServiceExt;
 
+    // Step 1: Create the group
     let request = Request::builder()
         .method(Method::POST)
         .uri("/api/v1/groups")
@@ -439,11 +441,34 @@ pub async fn create_test_group(
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
+    let group_id = json["id"].as_str().unwrap().to_string();
+    let slug = json["slug"].as_str().unwrap().to_string();
+    let name = json["name"].as_str().unwrap().to_string();
+
+    // Step 2: Create an invite for the group
+    let invite_request = Request::builder()
+        .method(Method::POST)
+        .uri(&format!("/api/v1/groups/{}/invites", group_id))
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {}", auth.access_token))
+        .body(Body::from(serde_json::to_string(&serde_json::json!({
+            "max_uses": 100,
+            "expires_in_hours": 24
+        })).unwrap()))
+        .unwrap();
+
+    let invite_response = app.clone().oneshot(invite_request).await.unwrap();
+    let invite_body = axum::body::to_bytes(invite_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let invite_json: serde_json::Value = serde_json::from_slice(&invite_body).unwrap();
+    let invite_code = invite_json["code"].as_str().unwrap_or("").to_string();
+
     CreatedGroup {
-        id: json["id"].as_str().unwrap().to_string(),
-        slug: json["slug"].as_str().unwrap().to_string(),
-        name: json["name"].as_str().unwrap().to_string(),
-        invite_code: json["invite_code"].as_str().unwrap_or("").to_string(),
+        id: group_id,
+        slug,
+        name,
+        invite_code,
     }
 }
 
