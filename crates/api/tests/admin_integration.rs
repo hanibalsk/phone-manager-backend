@@ -6,10 +6,10 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::{
-    cleanup_all_test_data, create_authenticated_user, create_test_api_key, create_test_app,
-    create_test_pool, delete_request_with_api_key, get_request_with_api_key,
-    json_request_with_api_key, json_request_with_auth, parse_response_body, register_test_device,
-    run_migrations, test_config, TestDevice, TestUser,
+    cleanup_all_test_data, create_authenticated_user, create_test_admin_api_key, create_test_api_key,
+    create_test_app, create_test_pool, delete_request_with_api_key, get_request_with_api_key,
+    json_request_with_api_key, parse_response_body, register_test_device, run_migrations,
+    test_config, TestDevice, TestUser,
 };
 use serde_json::json;
 use tower::ServiceExt;
@@ -28,14 +28,14 @@ async fn test_get_admin_stats_success() {
     let app = create_test_app(config.clone(), pool.clone());
 
     // Create API key
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create a user and some devices
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _ = register_test_device(&app, &auth, &device).await;
+    let _ = register_test_device(&app, &pool, &auth, &device).await;
 
     // Get admin stats
     let app = create_test_app(config, pool.clone());
@@ -108,24 +108,23 @@ async fn test_delete_inactive_devices_success() {
     let app = create_test_app(config.clone(), pool.clone());
 
     // Create API key
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create a user and register a device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
-    // Deactivate the device first (soft delete)
+    // Deactivate the device first (soft delete) - requires API key auth
+    let device_api_key = create_test_api_key(&pool, "device-delete-key").await;
     let app = create_test_app(config.clone(), pool.clone());
-    let request = axum::http::Request::builder()
-        .method(Method::DELETE)
-        .uri(&format!("/api/v1/devices/{}", device_id))
-        .header("Authorization", format!("Bearer {}", auth.access_token))
-        .body(axum::body::Body::empty())
-        .unwrap();
+    let request = delete_request_with_api_key(
+        &format!("/api/v1/devices/{}", device_id),
+        &device_api_key,
+    );
     let _ = app.oneshot(request).await.unwrap();
 
     // Delete inactive devices (should not delete anything since threshold is too high)
@@ -139,7 +138,7 @@ async fn test_delete_inactive_devices_success() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert_eq!(body["success"].as_bool().unwrap(), true);
+    assert!(body["success"].as_bool().unwrap());
     assert!(body.get("affected_count").is_some());
     assert!(body.get("message").is_some());
 
@@ -153,7 +152,7 @@ async fn test_delete_inactive_devices_invalid_threshold_too_low() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     let app = create_test_app(config, pool.clone());
     let request = delete_request_with_api_key(
@@ -178,7 +177,7 @@ async fn test_delete_inactive_devices_invalid_threshold_too_high() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     let app = create_test_app(config, pool.clone());
     let request = delete_request_with_api_key(
@@ -231,24 +230,23 @@ async fn test_reactivate_device_success() {
     let app = create_test_app(config.clone(), pool.clone());
 
     // Create API key
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create a user and register a device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
-    // Deactivate the device (soft delete)
+    // Deactivate the device (soft delete) - requires API key auth
+    let device_api_key = create_test_api_key(&pool, "device-delete-key").await;
     let app = create_test_app(config.clone(), pool.clone());
-    let request = axum::http::Request::builder()
-        .method(Method::DELETE)
-        .uri(&format!("/api/v1/devices/{}", device_id))
-        .header("Authorization", format!("Bearer {}", auth.access_token))
-        .body(axum::body::Body::empty())
-        .unwrap();
+    let request = delete_request_with_api_key(
+        &format!("/api/v1/devices/{}", device_id),
+        &device_api_key,
+    );
     let _ = app.oneshot(request).await.unwrap();
 
     // Reactivate the device via admin API
@@ -264,7 +262,7 @@ async fn test_reactivate_device_success() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert_eq!(body["success"].as_bool().unwrap(), true);
+    assert!(body["success"].as_bool().unwrap());
     assert_eq!(body["device_id"].as_str().unwrap(), device_id);
     assert!(body["message"]
         .as_str()
@@ -284,14 +282,14 @@ async fn test_reactivate_device_already_active() {
     let app = create_test_app(config.clone(), pool.clone());
 
     // Create API key
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create a user and register a device (already active)
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Try to reactivate already active device
@@ -307,7 +305,7 @@ async fn test_reactivate_device_already_active() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert_eq!(body["success"].as_bool().unwrap(), true);
+    assert!(body["success"].as_bool().unwrap());
     assert!(body["message"]
         .as_str()
         .unwrap()
@@ -323,7 +321,7 @@ async fn test_reactivate_device_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     let app = create_test_app(config, pool.clone());
     let fake_device_id = uuid::Uuid::new_v4();
@@ -352,7 +350,7 @@ async fn test_reactivate_device_without_api_key() {
     let fake_device_id = uuid::Uuid::new_v4();
     let request = axum::http::Request::builder()
         .method(Method::POST)
-        .uri(&format!(
+        .uri(format!(
             "/api/v1/admin/devices/{}/reactivate",
             fake_device_id
         ))

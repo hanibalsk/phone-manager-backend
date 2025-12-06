@@ -167,8 +167,6 @@ impl DeviceTokenRepository {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_device_token_repository_new() {
         // This is a compile-time test - repository should be constructable

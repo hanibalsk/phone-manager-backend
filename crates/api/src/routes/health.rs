@@ -4,6 +4,7 @@ use axum::{extract::State, http::StatusCode, Json};
 use serde::Serialize;
 
 use crate::app::AppState;
+use crate::middleware::version_check::MIN_COMPATIBLE_VERSION;
 
 /// Health check response.
 #[derive(Debug, Serialize)]
@@ -11,6 +12,8 @@ use crate::app::AppState;
 pub struct HealthResponse {
     pub status: String,
     pub version: String,
+    /// Minimum compatible client version for API requests.
+    pub min_client_version: String,
     pub database: DatabaseHealth,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_services: Option<ExternalServicesHealth>,
@@ -101,6 +104,7 @@ pub async fn health_check(
     let response = HealthResponse {
         status: if db_connected { "healthy" } else { "unhealthy" }.to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        min_client_version: MIN_COMPATIBLE_VERSION.to_string(),
         database: DatabaseHealth {
             connected: db_connected,
             latency_ms: if db_connected { Some(latency_ms) } else { None },
@@ -147,7 +151,8 @@ mod tests {
     fn test_health_response_healthy() {
         let response = HealthResponse {
             status: "healthy".to_string(),
-            version: "0.1.0".to_string(),
+            version: "0.9.0".to_string(),
+            min_client_version: "0.8.0".to_string(),
             database: DatabaseHealth {
                 connected: true,
                 latency_ms: Some(5),
@@ -155,7 +160,8 @@ mod tests {
             external_services: None,
         };
         assert_eq!(response.status, "healthy");
-        assert_eq!(response.version, "0.1.0");
+        assert_eq!(response.version, "0.9.0");
+        assert_eq!(response.min_client_version, "0.8.0");
         assert!(response.database.connected);
         assert_eq!(response.database.latency_ms, Some(5));
     }
@@ -164,7 +170,8 @@ mod tests {
     fn test_health_response_unhealthy() {
         let response = HealthResponse {
             status: "unhealthy".to_string(),
-            version: "0.1.0".to_string(),
+            version: "0.9.0".to_string(),
+            min_client_version: "0.8.0".to_string(),
             database: DatabaseHealth {
                 connected: false,
                 latency_ms: None,
@@ -180,7 +187,8 @@ mod tests {
     fn test_health_response_with_external_services() {
         let response = HealthResponse {
             status: "healthy".to_string(),
-            version: "0.1.0".to_string(),
+            version: "0.9.0".to_string(),
+            min_client_version: "0.8.0".to_string(),
             database: DatabaseHealth {
                 connected: true,
                 latency_ms: Some(5),

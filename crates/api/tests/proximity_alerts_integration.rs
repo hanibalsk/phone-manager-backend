@@ -9,9 +9,10 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::{
-    cleanup_all_test_data, create_authenticated_user, create_test_app, create_test_pool,
-    delete_request_with_auth, get_request_with_auth, json_request_with_auth, parse_response_body,
-    register_test_device, run_migrations, test_config, TestDevice, TestUser,
+    cleanup_all_test_data, create_authenticated_user, create_test_api_key, create_test_app,
+    create_test_pool, delete_request_with_api_key_and_jwt, get_request_with_api_key_and_jwt,
+    json_request_with_api_key_and_jwt, parse_response_body, register_test_device, run_migrations,
+    test_config, TestDevice, TestUser,
 };
 use serde_json::json;
 use tower::ServiceExt;
@@ -29,7 +30,8 @@ async fn test_create_proximity_alert_success() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user
+    // Create API key and authenticated user
+    let api_key = create_test_api_key(&pool, "test_create_proximity_alert_success").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
@@ -39,26 +41,27 @@ async fn test_create_proximity_alert_success() {
     // Register source device
     let source_device = TestDevice::new().with_group(&group_id).with_name("Source Device");
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     // Register target device
     let target_device = TestDevice::new().with_group(&group_id).with_name("Target Device");
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Create a proximity alert
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/proximity-alerts",
         json!({
             "source_device_id": source_device_id,
             "target_device_id": target_device_id,
-            "radius": 500.0,
+            "radius_meters": 500,
             "name": "Near Target Alert"
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -66,8 +69,8 @@ async fn test_create_proximity_alert_success() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = parse_response_body(response).await;
-    assert!(body.get("id").is_some());
-    assert_eq!(body["radius"], 500.0);
+    assert!(body.get("alert_id").is_some());
+    assert_eq!(body["radius_meters"], 500);
 
     cleanup_all_test_data(&pool).await;
 }
@@ -81,7 +84,8 @@ async fn test_create_proximity_alert_invalid_radius_too_small() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user
+    // Create API key and authenticated user
+    let api_key = create_test_api_key(&pool, "test_create_proximity_alert_invalid_radius_too_small").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
@@ -90,25 +94,26 @@ async fn test_create_proximity_alert_invalid_radius_too_small() {
     // Register two devices
     let source_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Try to create proximity alert with radius too small (< 50 meters)
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/proximity-alerts",
         json!({
             "source_device_id": source_device_id,
             "target_device_id": target_device_id,
-            "radius": 10.0,
+            "radius_meters": 10,
             "name": "Too Close Alert"
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -130,27 +135,29 @@ async fn test_create_proximity_alert_same_device() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user
+    // Create API key and authenticated user
+    let api_key = create_test_api_key(&pool, "test_create_proximity_alert_same_device").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
     // Register single device
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Try to create proximity alert with same source and target
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/proximity-alerts",
         json!({
             "source_device_id": device_id,
             "target_device_id": device_id,
-            "radius": 500.0,
+            "radius_meters": 500,
             "name": "Self Alert"
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -173,32 +180,34 @@ async fn test_create_proximity_alert_different_groups() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user
+    // Create API key and authenticated user
+    let api_key = create_test_api_key(&pool, "test_create_proximity_alert_different_groups").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
     // Register devices in different groups
     let source_device = TestDevice::new().with_group("group-a");
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target_device = TestDevice::new().with_group("group-b");
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Try to create proximity alert between devices in different groups
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/proximity-alerts",
         json!({
             "source_device_id": source_device_id,
             "target_device_id": target_device_id,
-            "radius": 500.0,
+            "radius_meters": 500,
             "name": "Cross Group Alert"
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -226,7 +235,8 @@ async fn test_list_proximity_alerts_success() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user
+    // Create API key and authenticated user
+    let api_key = create_test_api_key(&pool, "test_list_proximity_alerts_success").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
@@ -235,52 +245,55 @@ async fn test_list_proximity_alerts_success() {
     // Register three devices
     let source_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target1 = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target1_response = register_test_device(&app, &auth, &target1).await;
+    let target1_response = register_test_device(&app, &pool, &auth, &target1).await;
     let target1_id = target1_response["device_id"].as_str().unwrap();
 
     let target2 = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target2_response = register_test_device(&app, &auth, &target2).await;
+    let target2_response = register_test_device(&app, &pool, &auth, &target2).await;
     let target2_id = target2_response["device_id"].as_str().unwrap();
 
     // Create two proximity alerts from same source
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/proximity-alerts",
         json!({
             "source_device_id": source_device_id,
             "target_device_id": target1_id,
-            "radius": 500.0,
+            "radius_meters": 500,
             "name": "Alert 1"
         }),
+        &api_key,
         &auth.access_token,
     );
     let _response = app.oneshot(request).await.unwrap();
 
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/proximity-alerts",
         json!({
             "source_device_id": source_device_id,
             "target_device_id": target2_id,
-            "radius": 1000.0,
+            "radius_meters": 1000,
             "name": "Alert 2"
         }),
+        &api_key,
         &auth.access_token,
     );
     let _response = app.oneshot(request).await.unwrap();
 
     // List alerts for source device
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/proximity-alerts?source_device_id={}", source_device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -307,7 +320,8 @@ async fn test_get_proximity_alert_success() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user
+    // Create API key and authenticated user
+    let api_key = create_test_api_key(&pool, "test_get_proximity_alert_success").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
@@ -316,35 +330,37 @@ async fn test_get_proximity_alert_success() {
     // Register two devices
     let source_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Create a proximity alert
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/proximity-alerts",
         json!({
             "source_device_id": source_device_id,
             "target_device_id": target_device_id,
-            "radius": 500.0,
+            "radius_meters": 500,
             "name": "Test Alert"
         }),
+        &api_key,
         &auth.access_token,
     );
     let create_response = app.oneshot(request).await.unwrap();
     let create_body = parse_response_body(create_response).await;
-    let alert_id = create_body["id"].as_str().unwrap();
+    let alert_id = create_body["alert_id"].as_str().unwrap();
 
     // Get the alert
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/proximity-alerts/{}", alert_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -352,8 +368,8 @@ async fn test_get_proximity_alert_success() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert_eq!(body["id"], alert_id);
-    assert_eq!(body["radius"], 500.0);
+    assert_eq!(body["alert_id"], alert_id);
+    assert_eq!(body["radius_meters"], 500);
 
     cleanup_all_test_data(&pool).await;
 }
@@ -365,16 +381,19 @@ async fn test_get_proximity_alert_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user
+    // Create API key and authenticated user
+    let api_key = create_test_api_key(&pool, "test_get_proximity_alert_not_found").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
     // Try to get non-existent alert
+    let app = create_test_app(config, pool.clone());
     let fake_alert_id = uuid::Uuid::new_v4();
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/proximity-alerts/{}", fake_alert_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -397,7 +416,8 @@ async fn test_update_proximity_alert_success() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user
+    // Create API key and authenticated user
+    let api_key = create_test_api_key(&pool, "test_update_proximity_alert_success").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
@@ -406,40 +426,42 @@ async fn test_update_proximity_alert_success() {
     // Register two devices
     let source_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Create a proximity alert
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/proximity-alerts",
         json!({
             "source_device_id": source_device_id,
             "target_device_id": target_device_id,
-            "radius": 500.0,
+            "radius_meters": 500,
             "name": "Original Name"
         }),
+        &api_key,
         &auth.access_token,
     );
     let create_response = app.oneshot(request).await.unwrap();
     let create_body = parse_response_body(create_response).await;
-    let alert_id = create_body["id"].as_str().unwrap();
+    let alert_id = create_body["alert_id"].as_str().unwrap();
 
     // Update the alert
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::PATCH,
         &format!("/api/v1/proximity-alerts/{}", alert_id),
         json!({
-            "radius": 1000.0,
+            "radius_meters": 1000,
             "name": "Updated Name"
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -447,7 +469,7 @@ async fn test_update_proximity_alert_success() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert_eq!(body["radius"], 1000.0);
+    assert_eq!(body["radius_meters"], 1000);
     assert_eq!(body["name"], "Updated Name");
 
     cleanup_all_test_data(&pool).await;
@@ -466,7 +488,8 @@ async fn test_delete_proximity_alert_success() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user
+    // Create API key and authenticated user
+    let api_key = create_test_api_key(&pool, "test_delete_proximity_alert_success").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
@@ -475,35 +498,37 @@ async fn test_delete_proximity_alert_success() {
     // Register two devices
     let source_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Create a proximity alert
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/proximity-alerts",
         json!({
             "source_device_id": source_device_id,
             "target_device_id": target_device_id,
-            "radius": 500.0,
+            "radius_meters": 500,
             "name": "To Delete"
         }),
+        &api_key,
         &auth.access_token,
     );
     let create_response = app.oneshot(request).await.unwrap();
     let create_body = parse_response_body(create_response).await;
-    let alert_id = create_body["id"].as_str().unwrap();
+    let alert_id = create_body["alert_id"].as_str().unwrap();
 
     // Delete the alert
     let app = create_test_app(config.clone(), pool.clone());
-    let request = delete_request_with_auth(
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/proximity-alerts/{}", alert_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -512,8 +537,9 @@ async fn test_delete_proximity_alert_success() {
 
     // Verify alert is gone
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/proximity-alerts/{}", alert_id),
+        &api_key,
         &auth.access_token,
     );
 

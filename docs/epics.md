@@ -17,7 +17,11 @@ This document provides the detailed story breakdown for the Phone Manager backen
 - **Week 3-5**: Epic 3 (Location Tracking & Retrieval) - 10 stories
 - **Week 5-6**: Epic 4 (Production Readiness & Operational Excellence) - 8 stories
 
-**Total**: 32 stories, 6 weeks
+**Extensions**:
+- **Epics 5-8**: Movement Tracking - 22 stories (see Movement Tracking Extension section)
+- **Epic 15**: Webhook System - 3 stories (frontend integration)
+
+**Total**: 32 core stories + 25 extension stories
 
 ---
 
@@ -1473,6 +1477,103 @@ This document provides the detailed story breakdown for the Phone Manager backen
 - Use `failsafe-rs` or implement custom circuit breaker
 - Add map_matching.status to health check response
 - Dashboard/alerting on circuit breaker state changes
+
+---
+
+## Webhook Integration (Epic 15)
+
+**Extension:** Webhook System for External Integrations
+**Date Added:** 2025-12-06
+**Author:** Martin Janci
+**Estimated Stories:** 3 stories
+**Timeline:** 1-2 weeks
+
+---
+
+### Epic 15: Webhook System
+
+**Epic Goal**: Enable webhook registration and event delivery for external system integration
+
+**Business Value**: Allows users to integrate with Home Assistant, n8n, and other automation platforms for real-time event notifications
+
+**Success Criteria**:
+- Webhooks can be registered, updated, and deleted via API
+- Geofence and trip events trigger webhook deliveries
+- HMAC signature verification for webhook security
+- Delivery logging and retry mechanism for failed deliveries
+
+**Frontend Alignment**: Mobile app (phone-manager) already has webhook UI implemented in Epic 6 (Story E6.3)
+
+---
+
+#### Story 15.1: Webhook Registration and Management API
+
+**As a** mobile app user
+**I want** to register and manage webhooks for event notifications
+**So that** I can integrate with external systems like Home Assistant or n8n for automation
+
+**Prerequisites**: Epic 1 complete, Epic 2 complete
+
+**Acceptance Criteria**:
+1. Migration creates `webhooks` table with: id, owner_device_id (FK), name, target_url, secret, enabled, created_at, updated_at
+2. `POST /api/v1/webhooks` creates webhook with validation (HTTPS URLs only, max 10 per device)
+3. `GET /api/v1/webhooks?ownerDeviceId=<uuid>` returns webhooks for device
+4. `GET /api/v1/webhooks/:webhookId` returns single webhook
+5. `PUT /api/v1/webhooks/:webhookId` updates webhook fields
+6. `DELETE /api/v1/webhooks/:webhookId` removes webhook (hard delete)
+7. All endpoints follow existing API patterns and error handling
+
+**Technical Notes**:
+- Align with frontend DTOs in `WebhookModels.kt`
+- Use snake_case for JSON fields (owner_device_id, target_url, webhook_id, etc.)
+- Store secret in plaintext (needed for HMAC signing in Story 15.2)
+
+---
+
+#### Story 15.2: Webhook Event Delivery
+
+**As a** backend system
+**I want** to deliver webhook notifications when events occur
+**So that** external systems receive real-time updates
+
+**Prerequisites**: Story 15.1, Epic 6 (Geofencing)
+
+**Acceptance Criteria**:
+1. Geofence events (enter, exit, dwell) trigger webhook delivery
+2. Trip events (started, completed) trigger webhook delivery
+3. Webhook payload includes: event_type, device_id, timestamp, location, metadata
+4. HMAC-SHA256 signature in `X-Signature` header using webhook secret
+5. Async delivery (non-blocking to main request)
+6. 5-second timeout per delivery attempt
+7. Events delivered to all enabled webhooks for device
+
+**Technical Notes**:
+- Use `tokio::spawn` for async delivery
+- Payload format matches frontend expectations from Epic 6
+- Consider using background job queue for reliability
+
+---
+
+#### Story 15.3: Webhook Delivery Logging and Retry
+
+**As a** backend system
+**I want** to log webhook deliveries and retry failures
+**So that** webhook reliability is maintained
+
+**Prerequisites**: Story 15.2
+
+**Acceptance Criteria**:
+1. Migration creates `webhook_deliveries` table: id, webhook_id, event_type, payload, status, attempts, last_attempt_at, response_code, error_message, created_at
+2. Log all delivery attempts with status (pending, success, failed)
+3. Retry failed deliveries up to 3 times with exponential backoff (1m, 5m, 15m)
+4. Background job processes pending retries
+5. Deliveries older than 7 days cleaned up automatically
+6. Admin endpoint to view delivery logs (optional)
+
+**Technical Notes**:
+- Reuse existing background job infrastructure from Epic 3
+- Circuit breaker for consistently failing webhooks
+- Metrics: webhook_deliveries_total, webhook_delivery_failures_total
 
 ---
 

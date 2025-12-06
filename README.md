@@ -10,7 +10,10 @@ A high-performance Rust backend API for the Phone Manager mobile application. Ha
 - **Device Management** - Register devices with UUID identifiers, manage display names, and organize into groups
 - **Location Tracking** - Real-time single and batch location uploads with 30-day retention
 - **Group Coordination** - Share locations within family/friend groups (up to 20 devices per group)
+- **Geofences & Events** - Per-device circular geofences with enter/exit/dwell event tracking
+- **Webhooks** - Event delivery to external endpoints with HMAC-SHA256 signatures and circuit breaker
 - **API Key Authentication** - Secure SHA-256 hashed API key authentication with admin roles
+- **JWT Authentication** - User authentication with OAuth social login (Google, Apple)
 - **Rate Limiting** - Per-API-key rate limiting using sliding window algorithm
 - **Prometheus Metrics** - Production-ready observability with request counters and latency histograms
 - **GDPR Compliance** - Data export and hard deletion for privacy compliance
@@ -135,6 +138,111 @@ All protected endpoints require the `X-API-Key` header.
   ]
 }
 ```
+
+### Geofences
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/v1/geofences` | POST | API Key | Create a geofence |
+| `/api/v1/geofences?deviceId={id}` | GET | API Key | List device geofences |
+| `/api/v1/geofences/:geofence_id` | GET | API Key | Get a geofence |
+| `/api/v1/geofences/:geofence_id` | PATCH | API Key | Update a geofence |
+| `/api/v1/geofences/:geofence_id` | DELETE | API Key | Delete a geofence |
+
+**Create Geofence Request:**
+```json
+{
+  "device_id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Home",
+  "latitude": 37.7749,
+  "longitude": -122.4194,
+  "radius": 100,
+  "metadata": { "color": "#FF5733" }
+}
+```
+
+**Limits:**
+- Radius: 20-50,000 meters
+- Max 50 geofences per device
+
+### Geofence Events
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/v1/geofence-events` | POST | API Key | Create a geofence event |
+| `/api/v1/geofence-events?deviceId={id}` | GET | API Key | List device events |
+| `/api/v1/geofence-events/:event_id` | GET | API Key | Get an event |
+
+**Create Geofence Event Request:**
+```json
+{
+  "device_id": "550e8400-e29b-41d4-a716-446655440000",
+  "geofence_id": "660e8400-e29b-41d4-a716-446655440001",
+  "event_type": "enter",
+  "timestamp": "1701878400000",
+  "latitude": 37.7749,
+  "longitude": -122.4194
+}
+```
+
+**Event Types:** `enter`, `exit`, `dwell`
+
+Creating an event automatically triggers webhook delivery to all enabled webhooks for the device.
+
+### Webhooks
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/v1/webhooks` | POST | API Key | Create a webhook |
+| `/api/v1/webhooks?ownerDeviceId={id}` | GET | API Key | List device webhooks |
+| `/api/v1/webhooks/:webhook_id` | GET | API Key | Get a webhook |
+| `/api/v1/webhooks/:webhook_id` | PUT | API Key | Update a webhook |
+| `/api/v1/webhooks/:webhook_id` | DELETE | API Key | Delete a webhook |
+
+**Create Webhook Request:**
+```json
+{
+  "owner_device_id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Home Assistant",
+  "target_url": "https://homeassistant.local/api/webhook/geofence",
+  "secret": "my-secret-key-for-hmac-signing"
+}
+```
+
+**Webhook Delivery:**
+- HTTPS required for target URLs
+- HMAC-SHA256 signature in `X-Webhook-Signature` header
+- Automatic retries with exponential backoff (0s, 60s, 300s, 900s)
+- Max 4 retry attempts per delivery
+- Circuit breaker opens after 5 consecutive failures (5-minute cooldown)
+
+**Limits:**
+- Max 10 webhooks per device
+- Secret: 16-256 characters
+
+### Proximity Alerts
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/v1/proximity-alerts` | POST | API Key | Create proximity alert |
+| `/api/v1/proximity-alerts?sourceDeviceId={id}` | GET | API Key | List alerts |
+| `/api/v1/proximity-alerts/:alert_id` | GET | API Key | Get alert |
+| `/api/v1/proximity-alerts/:alert_id` | PATCH | API Key | Update alert |
+| `/api/v1/proximity-alerts/:alert_id` | DELETE | API Key | Delete alert |
+
+**Create Proximity Alert Request:**
+```json
+{
+  "source_device_id": "550e8400-e29b-41d4-a716-446655440000",
+  "target_device_id": "660e8400-e29b-41d4-a716-446655440001",
+  "radius_meters": 500
+}
+```
+
+**Limits:**
+- Radius: 50-100,000 meters
+- Max 20 alerts per source device
+- Devices must be in the same group
 
 ### Privacy (GDPR)
 
@@ -462,9 +570,23 @@ phone-manager-backend/
 
 ### Authentication
 
-- API keys are hashed with SHA-256 before storage
-- Key prefix (first 8 chars) used for identification
+The API supports three authentication methods:
+
+| Method | Header | Routes | Description |
+|--------|--------|--------|-------------|
+| API Key | `X-API-Key` | Device, location, geofence, webhook routes | Device-facing endpoints |
+| JWT | `Authorization: Bearer <token>` | User profile, group management routes | User-facing endpoints |
+| Admin API Key | `X-API-Key` (admin key) | Admin routes | Administrative operations |
+
+**API Key Details:**
+- Hashed with SHA-256 before storage
+- Key prefix (8 chars after `pm_`) used for identification
 - Admin keys have elevated privileges for management operations
+
+**JWT Authentication:**
+- ES256 algorithm (ECDSA with P-256 curve)
+- OAuth social login support (Google, Apple)
+- Tokens include user ID, email, and role claims
 
 ### Security Headers
 

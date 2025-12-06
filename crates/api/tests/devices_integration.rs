@@ -113,7 +113,7 @@ async fn test_register_device_with_jwt_links_to_user() {
     assert!(response.get("device_id").is_some());
     // First device should be primary
     if let Some(is_primary) = response.get("is_primary") {
-        assert_eq!(is_primary.as_bool().unwrap_or(false), true);
+        assert!(is_primary.as_bool().unwrap_or(false));
     }
 
     cleanup_all_test_data(&pool).await;

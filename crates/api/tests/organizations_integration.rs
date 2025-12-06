@@ -6,7 +6,7 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::{
-    cleanup_all_test_data, create_authenticated_user, create_test_api_key, create_test_app,
+    cleanup_all_test_data, create_authenticated_user, create_test_admin_api_key, create_test_app,
     create_test_organization, create_test_pool, delete_request_with_api_key,
     get_request_with_api_key, json_request_with_api_key, parse_response_body,
     put_request_with_api_key, run_migrations, test_config, TestOrganization, TestUser,
@@ -25,7 +25,7 @@ async fn test_create_organization_success() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
     let org = TestOrganization::new();
 
     let app = create_test_app(config, pool.clone());
@@ -44,10 +44,10 @@ async fn test_create_organization_success() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = parse_response_body(response).await;
-    assert!(body.get("organization").is_some());
-    assert_eq!(body["organization"]["name"].as_str().unwrap(), org.name);
-    assert_eq!(body["organization"]["slug"].as_str().unwrap(), org.slug);
-    assert!(body["organization"]["id"].as_str().is_some());
+    // Organization is returned directly in body (not wrapped in "organization" key)
+    assert_eq!(body["name"].as_str().unwrap(), org.name);
+    assert_eq!(body["slug"].as_str().unwrap(), org.slug);
+    assert!(body["id"].as_str().is_some());
 
     cleanup_all_test_data(&pool).await;
 }
@@ -59,7 +59,7 @@ async fn test_create_organization_with_plan_type() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
     let org = TestOrganization::new();
 
     let app = create_test_app(config, pool.clone());
@@ -79,10 +79,8 @@ async fn test_create_organization_with_plan_type() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = parse_response_body(response).await;
-    assert_eq!(
-        body["organization"]["plan_type"].as_str().unwrap(),
-        "business"
-    );
+    // Organization is returned directly in body
+    assert_eq!(body["plan_type"].as_str().unwrap(), "business");
 
     cleanup_all_test_data(&pool).await;
 }
@@ -94,7 +92,7 @@ async fn test_create_organization_duplicate_slug() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
     let org = TestOrganization::new();
 
     // Create first organization
@@ -127,7 +125,7 @@ async fn test_create_organization_invalid_slug() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     let app = create_test_app(config, pool.clone());
     let request = json_request_with_api_key(
@@ -157,7 +155,7 @@ async fn test_list_organizations_success() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create multiple organizations
     let app = create_test_app(config.clone(), pool.clone());
@@ -188,7 +186,7 @@ async fn test_list_organizations_with_pagination() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create 5 organizations
     for _ in 0..5 {
@@ -220,7 +218,7 @@ async fn test_get_organization_success() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
     let org = TestOrganization::new();
 
     let app = create_test_app(config.clone(), pool.clone());
@@ -250,7 +248,7 @@ async fn test_get_organization_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     let app = create_test_app(config, pool.clone());
     let fake_id = uuid::Uuid::new_v4();
@@ -270,7 +268,7 @@ async fn test_update_organization_success() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
     let org = TestOrganization::new();
 
     let app = create_test_app(config.clone(), pool.clone());
@@ -304,7 +302,7 @@ async fn test_update_organization_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     let app = create_test_app(config, pool.clone());
     let fake_id = uuid::Uuid::new_v4();
@@ -327,7 +325,7 @@ async fn test_delete_organization_success() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
     let org = TestOrganization::new();
 
     let app = create_test_app(config.clone(), pool.clone());
@@ -353,7 +351,7 @@ async fn test_delete_organization_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     let app = create_test_app(config, pool.clone());
     let fake_id = uuid::Uuid::new_v4();
@@ -375,7 +373,7 @@ async fn test_get_organization_usage_success() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
     let org = TestOrganization::new();
 
     let app = create_test_app(config.clone(), pool.clone());
@@ -408,7 +406,7 @@ async fn test_add_org_user_success() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create organization
     let org = TestOrganization::new();
@@ -436,7 +434,8 @@ async fn test_add_org_user_success() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = parse_response_body(response).await;
-    assert!(body.get("org_user").is_some());
+    // Org user is returned directly in body (check for user_id field)
+    assert!(body.get("user_id").is_some() || body.get("id").is_some());
 
     cleanup_all_test_data(&pool).await;
 }
@@ -448,7 +447,7 @@ async fn test_add_org_user_already_member() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create organization
     let org = TestOrganization::new();
@@ -498,7 +497,7 @@ async fn test_add_org_user_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create organization
     let org = TestOrganization::new();
@@ -530,7 +529,7 @@ async fn test_list_org_users_success() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create organization
     let org = TestOrganization::new();
@@ -577,7 +576,7 @@ async fn test_update_org_user_success() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create organization
     let org = TestOrganization::new();
@@ -624,7 +623,7 @@ async fn test_remove_org_user_success() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create organization
     let org = TestOrganization::new();
@@ -634,7 +633,7 @@ async fn test_remove_org_user_success() {
     // Create and add two users (so we have an owner and can remove one)
     let user1 = TestUser::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let auth1 = create_authenticated_user(&app, &user1).await;
+    let _auth1 = create_authenticated_user(&app, &user1).await;
     let app = create_test_app(config.clone(), pool.clone());
     let request = json_request_with_api_key(
         Method::POST,
@@ -685,7 +684,7 @@ async fn test_remove_org_user_not_member() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let api_key = create_test_api_key(&pool, "test-admin-key").await;
+    let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     // Create organization
     let org = TestOrganization::new();

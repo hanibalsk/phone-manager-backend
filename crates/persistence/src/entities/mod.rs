@@ -13,6 +13,7 @@ pub mod device_policy;
 pub mod device_token;
 pub mod enrollment_token;
 pub mod geofence;
+pub mod geofence_event;
 pub mod group;
 pub mod idempotency_key;
 pub mod invite;
@@ -26,6 +27,8 @@ pub mod trip;
 pub mod trip_path_correction;
 pub mod unlock_request;
 pub mod user;
+pub mod webhook;
+pub mod webhook_delivery;
 
 pub use admin_group::{
     AdminGroupEntity, AdminGroupProfileEntity, AdminGroupSummaryEntity, GroupDeviceEntity,
@@ -44,6 +47,7 @@ pub use device_policy::DevicePolicyEntity;
 pub use device_token::DeviceTokenEntity;
 pub use enrollment_token::EnrollmentTokenEntity;
 pub use geofence::GeofenceEntity;
+pub use geofence_event::{GeofenceEventEntity, GeofenceEventWithName};
 pub use group::{
     GroupEntity, GroupMembershipEntity, GroupRoleDb, GroupWithMembershipEntity, MemberWithUserEntity,
 };
@@ -62,3 +66,8 @@ pub use trip::TripEntity;
 pub use trip_path_correction::TripPathCorrectionEntity;
 pub use unlock_request::{UnlockRequestEntity, UnlockRequestStatusDb, UnlockRequestWithDetailsEntity};
 pub use user::{OAuthAccountEntity, UserEntity, UserSessionEntity};
+pub use webhook::WebhookEntity;
+pub use webhook_delivery::{
+    WebhookDeliveryEntity, MAX_RETRY_ATTEMPTS, RETRY_BACKOFF_SECONDS, STATUS_FAILED, STATUS_PENDING,
+    STATUS_SUCCESS,
+};

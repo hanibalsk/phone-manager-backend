@@ -64,6 +64,10 @@ async fn main() -> Result<()> {
     ));
     scheduler.register(jobs::RefreshViewsJob::new(pool.clone()));
     scheduler.register(jobs::PoolMetricsJob::new(pool.clone()));
+    // Webhook retry job - runs every minute to process failed deliveries
+    scheduler.register(jobs::WebhookRetryJob::new(pool.clone(), 10));
+    // Webhook cleanup job - runs daily to clean up old delivery records
+    scheduler.register(jobs::WebhookCleanupJob::new(pool.clone(), Some(7)));
     scheduler.start();
 
     // Build application

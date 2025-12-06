@@ -12,6 +12,7 @@ pub mod enrollment;
 pub mod enrollment_token;
 pub mod fleet;
 pub mod geofence;
+pub mod geofence_event;
 pub mod group;
 pub mod invite;
 pub mod location;
@@ -24,6 +25,7 @@ pub mod trip;
 pub mod trip_path_correction;
 pub mod unlock_request;
 pub mod user;
+pub mod webhook;
 
 pub use device::Device;
 pub use device_policy::{
@@ -106,4 +108,12 @@ pub use admin_group::{
     AdminGroupDetailResponse, AdminGroupItem, AdminGroupListResponse, AdminGroupPagination,
     AdminGroupProfile, AdminGroupQuery, AdminGroupSortField, AdminGroupSummary, DeactivateGroupResponse,
     GroupDeviceInfo, GroupMemberInfo, GroupOwnerInfo, UpdateAdminGroupRequest, UpdateAdminGroupResponse,
+};
+pub use webhook::{
+    CreateWebhookRequest, ListWebhooksQuery, ListWebhooksResponse, UpdateWebhookRequest, Webhook,
+    WebhookResponse,
+};
+pub use geofence_event::{
+    CreateGeofenceEventRequest, GeofenceEvent, GeofenceEventResponse, GeofenceTransitionType,
+    ListGeofenceEventsQuery, ListGeofenceEventsResponse,
 };

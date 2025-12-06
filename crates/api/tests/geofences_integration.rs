@@ -9,9 +9,10 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::{
-    cleanup_all_test_data, create_authenticated_user, create_test_app, create_test_pool,
-    delete_request_with_auth, get_request_with_auth, json_request_with_auth, parse_response_body,
-    register_test_device, run_migrations, test_config, TestDevice, TestUser,
+    cleanup_all_test_data, create_authenticated_user, create_test_api_key, create_test_app,
+    create_test_pool, delete_request_with_api_key_and_jwt, get_request_with_api_key_and_jwt,
+    json_request_with_api_key_and_jwt, parse_response_body, register_test_device, run_migrations,
+    test_config, TestDevice, TestUser,
 };
 use serde_json::json;
 use tower::ServiceExt;
@@ -32,14 +33,15 @@ async fn test_create_geofence_success() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_create_geofence").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/geofences",
         json!({
@@ -47,9 +49,10 @@ async fn test_create_geofence_success() {
             "name": "Home",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 100.0,
+            "radius_meters": 100.0,
             "event_types": ["enter", "exit"]
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -57,9 +60,9 @@ async fn test_create_geofence_success() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = parse_response_body(response).await;
-    assert!(body.get("id").is_some());
+    assert!(body.get("geofence_id").is_some());
     assert_eq!(body["name"], "Home");
-    assert_eq!(body["radius"], 100.0);
+    assert_eq!(body["radius_meters"], 100.0);
 
     cleanup_all_test_data(&pool).await;
 }
@@ -76,14 +79,15 @@ async fn test_create_geofence_invalid_radius_too_small() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_invalid_radius_small").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Try to create geofence with radius too small (< 20 meters)
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/geofences",
         json!({
@@ -91,9 +95,10 @@ async fn test_create_geofence_invalid_radius_too_small() {
             "name": "Tiny Zone",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 5.0,
+            "radius_meters": 5.0,
             "event_types": ["enter"]
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -118,14 +123,15 @@ async fn test_create_geofence_invalid_radius_too_large() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_invalid_radius_large").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Try to create geofence with radius too large (> 50000 meters)
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/geofences",
         json!({
@@ -133,9 +139,10 @@ async fn test_create_geofence_invalid_radius_too_large() {
             "name": "Giant Zone",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 100000.0,
+            "radius_meters": 100000.0,
             "event_types": ["enter"]
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -155,15 +162,17 @@ async fn test_create_geofence_device_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
     // Create authenticated user but don't register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_device_not_found").await;
 
     // Try to create geofence for non-existent device
     let fake_device_id = uuid::Uuid::new_v4();
-    let request = json_request_with_auth(
+    let app = create_test_app(config, pool.clone());
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/geofences",
         json!({
@@ -171,9 +180,10 @@ async fn test_create_geofence_device_not_found() {
             "name": "Home",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 100.0,
+            "radius_meters": 100.0,
             "event_types": ["enter"]
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -199,14 +209,15 @@ async fn test_list_geofences_success() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_list_geofences").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create two geofences
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/geofences",
         json!({
@@ -214,15 +225,16 @@ async fn test_list_geofences_success() {
             "name": "Home",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 100.0,
+            "radius_meters": 100.0,
             "event_types": ["enter", "exit"]
         }),
+        &api_key,
         &auth.access_token,
     );
     let _response = app.oneshot(request).await.unwrap();
 
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/geofences",
         json!({
@@ -230,17 +242,19 @@ async fn test_list_geofences_success() {
             "name": "Work",
             "latitude": 37.7849,
             "longitude": -122.4094,
-            "radius": 200.0,
+            "radius_meters": 200.0,
             "event_types": ["enter"]
         }),
+        &api_key,
         &auth.access_token,
     );
     let _response = app.oneshot(request).await.unwrap();
 
     // List geofences for device
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/geofences?device_id={}", device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -266,15 +280,17 @@ async fn test_list_geofences_empty() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_list_empty").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // List geofences for device (none exist)
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/geofences?device_id={}", device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -304,14 +320,15 @@ async fn test_get_geofence_success() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_get_geofence").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/geofences",
         json!({
@@ -319,19 +336,21 @@ async fn test_get_geofence_success() {
             "name": "Home",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 100.0,
+            "radius_meters": 100.0,
             "event_types": ["enter", "exit"]
         }),
+        &api_key,
         &auth.access_token,
     );
     let create_response = app.oneshot(request).await.unwrap();
     let create_body = parse_response_body(create_response).await;
-    let geofence_id = create_body["id"].as_str().unwrap();
+    let geofence_id = create_body["geofence_id"].as_str().unwrap();
 
     // Get the geofence
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/geofences/{}", geofence_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -339,7 +358,7 @@ async fn test_get_geofence_success() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert_eq!(body["id"], geofence_id);
+    assert_eq!(body["geofence_id"], geofence_id);
     assert_eq!(body["name"], "Home");
 
     cleanup_all_test_data(&pool).await;
@@ -352,16 +371,19 @@ async fn test_get_geofence_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
     // Create authenticated user
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_get_not_found").await;
 
     // Try to get non-existent geofence
     let fake_geofence_id = uuid::Uuid::new_v4();
-    let request = get_request_with_auth(
+    let app = create_test_app(config, pool.clone());
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/geofences/{}", fake_geofence_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -387,14 +409,15 @@ async fn test_update_geofence_success() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_update_geofence").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/geofences",
         json!({
@@ -402,24 +425,26 @@ async fn test_update_geofence_success() {
             "name": "Home",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 100.0,
+            "radius_meters": 100.0,
             "event_types": ["enter"]
         }),
+        &api_key,
         &auth.access_token,
     );
     let create_response = app.oneshot(request).await.unwrap();
     let create_body = parse_response_body(create_response).await;
-    let geofence_id = create_body["id"].as_str().unwrap();
+    let geofence_id = create_body["geofence_id"].as_str().unwrap();
 
     // Update the geofence
     let app = create_test_app(config, pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::PATCH,
         &format!("/api/v1/geofences/{}", geofence_id),
         json!({
             "name": "New Home",
-            "radius": 150.0
+            "radius_meters": 150.0
         }),
+        &api_key,
         &auth.access_token,
     );
 
@@ -428,7 +453,7 @@ async fn test_update_geofence_success() {
 
     let body = parse_response_body(response).await;
     assert_eq!(body["name"], "New Home");
-    assert_eq!(body["radius"], 150.0);
+    assert_eq!(body["radius_meters"], 150.0);
 
     cleanup_all_test_data(&pool).await;
 }
@@ -449,14 +474,15 @@ async fn test_delete_geofence_success() {
     // Create authenticated user and register device
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_delete_geofence").await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
     let app = create_test_app(config.clone(), pool.clone());
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         Method::POST,
         "/api/v1/geofences",
         json!({
@@ -464,19 +490,21 @@ async fn test_delete_geofence_success() {
             "name": "Home",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 100.0,
+            "radius_meters": 100.0,
             "event_types": ["enter"]
         }),
+        &api_key,
         &auth.access_token,
     );
     let create_response = app.oneshot(request).await.unwrap();
     let create_body = parse_response_body(create_response).await;
-    let geofence_id = create_body["id"].as_str().unwrap();
+    let geofence_id = create_body["geofence_id"].as_str().unwrap();
 
     // Delete the geofence
     let app = create_test_app(config.clone(), pool.clone());
-    let request = delete_request_with_auth(
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/geofences/{}", geofence_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -485,8 +513,9 @@ async fn test_delete_geofence_success() {
 
     // Verify geofence is gone
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/geofences/{}", geofence_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -503,16 +532,19 @@ async fn test_delete_geofence_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
     // Create authenticated user
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
+    let api_key = create_test_api_key(&pool, "test_delete_not_found").await;
 
     // Try to delete non-existent geofence
     let fake_geofence_id = uuid::Uuid::new_v4();
-    let request = delete_request_with_auth(
+    let app = create_test_app(config, pool.clone());
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/geofences/{}", fake_geofence_id),
+        &api_key,
         &auth.access_token,
     );
 

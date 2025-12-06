@@ -6,9 +6,10 @@ mod common;
 
 use axum::http::StatusCode;
 use common::{
-    cleanup_all_test_data, create_authenticated_user, create_test_app, create_test_pool,
-    delete_request_with_auth, get_request_with_auth, json_request_with_auth, parse_response_body,
-    register_test_device, run_migrations, test_config, TestDevice, TestUser,
+    cleanup_all_test_data, create_authenticated_user, create_test_api_key, create_test_app,
+    create_test_pool, delete_request_with_api_key_and_jwt, get_request_with_api_key_and_jwt,
+    json_request_with_api_key_and_jwt, parse_response_body, register_test_device, run_migrations,
+    test_config, TestDevice, TestUser,
 };
 use serde_json::json;
 use tower::ServiceExt;
@@ -26,18 +27,19 @@ async fn test_export_device_data_success() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user and register device
+    // Create API key and authenticated user and register device
+    let api_key = create_test_api_key(&pool, "test_export_device_data_success").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Upload some locations
     let app = create_test_app(config.clone(), pool.clone());
     let now = chrono::Utc::now().timestamp_millis();
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         axum::http::Method::POST,
         "/api/v1/locations/batch",
         json!({
@@ -47,24 +49,27 @@ async fn test_export_device_data_success() {
                     "latitude": 37.7749,
                     "longitude": -122.4194,
                     "accuracy": 10.0,
-                    "captured_at": now - 2000
+                    "timestamp": now - 2000
                 },
                 {
                     "latitude": 37.7759,
                     "longitude": -122.4184,
                     "accuracy": 15.0,
-                    "captured_at": now - 1000
+                    "timestamp": now - 1000
                 }
             ]
         }),
+        &api_key,
         &auth.access_token,
     );
-    let _ = app.oneshot(request).await.unwrap();
+    let upload_response = app.oneshot(request).await.unwrap();
+    assert_eq!(upload_response.status(), StatusCode::OK);
 
     // Export device data
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/data-export", device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -92,16 +97,19 @@ async fn test_export_device_data_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user but don't register a device
+    // Create API key and authenticated user but don't register a device
+    let api_key = create_test_api_key(&pool, "test_export_device_data_not_found").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
     // Try to export non-existent device
+    let app = create_test_app(config, pool.clone());
     let fake_device_id = uuid::Uuid::new_v4();
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/data-export", fake_device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -120,18 +128,20 @@ async fn test_export_device_data_empty_locations() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user and register device (no locations)
+    // Create API key and authenticated user and register device (no locations)
+    let api_key = create_test_api_key(&pool, "test_export_device_data_empty_locations").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Export device data (should have empty locations)
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/data-export", device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -158,18 +168,19 @@ async fn test_delete_device_data_success() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user and register device
+    // Create API key and authenticated user and register device
+    let api_key = create_test_api_key(&pool, "test_delete_device_data_success").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Upload some locations
     let app = create_test_app(config.clone(), pool.clone());
     let now = chrono::Utc::now().timestamp_millis();
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         axum::http::Method::POST,
         "/api/v1/locations/batch",
         json!({
@@ -179,18 +190,21 @@ async fn test_delete_device_data_success() {
                     "latitude": 37.7749,
                     "longitude": -122.4194,
                     "accuracy": 10.0,
-                    "captured_at": now
+                    "timestamp": now
                 }
             ]
         }),
+        &api_key,
         &auth.access_token,
     );
-    let _ = app.oneshot(request).await.unwrap();
+    let upload_response = app.oneshot(request).await.unwrap();
+    assert_eq!(upload_response.status(), StatusCode::OK);
 
     // Delete device data (hard delete)
     let app = create_test_app(config.clone(), pool.clone());
-    let request = delete_request_with_auth(
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/data", device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -199,8 +213,9 @@ async fn test_delete_device_data_success() {
 
     // Verify device is completely gone
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/data-export", device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -217,16 +232,19 @@ async fn test_delete_device_data_not_found() {
     cleanup_all_test_data(&pool).await;
 
     let config = test_config();
-    let app = create_test_app(config, pool.clone());
+    let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user
+    // Create API key and authenticated user
+    let api_key = create_test_api_key(&pool, "test_delete_device_data_not_found").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
     // Try to delete non-existent device
+    let app = create_test_app(config, pool.clone());
     let fake_device_id = uuid::Uuid::new_v4();
-    let request = delete_request_with_auth(
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/data", fake_device_id),
+        &api_key,
         &auth.access_token,
     );
 
@@ -245,18 +263,20 @@ async fn test_delete_device_data_idempotent() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user and register device
+    // Create API key and authenticated user and register device
+    let api_key = create_test_api_key(&pool, "test_delete_device_data_idempotent").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Delete device data
     let app = create_test_app(config.clone(), pool.clone());
-    let request = delete_request_with_auth(
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/data", device_id),
+        &api_key,
         &auth.access_token,
     );
     let response = app.oneshot(request).await.unwrap();
@@ -264,8 +284,9 @@ async fn test_delete_device_data_idempotent() {
 
     // Second deletion should return not found (data already deleted)
     let app = create_test_app(config, pool.clone());
-    let request = delete_request_with_auth(
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/data", device_id),
+        &api_key,
         &auth.access_token,
     );
     let response = app.oneshot(request).await.unwrap();
@@ -283,12 +304,13 @@ async fn test_delete_device_data_cascades_locations() {
     let config = test_config();
     let app = create_test_app(config.clone(), pool.clone());
 
-    // Create authenticated user and register device
+    // Create API key and authenticated user and register device
+    let api_key = create_test_api_key(&pool, "test_delete_device_data_cascades_locations").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Upload many locations
@@ -300,26 +322,29 @@ async fn test_delete_device_data_cascades_locations() {
                 "latitude": 37.7749 + (i as f64 * 0.001),
                 "longitude": -122.4194,
                 "accuracy": 10.0,
-                "captured_at": now - (i * 1000)
+                "timestamp": now - (i * 1000)
             })
         })
         .collect();
 
-    let request = json_request_with_auth(
+    let request = json_request_with_api_key_and_jwt(
         axum::http::Method::POST,
         "/api/v1/locations/batch",
         json!({
             "device_id": device_id,
             "locations": locations
         }),
+        &api_key,
         &auth.access_token,
     );
-    let _ = app.oneshot(request).await.unwrap();
+    let upload_response = app.oneshot(request).await.unwrap();
+    assert_eq!(upload_response.status(), StatusCode::OK);
 
     // Verify locations exist
     let app = create_test_app(config.clone(), pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/data-export", device_id),
+        &api_key,
         &auth.access_token,
     );
     let response = app.oneshot(request).await.unwrap();
@@ -328,8 +353,9 @@ async fn test_delete_device_data_cascades_locations() {
 
     // Delete device data
     let app = create_test_app(config.clone(), pool.clone());
-    let request = delete_request_with_auth(
+    let request = delete_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/data", device_id),
+        &api_key,
         &auth.access_token,
     );
     let response = app.oneshot(request).await.unwrap();
@@ -337,8 +363,9 @@ async fn test_delete_device_data_cascades_locations() {
 
     // Verify device and all locations are gone
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_auth(
+    let request = get_request_with_api_key_and_jwt(
         &format!("/api/v1/devices/{}/data-export", device_id),
+        &api_key,
         &auth.access_token,
     );
     let response = app.oneshot(request).await.unwrap();

@@ -352,8 +352,6 @@ impl SettingRepository {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_setting_repository_new() {
         // This is a structural test - we can't test actual database operations without a test DB

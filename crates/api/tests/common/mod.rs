@@ -3,6 +3,10 @@
 //! This module provides helper functions and fixtures for running integration tests
 //! against a real PostgreSQL database.
 
+// Allow dead code in this module - these are helper utilities that may not be used
+// by all integration tests but are intentionally available for future use.
+#![allow(dead_code)]
+
 use axum::Router;
 use phone_manager_api::{app::create_app, config::Config};
 use sqlx::{postgres::PgPoolOptions, PgPool};
@@ -133,6 +137,7 @@ YQIDAQAB
             location_retention_days: 30,
             max_display_name_length: 50,
             max_group_id_length: 50,
+            max_webhooks_per_device: Some(10),
         },
         map_matching: phone_manager_api::config::MapMatchingConfig {
             provider: "osrm".to_string(),
@@ -248,8 +253,14 @@ pub async fn cleanup_all_test_data(pool: &PgPool) {
         "trip_path_corrections",
         "trips",
         "movement_events",
+        // Webhooks (must come before webhooks and geofence_events)
+        "webhook_deliveries",
+        // Geofence events (must come before geofences)
+        "geofence_events",
         // Location tracking
         "proximity_alerts",
+        // Webhooks (must come before devices)
+        "webhooks",
         "geofences",
         "locations",
         // Core
@@ -403,6 +414,7 @@ pub struct CreatedGroup {
 /// Create a group via the API.
 ///
 /// Requires an authenticated user. Returns the created group details.
+/// Also creates a default invite code for the group.
 pub async fn create_test_group(
     app: &Router,
     auth: &AuthenticatedUser,
@@ -411,6 +423,7 @@ pub async fn create_test_group(
     use axum::{body::Body, http::{header, Method, Request}};
     use tower::ServiceExt;
 
+    // Step 1: Create the group
     let request = Request::builder()
         .method(Method::POST)
         .uri("/api/v1/groups")
@@ -428,11 +441,34 @@ pub async fn create_test_group(
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
+    let group_id = json["id"].as_str().unwrap().to_string();
+    let slug = json["slug"].as_str().unwrap().to_string();
+    let name = json["name"].as_str().unwrap().to_string();
+
+    // Step 2: Create an invite for the group
+    let invite_request = Request::builder()
+        .method(Method::POST)
+        .uri(&format!("/api/v1/groups/{}/invites", group_id))
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {}", auth.access_token))
+        .body(Body::from(serde_json::to_string(&serde_json::json!({
+            "max_uses": 100,
+            "expires_in_hours": 24
+        })).unwrap()))
+        .unwrap();
+
+    let invite_response = app.clone().oneshot(invite_request).await.unwrap();
+    let invite_body = axum::body::to_bytes(invite_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let invite_json: serde_json::Value = serde_json::from_slice(&invite_body).unwrap();
+    let invite_code = invite_json["code"].as_str().unwrap_or("").to_string();
+
     CreatedGroup {
-        id: json["id"].as_str().unwrap().to_string(),
-        slug: json["slug"].as_str().unwrap().to_string(),
-        name: json["name"].as_str().unwrap().to_string(),
-        invite_code: json["invite_code"].as_str().unwrap_or("").to_string(),
+        id: group_id,
+        slug,
+        name,
+        invite_code,
     }
 }
 
@@ -531,7 +567,9 @@ pub async fn register_test_device(
 pub async fn create_test_api_key(pool: &PgPool, name: &str) -> String {
     // Generate a test API key
     let api_key = format!("pm_test_{}", uuid::Uuid::new_v4().simple());
-    let key_prefix = &api_key[..8]; // key_prefix is VARCHAR(8)
+    // key_prefix is first 8 chars after "pm_" (chars 3..11), matching shared::crypto::extract_key_prefix
+    let key_prefix = shared::crypto::extract_key_prefix(&api_key)
+        .expect("Test API key should have valid format");
 
     // Hash the key for storage using shared crypto utility
     let key_hash = shared::crypto::sha256_hex(&api_key);
@@ -559,7 +597,9 @@ pub async fn create_test_api_key(pool: &PgPool, name: &str) -> String {
 pub async fn create_test_admin_api_key(pool: &PgPool, name: &str) -> String {
     // Generate a test API key
     let api_key = format!("pm_admin_{}", uuid::Uuid::new_v4().simple());
-    let key_prefix = &api_key[..8]; // key_prefix is VARCHAR(8)
+    // key_prefix is first 8 chars after "pm_" (chars 3..11), matching shared::crypto::extract_key_prefix
+    let key_prefix = shared::crypto::extract_key_prefix(&api_key)
+        .expect("Test admin API key should have valid format");
 
     // Hash the key for storage using shared crypto utility
     let key_hash = shared::crypto::sha256_hex(&api_key);
@@ -753,12 +793,26 @@ pub async fn create_test_organization(
     );
 
     let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
     let body = parse_response_body(response).await;
 
+    // Verify the request succeeded
+    assert_eq!(status, axum::http::StatusCode::CREATED, "Failed to create organization: {:?}", body);
+
+    // Organization is returned directly in body (not wrapped in "organization" key)
     CreatedOrganization {
-        id: body["organization"]["id"].as_str().unwrap().to_string(),
-        name: body["organization"]["name"].as_str().unwrap().to_string(),
-        slug: body["organization"]["slug"].as_str().unwrap().to_string(),
+        id: body["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("Missing 'id' in response body: {:?}", body))
+            .to_string(),
+        name: body["name"]
+            .as_str()
+            .unwrap_or_else(|| panic!("Missing 'name' in response body: {:?}", body))
+            .to_string(),
+        slug: body["slug"]
+            .as_str()
+            .unwrap_or_else(|| panic!("Missing 'slug' in response body: {:?}", body))
+            .to_string(),
     }
 }
 

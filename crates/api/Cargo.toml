@@ -40,6 +40,8 @@ reqwest.workspace = true
 hex.workspace = true
 rand.workspace = true
 jsonwebtoken.workspace = true
+hmac.workspace = true
+sha2.workspace = true
 
 # OpenAPI / Swagger UI
 rust-embed = "8.5"

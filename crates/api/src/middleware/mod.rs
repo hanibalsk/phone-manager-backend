@@ -8,6 +8,7 @@ pub mod rbac;
 pub mod security_headers;
 pub mod trace_id;
 pub mod user_auth;
+pub mod version_check;
 
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use auth::{optional_auth, require_admin, require_auth};
@@ -28,3 +29,5 @@ pub use security_headers::security_headers_middleware;
 pub use trace_id::{trace_id, RequestId, REQUEST_ID_HEADER};
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use user_auth::{optional_user_auth, require_user_auth, UserAuth};
+#[allow(unused_imports)] // Re-exports for downstream use
+pub use version_check::{version_check, CLIENT_VERSION_HEADER, MIN_COMPATIBLE_VERSION, SERVER_VERSION};
