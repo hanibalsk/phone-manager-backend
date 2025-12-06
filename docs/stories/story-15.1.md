@@ -131,26 +131,26 @@ The frontend mobile app (phone-manager) has already implemented webhook UI and A
   - [x] Add webhook limit check (max 10)
   - [x] Add name uniqueness check
   - [x] Write unit tests for validation
-  - [ ] Write integration test
+  - [x] Write integration test
 
 - [x] Task 4: List Webhooks Endpoint (AC: 15.1.3)
   - [x] Implement `GET /api/v1/webhooks` handler with query param
   - [x] Add response DTO with list and total
-  - [ ] Write integration test
+  - [x] Write integration test
 
 - [x] Task 5: Get Webhook Endpoint (AC: 15.1.4)
   - [x] Implement `GET /api/v1/webhooks/:webhookId` handler
-  - [ ] Write integration test
+  - [x] Write integration test
 
 - [x] Task 6: Update Webhook Endpoint (AC: 15.1.5)
   - [x] Implement `PUT /api/v1/webhooks/:webhookId` handler
   - [x] Add partial update DTO
   - [x] Add validation for updated fields
-  - [ ] Write integration test
+  - [x] Write integration test
 
 - [x] Task 7: Delete Webhook Endpoint (AC: 15.1.6)
   - [x] Implement `DELETE /api/v1/webhooks/:webhookId` handler
-  - [ ] Write integration test
+  - [x] Write integration test
 
 - [x] Task 8: Route Registration
   - [x] Add webhook routes to router in `crates/api/src/routes/mod.rs`
@@ -353,4 +353,4 @@ Story 15.1 implements a complete webhook CRUD API aligned with the frontend mobi
 - [Validator Crate](https://docs.rs/validator) - Field-level validation
 
 ### Action Items
-- [ ] [AI-Review][Med] Add integration tests for webhook CRUD endpoints (AC 15.1.2-15.1.6)
+- [x] [AI-Review][Med] Add integration tests for webhook CRUD endpoints (AC 15.1.2-15.1.6) - Completed in `webhooks_integration.rs`

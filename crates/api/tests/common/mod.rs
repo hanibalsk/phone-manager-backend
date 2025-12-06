@@ -249,8 +249,14 @@ pub async fn cleanup_all_test_data(pool: &PgPool) {
         "trip_path_corrections",
         "trips",
         "movement_events",
+        // Webhooks (must come before webhooks and geofence_events)
+        "webhook_deliveries",
+        // Geofence events (must come before geofences)
+        "geofence_events",
         // Location tracking
         "proximity_alerts",
+        // Webhooks (must come before devices)
+        "webhooks",
         "geofences",
         "locations",
         // Core
