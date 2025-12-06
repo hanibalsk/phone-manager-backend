@@ -28,6 +28,7 @@ pub mod trip_path_correction;
 pub mod unlock_request;
 pub mod user;
 pub mod webhook;
+pub mod webhook_delivery;
 
 pub use admin_group::{
     AdminGroupEntity, AdminGroupProfileEntity, AdminGroupSummaryEntity, GroupDeviceEntity,
@@ -66,3 +67,7 @@ pub use trip_path_correction::TripPathCorrectionEntity;
 pub use unlock_request::{UnlockRequestEntity, UnlockRequestStatusDb, UnlockRequestWithDetailsEntity};
 pub use user::{OAuthAccountEntity, UserEntity, UserSessionEntity};
 pub use webhook::WebhookEntity;
+pub use webhook_delivery::{
+    WebhookDeliveryEntity, MAX_RETRY_ATTEMPTS, RETRY_BACKOFF_SECONDS, STATUS_FAILED, STATUS_PENDING,
+    STATUS_SUCCESS,
+};

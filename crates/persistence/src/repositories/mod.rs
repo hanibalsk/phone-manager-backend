@@ -27,6 +27,7 @@ pub mod trip_path_correction;
 pub mod unlock_request;
 pub mod user;
 pub mod webhook;
+pub mod webhook_delivery;
 
 pub use admin_group::AdminGroupRepository;
 pub use admin_user::AdminUserRepository;
@@ -57,3 +58,4 @@ pub use trip_path_correction::{
 pub use unlock_request::UnlockRequestRepository;
 pub use user::UserRepository;
 pub use webhook::WebhookRepository;
+pub use webhook_delivery::{DeliveryStats, WebhookDeliveryRepository};

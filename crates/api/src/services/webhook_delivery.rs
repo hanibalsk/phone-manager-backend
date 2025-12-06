@@ -1,17 +1,20 @@
 //! Webhook delivery service.
 //!
 //! Story 15.2: Webhook Event Delivery
-//! Handles asynchronous delivery of webhook notifications to external systems.
+//! Story 15.3: Webhook Delivery Logging and Retry
+//! Handles asynchronous delivery of webhook notifications to external systems
+//! with full delivery logging and retry support.
 
 use hmac::{Hmac, Mac};
-use persistence::repositories::{GeofenceEventRepository, WebhookRepository};
+use persistence::entities::WebhookDeliveryEntity;
+use persistence::repositories::{GeofenceEventRepository, WebhookDeliveryRepository, WebhookRepository};
 use reqwest::Client;
 use serde::Serialize;
 use sha2::Sha256;
 use sqlx::PgPool;
 use std::time::Duration;
 use thiserror::Error;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use domain::models::GeofenceTransitionType;
@@ -75,9 +78,11 @@ impl WebhookDeliveryService {
     /// This method:
     /// 1. Finds all enabled webhooks for the device
     /// 2. Creates the webhook payload
-    /// 3. Signs the payload with HMAC-SHA256
-    /// 4. Delivers to each webhook URL
-    /// 5. Updates the event's webhook status
+    /// 3. Logs delivery record for each webhook
+    /// 4. Signs the payload with HMAC-SHA256
+    /// 5. Delivers to each webhook URL
+    /// 6. Updates delivery record with result
+    /// 7. Updates the event's webhook status
     #[allow(clippy::too_many_arguments)]
     pub async fn deliver_geofence_event(
         &self,
@@ -110,13 +115,27 @@ impl WebhookDeliveryService {
         };
 
         let payload_json = serde_json::to_string(&payload)?;
+        let payload_value: serde_json::Value = serde_json::from_str(&payload_json)?;
 
         // Track overall delivery status
         let mut any_success = false;
         let mut last_response_code: Option<i32> = None;
 
+        let delivery_repo = WebhookDeliveryRepository::new(self.pool.clone());
+
         // Deliver to each webhook
         for webhook in &webhooks {
+            // Create delivery record
+            let event_type_str = event_type.to_webhook_event_type();
+            let delivery = delivery_repo
+                .create(
+                    webhook.webhook_id,
+                    Some(event_id),
+                    event_type_str,
+                    &payload_value,
+                )
+                .await?;
+
             let signature = self.sign_payload(&payload_json, &webhook.secret)?;
 
             match self
@@ -124,18 +143,52 @@ impl WebhookDeliveryService {
                 .await
             {
                 Ok(status_code) => {
-                    info!(
-                        webhook_id = %webhook.webhook_id,
-                        target_url = %webhook.target_url,
-                        status_code = status_code,
-                        "Webhook delivered successfully"
-                    );
-                    any_success = true;
-                    last_response_code = Some(status_code as i32);
+                    let success = (200..300).contains(&(status_code as i32));
+
+                    // Update delivery record
+                    delivery_repo
+                        .update_attempt(
+                            delivery.delivery_id,
+                            success,
+                            Some(status_code as i32),
+                            None,
+                        )
+                        .await?;
+
+                    if success {
+                        info!(
+                            webhook_id = %webhook.webhook_id,
+                            delivery_id = %delivery.delivery_id,
+                            target_url = %webhook.target_url,
+                            status_code = status_code,
+                            "Webhook delivered successfully"
+                        );
+                        any_success = true;
+                        last_response_code = Some(status_code as i32);
+                    } else {
+                        warn!(
+                            webhook_id = %webhook.webhook_id,
+                            delivery_id = %delivery.delivery_id,
+                            target_url = %webhook.target_url,
+                            status_code = status_code,
+                            "Webhook delivery returned non-2xx status"
+                        );
+                    }
                 }
                 Err(e) => {
+                    // Update delivery record with error
+                    delivery_repo
+                        .update_attempt(
+                            delivery.delivery_id,
+                            false,
+                            None,
+                            Some(&e.to_string()),
+                        )
+                        .await?;
+
                     warn!(
                         webhook_id = %webhook.webhook_id,
+                        delivery_id = %delivery.delivery_id,
                         target_url = %webhook.target_url,
                         error = %e,
                         "Webhook delivery failed"
@@ -152,6 +205,127 @@ impl WebhookDeliveryService {
             .await?;
 
         Ok(())
+    }
+
+    /// Process pending webhook delivery retries.
+    ///
+    /// This method:
+    /// 1. Finds deliveries that are due for retry
+    /// 2. Looks up the webhook configuration
+    /// 3. Attempts delivery
+    /// 4. Updates delivery status
+    pub async fn process_pending_retries(&self, batch_size: i64) -> Result<u32, WebhookDeliveryError> {
+        let delivery_repo = WebhookDeliveryRepository::new(self.pool.clone());
+        let webhook_repo = WebhookRepository::new(self.pool.clone());
+
+        let pending = delivery_repo.find_pending_retries(batch_size).await?;
+        let mut processed = 0u32;
+
+        for delivery in pending {
+            match self.retry_delivery(&delivery, &webhook_repo, &delivery_repo).await {
+                Ok(_) => {
+                    processed += 1;
+                }
+                Err(e) => {
+                    error!(
+                        delivery_id = %delivery.delivery_id,
+                        error = %e,
+                        "Failed to process retry"
+                    );
+                }
+            }
+        }
+
+        if processed > 0 {
+            info!(processed = processed, "Processed pending webhook retries");
+        }
+
+        Ok(processed)
+    }
+
+    /// Retry a single delivery.
+    async fn retry_delivery(
+        &self,
+        delivery: &WebhookDeliveryEntity,
+        webhook_repo: &WebhookRepository,
+        delivery_repo: &WebhookDeliveryRepository,
+    ) -> Result<(), WebhookDeliveryError> {
+        // Find the webhook
+        let webhook = match webhook_repo.find_by_webhook_id(delivery.webhook_id).await? {
+            Some(w) => w,
+            None => {
+                // Webhook was deleted, mark delivery as failed
+                delivery_repo
+                    .update_attempt(delivery.delivery_id, false, None, Some("Webhook not found"))
+                    .await?;
+                return Ok(());
+            }
+        };
+
+        // Check if webhook is still enabled
+        if !webhook.enabled {
+            delivery_repo
+                .update_attempt(delivery.delivery_id, false, None, Some("Webhook disabled"))
+                .await?;
+            return Ok(());
+        }
+
+        let payload_json = serde_json::to_string(&delivery.payload)?;
+        let signature = self.sign_payload(&payload_json, &webhook.secret)?;
+
+        match self
+            .deliver_to_webhook(&webhook.target_url, &payload_json, &signature)
+            .await
+        {
+            Ok(status_code) => {
+                let success = (200..300).contains(&(status_code as i32));
+                delivery_repo
+                    .update_attempt(delivery.delivery_id, success, Some(status_code as i32), None)
+                    .await?;
+
+                if success {
+                    info!(
+                        delivery_id = %delivery.delivery_id,
+                        webhook_id = %webhook.webhook_id,
+                        status_code = status_code,
+                        "Retry delivery succeeded"
+                    );
+                } else {
+                    warn!(
+                        delivery_id = %delivery.delivery_id,
+                        webhook_id = %webhook.webhook_id,
+                        status_code = status_code,
+                        "Retry delivery returned non-2xx status"
+                    );
+                }
+            }
+            Err(e) => {
+                delivery_repo
+                    .update_attempt(delivery.delivery_id, false, None, Some(&e.to_string()))
+                    .await?;
+
+                warn!(
+                    delivery_id = %delivery.delivery_id,
+                    webhook_id = %webhook.webhook_id,
+                    error = %e,
+                    "Retry delivery failed"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Clean up old delivery records.
+    pub async fn cleanup_old_deliveries(&self, retention_days: i32) -> Result<u64, WebhookDeliveryError> {
+        let delivery_repo = WebhookDeliveryRepository::new(self.pool.clone());
+        let deleted = delivery_repo.delete_old_deliveries(retention_days).await?;
+
+        if deleted > 0 {
+            info!(deleted = deleted, retention_days = retention_days, "Cleaned up old webhook deliveries");
+        }
+
+        Ok(deleted)
     }
 
     /// Sign the payload with HMAC-SHA256.

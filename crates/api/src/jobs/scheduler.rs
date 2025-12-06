@@ -12,6 +12,8 @@ use tracing::{error, info, warn};
 pub enum JobFrequency {
     /// Run every N seconds (for testing).
     Seconds(u64),
+    /// Run every N minutes.
+    Minutes(u64),
     /// Run every hour.
     Hourly,
     /// Run every day at midnight UTC.
@@ -23,6 +25,7 @@ impl JobFrequency {
     pub fn duration(&self) -> Duration {
         match self {
             JobFrequency::Seconds(secs) => Duration::from_secs(*secs),
+            JobFrequency::Minutes(mins) => Duration::from_secs(*mins * 60),
             JobFrequency::Hourly => Duration::from_secs(3600),
             JobFrequency::Daily => Duration::from_secs(86400),
         }
