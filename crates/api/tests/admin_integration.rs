@@ -35,7 +35,7 @@ async fn test_get_admin_stats_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _ = register_test_device(&app, &auth, &device).await;
+    let _ = register_test_device(&app, &pool, &auth, &device).await;
 
     // Get admin stats
     let app = create_test_app(config, pool.clone());
@@ -115,7 +115,7 @@ async fn test_delete_inactive_devices_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Deactivate the device first (soft delete)
@@ -238,7 +238,7 @@ async fn test_reactivate_device_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Deactivate the device (soft delete)
@@ -291,7 +291,7 @@ async fn test_reactivate_device_already_active() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Try to reactivate already active device

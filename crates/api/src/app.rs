@@ -21,9 +21,9 @@ use crate::middleware::{
 };
 use crate::routes::{
     admin, admin_groups, admin_users, audit_logs, auth, bulk_import, dashboard, device_policies,
-    device_settings, devices, enrollment, enrollment_tokens, fleet, frontend, geofences, groups,
-    health, invites, locations, movement_events, openapi, organizations, privacy, proximity_alerts,
-    trips, users, versioning,
+    device_settings, devices, enrollment, enrollment_tokens, fleet, frontend, geofence_events,
+    geofences, groups, health, invites, locations, movement_events, openapi, organizations, privacy,
+    proximity_alerts, trips, users, versioning, webhooks,
 };
 use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
@@ -239,6 +239,34 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/v1/proximity-alerts/:alert_id",
             delete(proximity_alerts::delete_proximity_alert),
+        )
+        // Webhook routes (v1) - Story 15.1
+        .route("/api/v1/webhooks", post(webhooks::create_webhook))
+        .route("/api/v1/webhooks", get(webhooks::list_webhooks))
+        .route(
+            "/api/v1/webhooks/:webhook_id",
+            get(webhooks::get_webhook),
+        )
+        .route(
+            "/api/v1/webhooks/:webhook_id",
+            put(webhooks::update_webhook),
+        )
+        .route(
+            "/api/v1/webhooks/:webhook_id",
+            delete(webhooks::delete_webhook),
+        )
+        // Geofence event routes (v1) - Story 15.2
+        .route(
+            "/api/v1/geofence-events",
+            post(geofence_events::create_geofence_event),
+        )
+        .route(
+            "/api/v1/geofence-events",
+            get(geofence_events::list_geofence_events),
+        )
+        .route(
+            "/api/v1/geofence-events/:event_id",
+            get(geofence_events::get_geofence_event),
         )
         // Privacy routes (v1) - GDPR compliance
         .route(

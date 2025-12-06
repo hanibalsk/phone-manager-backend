@@ -34,7 +34,7 @@ async fn test_create_geofence_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
@@ -78,7 +78,7 @@ async fn test_create_geofence_invalid_radius_too_small() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Try to create geofence with radius too small (< 20 meters)
@@ -120,7 +120,7 @@ async fn test_create_geofence_invalid_radius_too_large() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Try to create geofence with radius too large (> 50000 meters)
@@ -201,7 +201,7 @@ async fn test_list_geofences_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create two geofences
@@ -268,7 +268,7 @@ async fn test_list_geofences_empty() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // List geofences for device (none exist)
@@ -306,7 +306,7 @@ async fn test_get_geofence_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
@@ -389,7 +389,7 @@ async fn test_update_geofence_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
@@ -451,7 +451,7 @@ async fn test_delete_geofence_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence

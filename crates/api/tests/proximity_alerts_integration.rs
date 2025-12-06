@@ -39,13 +39,13 @@ async fn test_create_proximity_alert_success() {
     // Register source device
     let source_device = TestDevice::new().with_group(&group_id).with_name("Source Device");
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     // Register target device
     let target_device = TestDevice::new().with_group(&group_id).with_name("Target Device");
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Create a proximity alert
@@ -90,12 +90,12 @@ async fn test_create_proximity_alert_invalid_radius_too_small() {
     // Register two devices
     let source_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Try to create proximity alert with radius too small (< 50 meters)
@@ -137,7 +137,7 @@ async fn test_create_proximity_alert_same_device() {
     // Register single device
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Try to create proximity alert with same source and target
@@ -180,12 +180,12 @@ async fn test_create_proximity_alert_different_groups() {
     // Register devices in different groups
     let source_device = TestDevice::new().with_group("group-a");
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target_device = TestDevice::new().with_group("group-b");
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Try to create proximity alert between devices in different groups
@@ -235,17 +235,17 @@ async fn test_list_proximity_alerts_success() {
     // Register three devices
     let source_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target1 = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target1_response = register_test_device(&app, &auth, &target1).await;
+    let target1_response = register_test_device(&app, &pool, &auth, &target1).await;
     let target1_id = target1_response["device_id"].as_str().unwrap();
 
     let target2 = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target2_response = register_test_device(&app, &auth, &target2).await;
+    let target2_response = register_test_device(&app, &pool, &auth, &target2).await;
     let target2_id = target2_response["device_id"].as_str().unwrap();
 
     // Create two proximity alerts from same source
@@ -316,12 +316,12 @@ async fn test_get_proximity_alert_success() {
     // Register two devices
     let source_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Create a proximity alert
@@ -406,12 +406,12 @@ async fn test_update_proximity_alert_success() {
     // Register two devices
     let source_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Create a proximity alert
@@ -475,12 +475,12 @@ async fn test_delete_proximity_alert_success() {
     // Register two devices
     let source_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let source_response = register_test_device(&app, &auth, &source_device).await;
+    let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     let target_device = TestDevice::new().with_group(&group_id);
     let app = create_test_app(config.clone(), pool.clone());
-    let target_response = register_test_device(&app, &auth, &target_device).await;
+    let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
 
     // Create a proximity alert

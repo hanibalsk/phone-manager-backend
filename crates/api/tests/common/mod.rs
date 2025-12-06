@@ -133,6 +133,7 @@ YQIDAQAB
             location_retention_days: 30,
             max_display_name_length: 50,
             max_group_id_length: 50,
+            max_webhooks_per_device: Some(10),
         },
         map_matching: phone_manager_api::config::MapMatchingConfig {
             provider: "osrm".to_string(),

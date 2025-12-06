@@ -34,7 +34,7 @@ async fn test_create_movement_event_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a movement event
@@ -110,7 +110,7 @@ async fn test_create_movement_event_invalid_event_type() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Try to create event with invalid type
@@ -155,7 +155,7 @@ async fn test_create_movement_events_batch_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create batch of events
@@ -213,7 +213,7 @@ async fn test_create_movement_events_batch_empty() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Try to create empty batch
@@ -256,7 +256,7 @@ async fn test_get_device_movement_events_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create some events
@@ -317,7 +317,7 @@ async fn test_get_device_movement_events_empty() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Get movement events (none exist)
@@ -351,7 +351,7 @@ async fn test_get_device_movement_events_with_pagination() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let device_response = register_test_device(&app, &auth, &device).await;
+    let device_response = register_test_device(&app, &pool, &auth, &device).await;
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create many events

@@ -113,6 +113,10 @@ pub struct LimitsConfig {
 
     #[serde(default = "default_max_group_id_length")]
     pub max_group_id_length: usize,
+
+    /// Maximum webhooks per device (Story 15.1)
+    #[serde(default)]
+    pub max_webhooks_per_device: Option<u32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

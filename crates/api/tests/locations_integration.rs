@@ -34,7 +34,7 @@ async fn test_upload_location_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _device_response = register_test_device(&app, &auth, &device).await;
+    let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Upload a location
     let app = create_test_app(config, pool.clone());
@@ -109,7 +109,7 @@ async fn test_upload_location_invalid_latitude() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _device_response = register_test_device(&app, &auth, &device).await;
+    let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Try to upload location with invalid latitude (> 90)
     let app = create_test_app(config, pool.clone());
@@ -149,7 +149,7 @@ async fn test_upload_location_invalid_longitude() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _device_response = register_test_device(&app, &auth, &device).await;
+    let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Try to upload location with invalid longitude (> 180)
     let app = create_test_app(config, pool.clone());
@@ -193,7 +193,7 @@ async fn test_upload_batch_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _device_response = register_test_device(&app, &auth, &device).await;
+    let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Upload batch of locations
     let app = create_test_app(config, pool.clone());
@@ -252,7 +252,7 @@ async fn test_upload_batch_exceeds_limit() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _device_response = register_test_device(&app, &auth, &device).await;
+    let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Try to upload batch exceeding limit
     let app = create_test_app(config, pool.clone());
@@ -302,7 +302,7 @@ async fn test_upload_batch_empty() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _device_response = register_test_device(&app, &auth, &device).await;
+    let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Try to upload empty batch
     let app = create_test_app(config, pool.clone());
@@ -344,7 +344,7 @@ async fn test_get_location_history_success() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _device_response = register_test_device(&app, &auth, &device).await;
+    let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Upload some locations
     let app = create_test_app(config.clone(), pool.clone());
@@ -405,7 +405,7 @@ async fn test_get_location_history_with_pagination() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _device_response = register_test_device(&app, &auth, &device).await;
+    let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Upload some locations
     let app = create_test_app(config.clone(), pool.clone());
@@ -468,7 +468,7 @@ async fn test_get_location_history_with_time_range() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _device_response = register_test_device(&app, &auth, &device).await;
+    let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Upload some locations at different times
     let app = create_test_app(config.clone(), pool.clone());
@@ -540,7 +540,7 @@ async fn test_get_location_history_with_simplification() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _device_response = register_test_device(&app, &auth, &device).await;
+    let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Upload many locations in a line
     let app = create_test_app(config.clone(), pool.clone());
@@ -610,7 +610,7 @@ async fn test_get_location_history_empty() {
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let _device_response = register_test_device(&app, &auth, &device).await;
+    let _device_response = register_test_device(&app, &pool, &auth, &device).await;
 
     // Get location history without uploading any locations
     let app = create_test_app(config, pool.clone());

@@ -12,6 +12,7 @@ pub mod device_policy;
 pub mod device_token;
 pub mod enrollment_token;
 pub mod geofence;
+pub mod geofence_event;
 pub mod group;
 pub mod idempotency_key;
 pub mod invite;
@@ -25,6 +26,7 @@ pub mod trip;
 pub mod trip_path_correction;
 pub mod unlock_request;
 pub mod user;
+pub mod webhook;
 
 pub use admin_group::AdminGroupRepository;
 pub use admin_user::AdminUserRepository;
@@ -38,6 +40,7 @@ pub use device_policy::DevicePolicyRepository;
 pub use device_token::DeviceTokenRepository;
 pub use enrollment_token::EnrollmentTokenRepository;
 pub use geofence::GeofenceRepository;
+pub use geofence_event::GeofenceEventRepository;
 pub use group::GroupRepository;
 pub use idempotency_key::IdempotencyKeyRepository;
 pub use invite::InviteRepository;
@@ -53,3 +56,4 @@ pub use trip_path_correction::{
 };
 pub use unlock_request::UnlockRequestRepository;
 pub use user::UserRepository;
+pub use webhook::WebhookRepository;
