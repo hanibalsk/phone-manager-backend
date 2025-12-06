@@ -16,8 +16,8 @@ use tower_http::{
 use crate::config::Config;
 use crate::middleware::{
     auth_rate_limit_middleware, metrics_handler, metrics_middleware, rate_limit_middleware,
-    require_admin, require_auth, security_headers_middleware, trace_id, AuthRateLimiterState,
-    ExportRateLimiterState, RateLimiterState,
+    require_admin, require_auth, security_headers_middleware, trace_id, version_check,
+    AuthRateLimiterState, ExportRateLimiterState, RateLimiterState,
 };
 use crate::routes::{
     admin, admin_groups, admin_users, audit_logs, auth, bulk_import, dashboard, device_policies,
@@ -628,6 +628,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         )))
         .layer(middleware::from_fn(metrics_middleware)) // Prometheus metrics
         .layer(TraceLayer::new_for_http())
+        .layer(middleware::from_fn(version_check)) // Client version compatibility check
         .layer(middleware::from_fn(trace_id)) // Request ID and logging
         .layer(cors)
         .with_state(state)
