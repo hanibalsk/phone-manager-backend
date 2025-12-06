@@ -567,7 +567,9 @@ pub async fn register_test_device(
 pub async fn create_test_api_key(pool: &PgPool, name: &str) -> String {
     // Generate a test API key
     let api_key = format!("pm_test_{}", uuid::Uuid::new_v4().simple());
-    let key_prefix = &api_key[..8]; // key_prefix is VARCHAR(8)
+    // key_prefix is first 8 chars after "pm_" (chars 3..11), matching shared::crypto::extract_key_prefix
+    let key_prefix = shared::crypto::extract_key_prefix(&api_key)
+        .expect("Test API key should have valid format");
 
     // Hash the key for storage using shared crypto utility
     let key_hash = shared::crypto::sha256_hex(&api_key);
@@ -595,7 +597,9 @@ pub async fn create_test_api_key(pool: &PgPool, name: &str) -> String {
 pub async fn create_test_admin_api_key(pool: &PgPool, name: &str) -> String {
     // Generate a test API key
     let api_key = format!("pm_admin_{}", uuid::Uuid::new_v4().simple());
-    let key_prefix = &api_key[..8]; // key_prefix is VARCHAR(8)
+    // key_prefix is first 8 chars after "pm_" (chars 3..11), matching shared::crypto::extract_key_prefix
+    let key_prefix = shared::crypto::extract_key_prefix(&api_key)
+        .expect("Test admin API key should have valid format");
 
     // Hash the key for storage using shared crypto utility
     let key_hash = shared::crypto::sha256_hex(&api_key);

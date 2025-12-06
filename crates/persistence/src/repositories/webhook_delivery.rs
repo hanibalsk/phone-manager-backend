@@ -198,6 +198,27 @@ impl WebhookDeliveryRepository {
         Ok(result.rows_affected())
     }
 
+    /// Postpone a delivery retry to a later time (e.g., when circuit breaker is open).
+    pub async fn postpone_retry(
+        &self,
+        delivery_id: Uuid,
+        next_retry_at: chrono::DateTime<Utc>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            UPDATE webhook_deliveries
+            SET next_retry_at = $2
+            WHERE delivery_id = $1 AND status = 'pending'
+            "#,
+        )
+        .bind(delivery_id)
+        .bind(next_retry_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
     /// Count pending deliveries for a webhook.
     pub async fn count_pending_by_webhook_id(
         &self,

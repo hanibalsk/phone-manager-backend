@@ -16,7 +16,7 @@ use sha2::Sha256;
 use sqlx::PgPool;
 use std::time::Duration;
 use thiserror::Error;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use domain::models::GeofenceTransitionType;
@@ -293,6 +293,25 @@ impl WebhookDeliveryService {
                 .update_attempt(delivery.delivery_id, false, None, Some("Webhook disabled"))
                 .await?;
             return Ok(());
+        }
+
+        // Check if circuit breaker is open - skip retry if still in cooldown
+        if let Some(open_until) = webhook.circuit_open_until {
+            if open_until > chrono::Utc::now() {
+                // Circuit is still open, postpone this delivery by updating next_retry_at
+                let postpone_until = open_until + chrono::Duration::seconds(60);
+                delivery_repo
+                    .postpone_retry(delivery.delivery_id, postpone_until)
+                    .await?;
+
+                debug!(
+                    delivery_id = %delivery.delivery_id,
+                    webhook_id = %webhook.webhook_id,
+                    circuit_open_until = %open_until,
+                    "Skipping retry - circuit breaker is open, postponing delivery"
+                );
+                return Ok(());
+            }
         }
 
         let payload_json = serde_json::to_string(&delivery.payload)?;
