@@ -793,12 +793,17 @@ pub async fn create_test_organization(
     );
 
     let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
     let body = parse_response_body(response).await;
 
+    // Verify the request succeeded
+    assert_eq!(status, axum::http::StatusCode::CREATED, "Failed to create organization: {:?}", body);
+
+    // Organization is returned directly in body (not wrapped in "organization" key)
     CreatedOrganization {
-        id: body["organization"]["id"].as_str().unwrap().to_string(),
-        name: body["organization"]["name"].as_str().unwrap().to_string(),
-        slug: body["organization"]["slug"].as_str().unwrap().to_string(),
+        id: body["id"].as_str().unwrap().to_string(),
+        name: body["name"].as_str().unwrap().to_string(),
+        slug: body["slug"].as_str().unwrap().to_string(),
     }
 }
 

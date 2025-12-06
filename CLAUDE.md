@@ -81,6 +81,7 @@ PM__LOGGING__LEVEL=info
 PM__SECURITY__RATE_LIMIT_PER_MINUTE=100
 PM__LIMITS__MAX_DEVICES_PER_GROUP=20
 PM__LIMITS__MAX_BATCH_SIZE=50
+PM__LIMITS__MAX_WEBHOOKS_PER_DEVICE=10
 
 # FCM Push Notifications (optional)
 PM__FCM__ENABLED=true
@@ -146,13 +147,48 @@ Critical production requirements:
 - Max 20 alerts per source device
 - Haversine distance calculation (PostgreSQL function)
 
+### Webhooks
+- Per-device webhook registration (max 10/device)
+- HTTPS required for target URLs
+- HMAC-SHA256 signature for payload verification
+- Secret: 16-256 characters
+- Async delivery with retry logic
+
+### Geofence Events
+- Track enter/exit/dwell transitions
+- Automatic webhook delivery on event creation
+- Webhook delivery status tracking per event
+
+### Webhook Delivery (Circuit Breaker)
+- Exponential backoff: 0s, 60s, 300s, 900s
+- Max 4 retry attempts per delivery
+- Circuit breaker: opens after 5 failures
+- 5-minute cooldown when circuit is open
+- Retry worker skips deliveries when circuit is open
+
 ### Authentication
-- API key-based (SHA-256 hashed storage) for device/admin APIs
-- JWT-based authentication for user APIs
+
+**Three authentication methods:**
+
+| Method | Header | Routes | Middleware/Extractor |
+|--------|--------|--------|---------------------|
+| API Key | `X-API-Key` | Devices, locations, geofences, webhooks, etc. | `require_auth` middleware |
+| JWT | `Authorization: Bearer` | User profile, group management | `UserAuth` extractor |
+| Admin API Key | `X-API-Key` (admin flag) | Admin routes | `require_admin` middleware |
+
+**API Key Details:**
+- SHA-256 hashed storage
+- Key prefix (8 chars after `pm_`) for identification via `shared::crypto::extract_key_prefix()`
+
+**JWT Details:**
+- ES256 algorithm (ECDSA with P-256 curve)
 - OAuth social login (Google, Apple) with proper token validation
-- Rate limiting per API key and per IP for auth endpoints
-- Per-IP rate limiting for forgot password (5/hour) and verification (3/hour)
-- Key prefix for identification
+- Tokens include user ID, email, and role claims
+
+**Rate Limiting:**
+- Per API key for protected endpoints
+- Per IP for auth endpoints
+- Forgot password: 5/hour, verification: 3/hour
 
 ## API Endpoints
 
@@ -197,6 +233,22 @@ Critical production requirements:
 | GET | `/api/v1/proximity-alerts/:alert_id` | Get alert |
 | PATCH | `/api/v1/proximity-alerts/:alert_id` | Update alert |
 | DELETE | `/api/v1/proximity-alerts/:alert_id` | Delete alert |
+
+### Webhooks
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/webhooks` | Create webhook |
+| GET | `/api/v1/webhooks?ownerDeviceId=` | List device webhooks |
+| GET | `/api/v1/webhooks/:webhook_id` | Get webhook |
+| PUT | `/api/v1/webhooks/:webhook_id` | Update webhook |
+| DELETE | `/api/v1/webhooks/:webhook_id` | Delete webhook |
+
+### Geofence Events
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/geofence-events` | Create geofence event (triggers webhook delivery) |
+| GET | `/api/v1/geofence-events?deviceId=` | List device events |
+| GET | `/api/v1/geofence-events/:event_id` | Get event |
 
 ### Trips
 | Method | Path | Description |
@@ -320,6 +372,7 @@ cargo run --bin phone-manager
 - **App Builder**: `crates/api/src/app.rs`
 - **Configuration**: `crates/api/src/config.rs`
 - **Error Types**: `crates/api/src/error.rs`
+- **Webhook Delivery**: `crates/api/src/services/webhook_delivery.rs`
 - **Migrations**: `crates/persistence/src/migrations/`
 - **Spec Document**: `docs/rust-backend-spec.md`
 
