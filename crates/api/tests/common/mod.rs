@@ -801,9 +801,18 @@ pub async fn create_test_organization(
 
     // Organization is returned directly in body (not wrapped in "organization" key)
     CreatedOrganization {
-        id: body["id"].as_str().unwrap().to_string(),
-        name: body["name"].as_str().unwrap().to_string(),
-        slug: body["slug"].as_str().unwrap().to_string(),
+        id: body["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("Missing 'id' in response body: {:?}", body))
+            .to_string(),
+        name: body["name"]
+            .as_str()
+            .unwrap_or_else(|| panic!("Missing 'name' in response body: {:?}", body))
+            .to_string(),
+        slug: body["slug"]
+            .as_str()
+            .unwrap_or_else(|| panic!("Missing 'slug' in response body: {:?}", body))
+            .to_string(),
     }
 }
 
