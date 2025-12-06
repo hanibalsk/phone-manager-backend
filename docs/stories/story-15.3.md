@@ -124,3 +124,95 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created_at ON webhook_deliveri
 - [x] Cleanup job implemented
 - [x] All tests passing
 - [x] Code passes clippy
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+| 2025-12-06 | Claude | Initial story creation - Webhook Delivery Logging and Retry |
+| 2025-12-06 | Claude | Implementation complete - All retry and cleanup functionality implemented |
+| 2025-12-06 | Claude | Senior Developer Review (AI) completed - Approved |
+
+---
+
+## Senior Developer Review (AI)
+
+### Reviewer
+Martin Janci (AI-Assisted)
+
+### Date
+2025-12-06
+
+### Outcome
+**✅ Approved**
+
+### Summary
+Story 15.3 implements comprehensive webhook delivery logging with retry support and automatic cleanup. The implementation follows the exponential backoff strategy (immediate → 1m → 5m → 15m), integrates seamlessly with Story 15.2's delivery service, and provides background jobs for retry processing and cleanup. All acceptance criteria are met.
+
+### Key Findings
+
+**High Severity**: None
+
+**Medium Severity**: None
+
+**Low Severity**:
+1. **Circuit Breaker Not Implemented** - AC 15.3.6 (Circuit Breaker) is marked as optional and not implemented. This is acceptable for MVP but should be considered for production resilience.
+2. **Max Attempts Constant** - The MAX_RETRY_ATTEMPTS (4) allows one initial attempt plus 3 retries. This matches AC 15.3.3 "Retry failed deliveries up to 3 times" - well-implemented.
+
+### Acceptance Criteria Coverage
+
+| AC | Status | Evidence |
+|----|--------|----------|
+| AC 15.3.1 | ✅ Met | Migration `035_webhook_deliveries.sql` creates table with all required columns, FKs, indexes including partial indexes for pending status |
+| AC 15.3.2 | ✅ Met | `WebhookDeliveryRepository.create()` and `update_attempt()` log all delivery attempts with response_code, error_message, and status |
+| AC 15.3.3 | ✅ Met | `RETRY_BACKOFF_SECONDS = [0, 60, 300, 900]` implements immediate + 1m + 5m + 15m backoff; `MAX_RETRY_ATTEMPTS = 4` marks failed after 4 attempts |
+| AC 15.3.4 | ✅ Met | `WebhookRetryJob` runs every minute (`JobFrequency::Minutes(1)`), processes batches of 10, uses `process_pending_retries()` |
+| AC 15.3.5 | ✅ Met | `WebhookCleanupJob` runs daily, uses 7-day retention (configurable), logs deleted count |
+| AC 15.3.6 | ⏭️ Skipped | Optional - Circuit breaker not implemented (acceptable per story definition) |
+
+### Test Coverage and Gaps
+
+**Covered**:
+- Backoff schedule verification (2 tests in repository)
+- Job name and frequency tests (4 tests each in retry/cleanup jobs)
+- Retention period validation
+- Batch size validation
+
+**Gaps**:
+- Integration tests for retry flow with actual webhook delivery
+- End-to-end tests for cleanup job behavior
+
+### Architectural Alignment
+✅ Follows layered architecture: Jobs → Services → Repositories → Entities
+✅ Uses JobFrequency enum with new Minutes variant for fine-grained scheduling
+✅ Uses SQLx compile-time checked queries
+✅ Proper separation of concerns (job scheduling vs. delivery logic)
+✅ Background jobs registered in main.rs with appropriate configuration
+
+### Implementation Details
+
+**Backoff Schedule Implementation**:
+```rust
+pub const RETRY_BACKOFF_SECONDS: [i64; 4] = [0, 60, 300, 900];
+pub const MAX_RETRY_ATTEMPTS: i32 = 4;
+```
+
+**Job Registration** (main.rs:68-70):
+```rust
+scheduler.register(jobs::WebhookRetryJob::new(pool.clone(), 10));
+scheduler.register(jobs::WebhookCleanupJob::new(pool.clone(), Some(7)));
+```
+
+### Security Notes
+- ✅ Webhook secrets retrieved from database for retry (not cached)
+- ✅ Disabled webhooks checked before retry attempts
+- ✅ Deleted webhooks handled gracefully (delivery marked failed)
+- ✅ Old deliveries cleaned up to prevent unbounded storage growth
+
+### Best-Practices and References
+- [Exponential Backoff](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/) - Industry standard for retry strategies
+- [Background Jobs](https://docs.rs/tokio) - Proper async job scheduling with tokio
+- [Partial Indexes](https://www.postgresql.org/docs/current/indexes-partial.html) - Optimized queries for pending status
+
+### Action Items
+- [ ] [AI-Review][Low] Consider implementing Circuit Breaker (AC 15.3.6) for production resilience
