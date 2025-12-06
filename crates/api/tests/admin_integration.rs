@@ -138,7 +138,7 @@ async fn test_delete_inactive_devices_success() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert_eq!(body["success"].as_bool().unwrap(), true);
+    assert!(body["success"].as_bool().unwrap());
     assert!(body.get("affected_count").is_some());
     assert!(body.get("message").is_some());
 
@@ -262,7 +262,7 @@ async fn test_reactivate_device_success() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert_eq!(body["success"].as_bool().unwrap(), true);
+    assert!(body["success"].as_bool().unwrap());
     assert_eq!(body["device_id"].as_str().unwrap(), device_id);
     assert!(body["message"]
         .as_str()
@@ -305,7 +305,7 @@ async fn test_reactivate_device_already_active() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert_eq!(body["success"].as_bool().unwrap(), true);
+    assert!(body["success"].as_bool().unwrap());
     assert!(body["message"]
         .as_str()
         .unwrap()
@@ -350,7 +350,7 @@ async fn test_reactivate_device_without_api_key() {
     let fake_device_id = uuid::Uuid::new_v4();
     let request = axum::http::Request::builder()
         .method(Method::POST)
-        .uri(&format!(
+        .uri(format!(
             "/api/v1/admin/devices/{}/reactivate",
             fake_device_id
         ))

@@ -1572,7 +1572,7 @@ mod tests {
             &SettingDataType::Integer
         ));
         assert!(!validate_value_type(
-            &serde_json::json!(3.14),
+            &serde_json::json!(2.5),
             &SettingDataType::Integer
         ));
         assert!(!validate_value_type(
@@ -1600,7 +1600,7 @@ mod tests {
     #[test]
     fn test_validate_value_type_float() {
         assert!(validate_value_type(
-            &serde_json::json!(3.14),
+            &serde_json::json!(2.5),
             &SettingDataType::Float
         ));
         assert!(validate_value_type(

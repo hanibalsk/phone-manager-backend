@@ -634,7 +634,7 @@ async fn test_remove_org_user_success() {
     // Create and add two users (so we have an owner and can remove one)
     let user1 = TestUser::new();
     let app = create_test_app(config.clone(), pool.clone());
-    let auth1 = create_authenticated_user(&app, &user1).await;
+    let _auth1 = create_authenticated_user(&app, &user1).await;
     let app = create_test_app(config.clone(), pool.clone());
     let request = json_request_with_api_key(
         Method::POST,

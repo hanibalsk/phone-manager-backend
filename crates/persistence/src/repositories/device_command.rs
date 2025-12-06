@@ -204,8 +204,6 @@ impl DeviceCommandRepository {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_device_command_repository_new() {
         // This test verifies the repository can be constructed

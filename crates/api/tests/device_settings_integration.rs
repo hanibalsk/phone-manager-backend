@@ -405,7 +405,7 @@ async fn test_unlock_setting_success() {
     let api_key2 = create_test_api_key(&pool, "test_unlock_setting").await;
     let request = axum::http::Request::builder()
         .method(Method::DELETE)
-        .uri(&format!(
+        .uri(format!(
             "/api/v1/devices/{}/settings/tracking_enabled/lock",
             device_id
         ))

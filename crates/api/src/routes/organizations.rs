@@ -503,7 +503,6 @@ pub async fn remove_org_user(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     #[test]
     fn test_create_organization_request_deserialization() {

@@ -3,6 +3,10 @@
 //! This module provides helper functions and fixtures for running integration tests
 //! against a real PostgreSQL database.
 
+// Allow dead code in this module - these are helper utilities that may not be used
+// by all integration tests but are intentionally available for future use.
+#![allow(dead_code)]
+
 use axum::Router;
 use phone_manager_api::{app::create_app, config::Config};
 use sqlx::{postgres::PgPoolOptions, PgPool};

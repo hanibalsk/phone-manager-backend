@@ -197,8 +197,6 @@ impl GeofenceEventRepository {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_repository_new() {
         // Just verify the repository can be created with a pool

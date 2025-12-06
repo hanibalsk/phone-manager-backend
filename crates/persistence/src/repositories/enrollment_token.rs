@@ -228,8 +228,6 @@ impl EnrollmentTokenRepository {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_enrollment_token_repository_new() {
         // This is a compile-time test - repository should be constructable

@@ -244,7 +244,7 @@ mod tests {
     fn test_job_trait_requirements() {
         // Verify Job trait is async
         fn assert_job<T: Job>() {}
-        // Note: Can't actually call this without a pool, but verifies trait exists
+        assert_job::<CleanupLocationsJob>();
     }
 
     // ===========================================

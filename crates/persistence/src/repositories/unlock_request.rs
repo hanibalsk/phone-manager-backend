@@ -251,8 +251,6 @@ impl UnlockRequestRepository {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_unlock_request_repository_new() {
         // This is a structural test - we can't test actual database operations without a test DB

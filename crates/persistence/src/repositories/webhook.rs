@@ -310,6 +310,5 @@ mod tests {
     fn test_repository_creation() {
         // This test verifies the WebhookRepository can be created
         // Actual database tests are integration tests
-        assert!(true);
     }
 }

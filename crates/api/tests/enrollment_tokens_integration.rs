@@ -200,7 +200,7 @@ async fn test_create_enrollment_token_requires_jwt() {
     use axum::{body::Body, http::{header, Request}};
     let request = Request::builder()
         .method(Method::POST)
-        .uri(&format!("/api/admin/v1/organizations/{}/enrollment-tokens", org_id))
+        .uri(format!("/api/admin/v1/organizations/{}/enrollment-tokens", org_id))
         .header(header::CONTENT_TYPE, "application/json")
         .header("X-API-Key", &api_key)
         .body(Body::from(r#"{}"#))

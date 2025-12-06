@@ -104,6 +104,5 @@ mod tests {
     fn test_repository_creation() {
         // This test verifies the IdempotencyKeyRepository can be created
         // Actual database tests are integration tests
-        assert!(true);
     }
 }

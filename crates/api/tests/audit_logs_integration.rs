@@ -10,10 +10,9 @@ mod common;
 use axum::http::{Method, StatusCode};
 use common::{
     cleanup_all_test_data, create_authenticated_user, create_test_admin_api_key, create_test_app,
-    create_test_pool, get_request_with_api_key_and_jwt, json_request_with_api_key_and_jwt,
-    parse_response_body, run_migrations, test_config, TestUser,
+    create_test_pool, get_request_with_api_key_and_jwt, parse_response_body, run_migrations,
+    test_config, TestUser,
 };
-use serde_json::json;
 use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
