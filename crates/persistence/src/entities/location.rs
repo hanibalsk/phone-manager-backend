@@ -11,12 +11,12 @@ pub struct LocationEntity {
     pub device_id: Uuid,
     pub latitude: f64,
     pub longitude: f64,
-    pub accuracy: f64,
+    pub accuracy: f32,           // REAL (FLOAT4) in PostgreSQL
     pub altitude: Option<f64>,
-    pub bearing: Option<f64>,
-    pub speed: Option<f64>,
+    pub bearing: Option<f32>,    // REAL (FLOAT4) in PostgreSQL
+    pub speed: Option<f32>,      // REAL (FLOAT4) in PostgreSQL
     pub provider: Option<String>,
-    pub battery_level: Option<i32>,
+    pub battery_level: Option<i16>, // SMALLINT in PostgreSQL
     pub network_type: Option<String>,
     pub captured_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
@@ -33,12 +33,12 @@ impl From<LocationEntity> for domain::models::Location {
             device_id: entity.device_id,
             latitude: entity.latitude,
             longitude: entity.longitude,
-            accuracy: entity.accuracy,
+            accuracy: entity.accuracy as f64,       // f32 → f64
             altitude: entity.altitude,
-            bearing: entity.bearing,
-            speed: entity.speed,
+            bearing: entity.bearing.map(|b| b as f64), // f32 → f64
+            speed: entity.speed.map(|s| s as f64),     // f32 → f64
             provider: entity.provider,
-            battery_level: entity.battery_level,
+            battery_level: entity.battery_level.map(|b| b as i32), // i16 → i32
             network_type: entity.network_type,
             captured_at: entity.captured_at,
             created_at: entity.created_at,
@@ -59,12 +59,12 @@ mod tests {
             device_id: Uuid::new_v4(),
             latitude: 37.7749,
             longitude: -122.4194,
-            accuracy: 10.0,
+            accuracy: 10.0_f32,
             altitude: Some(100.0),
-            bearing: Some(180.0),
-            speed: Some(5.5),
+            bearing: Some(180.0_f32),
+            speed: Some(5.5_f32),
             provider: Some("gps".to_string()),
-            battery_level: Some(85),
+            battery_level: Some(85_i16),
             network_type: Some("wifi".to_string()),
             captured_at: Utc::now(),
             created_at: Utc::now(),
@@ -83,12 +83,12 @@ mod tests {
         assert_eq!(location.device_id, entity.device_id);
         assert_eq!(location.latitude, entity.latitude);
         assert_eq!(location.longitude, entity.longitude);
-        assert_eq!(location.accuracy, entity.accuracy);
+        assert_eq!(location.accuracy, entity.accuracy as f64); // f32 → f64
         assert_eq!(location.altitude, entity.altitude);
-        assert_eq!(location.bearing, entity.bearing);
-        assert_eq!(location.speed, entity.speed);
+        assert_eq!(location.bearing, entity.bearing.map(|b| b as f64)); // f32 → f64
+        assert_eq!(location.speed, entity.speed.map(|s| s as f64)); // f32 → f64
         assert_eq!(location.provider, entity.provider);
-        assert_eq!(location.battery_level, entity.battery_level);
+        assert_eq!(location.battery_level, entity.battery_level.map(|b| b as i32)); // i16 → i32
         assert_eq!(location.network_type, entity.network_type);
     }
 
@@ -116,7 +116,7 @@ mod tests {
             device_id: Uuid::new_v4(),
             latitude: 37.7749,
             longitude: -122.4194,
-            accuracy: 10.0,
+            accuracy: 10.0_f32,
             altitude: None,
             bearing: None,
             speed: None,

@@ -26,3 +26,12 @@ default_environment = "staging"
 # Shorter cache for development
 immutable_cache_max_age = 60
 mutable_cache_max_age = 0
+
+[map_matching]
+# Enable map matching for development
+enabled = true
+# Use public OSRM demo server (rate limited, for testing only)
+url = "http://router.project-osrm.org"
+provider = "osrm"
+timeout_ms = 30000
+rate_limit_per_minute = 10
