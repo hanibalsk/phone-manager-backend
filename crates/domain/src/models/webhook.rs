@@ -16,8 +16,28 @@ pub struct Webhook {
     pub target_url: String,
     pub secret: String,
     pub enabled: bool,
+    /// Number of consecutive delivery failures since last success
+    pub consecutive_failures: i32,
+    /// When circuit breaker is open, this is when it will auto-close
+    pub circuit_open_until: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+impl Webhook {
+    /// Check if the circuit breaker is currently open.
+    pub fn is_circuit_open(&self) -> bool {
+        if let Some(open_until) = self.circuit_open_until {
+            Utc::now() < open_until
+        } else {
+            false
+        }
+    }
+
+    /// Check if webhook is available for delivery (enabled and circuit closed).
+    pub fn is_available(&self) -> bool {
+        self.enabled && !self.is_circuit_open()
+    }
 }
 
 /// Default enabled status for new webhooks.
@@ -266,5 +286,71 @@ mod tests {
         assert!(validate_https_url("http://example.com").is_err());
         assert!(validate_https_url("ftp://example.com").is_err());
         assert!(validate_https_url("example.com").is_err());
+    }
+
+    fn create_test_webhook(enabled: bool, circuit_open_until: Option<DateTime<Utc>>) -> Webhook {
+        Webhook {
+            id: 1,
+            webhook_id: Uuid::new_v4(),
+            owner_device_id: Uuid::new_v4(),
+            name: "Test Webhook".to_string(),
+            target_url: "https://example.com/webhook".to_string(),
+            secret: "test-secret-key".to_string(),
+            enabled,
+            consecutive_failures: 0,
+            circuit_open_until,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn test_webhook_is_circuit_open_none() {
+        let webhook = create_test_webhook(true, None);
+        assert!(!webhook.is_circuit_open());
+    }
+
+    #[test]
+    fn test_webhook_is_circuit_open_future() {
+        use chrono::Duration;
+        let future = Utc::now() + Duration::hours(1);
+        let webhook = create_test_webhook(true, Some(future));
+        assert!(webhook.is_circuit_open());
+    }
+
+    #[test]
+    fn test_webhook_is_circuit_open_past() {
+        use chrono::Duration;
+        let past = Utc::now() - Duration::hours(1);
+        let webhook = create_test_webhook(true, Some(past));
+        assert!(!webhook.is_circuit_open());
+    }
+
+    #[test]
+    fn test_webhook_is_available_enabled_circuit_closed() {
+        let webhook = create_test_webhook(true, None);
+        assert!(webhook.is_available());
+    }
+
+    #[test]
+    fn test_webhook_is_available_disabled() {
+        let webhook = create_test_webhook(false, None);
+        assert!(!webhook.is_available());
+    }
+
+    #[test]
+    fn test_webhook_is_available_circuit_open() {
+        use chrono::Duration;
+        let future = Utc::now() + Duration::hours(1);
+        let webhook = create_test_webhook(true, Some(future));
+        assert!(!webhook.is_available());
+    }
+
+    #[test]
+    fn test_webhook_is_available_disabled_and_circuit_open() {
+        use chrono::Duration;
+        let future = Utc::now() + Duration::hours(1);
+        let webhook = create_test_webhook(false, Some(future));
+        assert!(!webhook.is_available());
     }
 }

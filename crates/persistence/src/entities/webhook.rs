@@ -16,6 +16,8 @@ pub struct WebhookEntity {
     pub target_url: String,
     pub secret: String,
     pub enabled: bool,
+    pub consecutive_failures: i32,
+    pub circuit_open_until: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -30,6 +32,8 @@ impl From<WebhookEntity> for Webhook {
             target_url: entity.target_url,
             secret: entity.secret,
             enabled: entity.enabled,
+            consecutive_failures: entity.consecutive_failures,
+            circuit_open_until: entity.circuit_open_until,
             created_at: entity.created_at,
             updated_at: entity.updated_at,
         }
@@ -49,6 +53,8 @@ mod tests {
             target_url: "https://example.com/webhook".to_string(),
             secret: "test-secret-key-12345678".to_string(),
             enabled: true,
+            consecutive_failures: 0,
+            circuit_open_until: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
@@ -73,5 +79,7 @@ mod tests {
         assert_eq!(cloned.target_url, entity.target_url);
         assert_eq!(cloned.secret, entity.secret);
         assert_eq!(cloned.enabled, entity.enabled);
+        assert_eq!(cloned.consecutive_failures, entity.consecutive_failures);
+        assert_eq!(cloned.circuit_open_until, entity.circuit_open_until);
     }
 }

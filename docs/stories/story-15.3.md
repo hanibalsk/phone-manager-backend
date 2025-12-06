@@ -168,7 +168,7 @@ Story 15.3 implements comprehensive webhook delivery logging with retry support 
 | AC 15.3.3 | ✅ Met | `RETRY_BACKOFF_SECONDS = [0, 60, 300, 900]` implements immediate + 1m + 5m + 15m backoff; `MAX_RETRY_ATTEMPTS = 4` marks failed after 4 attempts |
 | AC 15.3.4 | ✅ Met | `WebhookRetryJob` runs every minute (`JobFrequency::Minutes(1)`), processes batches of 10, uses `process_pending_retries()` |
 | AC 15.3.5 | ✅ Met | `WebhookCleanupJob` runs daily, uses 7-day retention (configurable), logs deleted count |
-| AC 15.3.6 | ⏭️ Skipped | Optional - Circuit breaker not implemented (acceptable per story definition) |
+| AC 15.3.6 | ✅ Met | Circuit breaker implemented: 5 failure threshold, 5-minute cooldown, auto-reset on success |
 
 ### Test Coverage and Gaps
 
@@ -215,4 +215,9 @@ scheduler.register(jobs::WebhookCleanupJob::new(pool.clone(), Some(7)));
 - [Partial Indexes](https://www.postgresql.org/docs/current/indexes-partial.html) - Optimized queries for pending status
 
 ### Action Items
-- [ ] [AI-Review][Low] Consider implementing Circuit Breaker (AC 15.3.6) for production resilience
+- [x] [AI-Review][Low] Consider implementing Circuit Breaker (AC 15.3.6) for production resilience - Implemented with:
+  - Migration `036_webhook_circuit_breaker.sql` adds `consecutive_failures` and `circuit_open_until` columns
+  - Circuit opens after 5 consecutive failures (CIRCUIT_BREAKER_THRESHOLD)
+  - Circuit remains open for 5 minutes (CIRCUIT_BREAKER_COOLDOWN_SECS)
+  - Circuit auto-closes when cooldown expires, success resets failure count
+  - 7 new tests for circuit breaker logic

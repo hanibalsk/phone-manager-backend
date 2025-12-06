@@ -190,8 +190,8 @@ impl WebhookRepository {
         Ok(result.rows_affected())
     }
 
-    /// Find all enabled webhooks for a device.
-    /// Used when triggering webhook deliveries.
+    /// Find all enabled webhooks for a device that are available for delivery.
+    /// Excludes webhooks with open circuit breakers.
     pub async fn find_enabled_by_owner_device_id(
         &self,
         owner_device_id: Uuid,
@@ -200,7 +200,9 @@ impl WebhookRepository {
         let result = sqlx::query_as::<_, WebhookEntity>(
             r#"
             SELECT * FROM webhooks
-            WHERE owner_device_id = $1 AND enabled = true
+            WHERE owner_device_id = $1
+              AND enabled = true
+              AND (circuit_open_until IS NULL OR circuit_open_until <= NOW())
             ORDER BY created_at DESC
             "#,
         )
@@ -209,6 +211,96 @@ impl WebhookRepository {
         .await;
         timer.record();
         result
+    }
+
+    /// Increment consecutive failures counter for a webhook.
+    /// Returns the new failure count.
+    pub async fn increment_consecutive_failures(
+        &self,
+        webhook_id: Uuid,
+    ) -> Result<i32, sqlx::Error> {
+        let timer = QueryTimer::new("increment_webhook_failures");
+        let result: (i32,) = sqlx::query_as(
+            r#"
+            UPDATE webhooks
+            SET consecutive_failures = consecutive_failures + 1,
+                updated_at = NOW()
+            WHERE webhook_id = $1
+            RETURNING consecutive_failures
+            "#,
+        )
+        .bind(webhook_id)
+        .fetch_one(&self.pool)
+        .await?;
+        timer.record();
+        Ok(result.0)
+    }
+
+    /// Reset consecutive failures counter after a successful delivery.
+    pub async fn reset_consecutive_failures(
+        &self,
+        webhook_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        let timer = QueryTimer::new("reset_webhook_failures");
+        sqlx::query(
+            r#"
+            UPDATE webhooks
+            SET consecutive_failures = 0,
+                circuit_open_until = NULL,
+                updated_at = NOW()
+            WHERE webhook_id = $1
+            "#,
+        )
+        .bind(webhook_id)
+        .execute(&self.pool)
+        .await?;
+        timer.record();
+        Ok(())
+    }
+
+    /// Open the circuit breaker for a webhook.
+    /// The circuit will remain open until the specified time.
+    pub async fn open_circuit(
+        &self,
+        webhook_id: Uuid,
+        open_until: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), sqlx::Error> {
+        let timer = QueryTimer::new("open_webhook_circuit");
+        sqlx::query(
+            r#"
+            UPDATE webhooks
+            SET circuit_open_until = $2,
+                updated_at = NOW()
+            WHERE webhook_id = $1
+            "#,
+        )
+        .bind(webhook_id)
+        .bind(open_until)
+        .execute(&self.pool)
+        .await?;
+        timer.record();
+        Ok(())
+    }
+
+    /// Close the circuit breaker for a webhook (reset circuit_open_until to NULL).
+    pub async fn close_circuit(
+        &self,
+        webhook_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        let timer = QueryTimer::new("close_webhook_circuit");
+        sqlx::query(
+            r#"
+            UPDATE webhooks
+            SET circuit_open_until = NULL,
+                updated_at = NOW()
+            WHERE webhook_id = $1
+            "#,
+        )
+        .bind(webhook_id)
+        .execute(&self.pool)
+        .await?;
+        timer.record();
+        Ok(())
     }
 }
 

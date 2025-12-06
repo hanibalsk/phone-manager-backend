@@ -2,9 +2,11 @@
 //!
 //! Story 15.2: Webhook Event Delivery
 //! Story 15.3: Webhook Delivery Logging and Retry
+//! Story 15.3 AC 15.3.6: Circuit Breaker
 //! Handles asynchronous delivery of webhook notifications to external systems
-//! with full delivery logging and retry support.
+//! with full delivery logging, retry support, and circuit breaker protection.
 
+use chrono::{Duration as ChronoDuration, Utc};
 use hmac::{Hmac, Mac};
 use persistence::entities::WebhookDeliveryEntity;
 use persistence::repositories::{GeofenceEventRepository, WebhookDeliveryRepository, WebhookRepository};
@@ -21,6 +23,14 @@ use domain::models::GeofenceTransitionType;
 
 /// Webhook delivery timeout in seconds.
 const WEBHOOK_TIMEOUT_SECS: u64 = 5;
+
+/// Number of consecutive failures before circuit breaker opens.
+/// After this many failures, the webhook will be temporarily disabled.
+pub const CIRCUIT_BREAKER_THRESHOLD: i32 = 5;
+
+/// Cooldown period in seconds when circuit breaker is open.
+/// The webhook will be unavailable for this duration after the circuit opens.
+pub const CIRCUIT_BREAKER_COOLDOWN_SECS: i64 = 300; // 5 minutes
 
 /// Errors that can occur during webhook delivery.
 #[derive(Error, Debug)]
@@ -165,6 +175,15 @@ impl WebhookDeliveryService {
                         );
                         any_success = true;
                         last_response_code = Some(status_code as i32);
+
+                        // Reset circuit breaker on success
+                        if let Err(e) = webhook_repo.reset_consecutive_failures(webhook.webhook_id).await {
+                            warn!(
+                                webhook_id = %webhook.webhook_id,
+                                error = %e,
+                                "Failed to reset consecutive failures"
+                            );
+                        }
                     } else {
                         warn!(
                             webhook_id = %webhook.webhook_id,
@@ -173,6 +192,9 @@ impl WebhookDeliveryService {
                             status_code = status_code,
                             "Webhook delivery returned non-2xx status"
                         );
+
+                        // Handle circuit breaker on non-2xx response
+                        self.handle_delivery_failure(&webhook_repo, webhook.webhook_id).await;
                     }
                 }
                 Err(e) => {
@@ -193,6 +215,9 @@ impl WebhookDeliveryService {
                         error = %e,
                         "Webhook delivery failed"
                     );
+
+                    // Handle circuit breaker on error
+                    self.handle_delivery_failure(&webhook_repo, webhook.webhook_id).await;
                     // Continue trying other webhooks
                 }
             }
@@ -290,6 +315,15 @@ impl WebhookDeliveryService {
                         status_code = status_code,
                         "Retry delivery succeeded"
                     );
+
+                    // Reset circuit breaker on success
+                    if let Err(e) = webhook_repo.reset_consecutive_failures(webhook.webhook_id).await {
+                        warn!(
+                            webhook_id = %webhook.webhook_id,
+                            error = %e,
+                            "Failed to reset consecutive failures after retry"
+                        );
+                    }
                 } else {
                     warn!(
                         delivery_id = %delivery.delivery_id,
@@ -297,6 +331,9 @@ impl WebhookDeliveryService {
                         status_code = status_code,
                         "Retry delivery returned non-2xx status"
                     );
+
+                    // Handle circuit breaker on non-2xx response
+                    self.handle_delivery_failure(webhook_repo, webhook.webhook_id).await;
                 }
             }
             Err(e) => {
@@ -310,6 +347,9 @@ impl WebhookDeliveryService {
                     error = %e,
                     "Retry delivery failed"
                 );
+
+                // Handle circuit breaker on error
+                self.handle_delivery_failure(webhook_repo, webhook.webhook_id).await;
             }
         }
 
@@ -326,6 +366,43 @@ impl WebhookDeliveryService {
         }
 
         Ok(deleted)
+    }
+
+    /// Handle a delivery failure by updating the circuit breaker state.
+    ///
+    /// This method:
+    /// 1. Increments the consecutive failure counter
+    /// 2. If threshold is reached, opens the circuit breaker
+    async fn handle_delivery_failure(&self, webhook_repo: &WebhookRepository, webhook_id: Uuid) {
+        match webhook_repo.increment_consecutive_failures(webhook_id).await {
+            Ok(failure_count) => {
+                if failure_count >= CIRCUIT_BREAKER_THRESHOLD {
+                    // Open the circuit breaker
+                    let open_until = Utc::now() + ChronoDuration::seconds(CIRCUIT_BREAKER_COOLDOWN_SECS);
+                    if let Err(e) = webhook_repo.open_circuit(webhook_id, open_until).await {
+                        error!(
+                            webhook_id = %webhook_id,
+                            error = %e,
+                            "Failed to open circuit breaker"
+                        );
+                    } else {
+                        warn!(
+                            webhook_id = %webhook_id,
+                            failure_count = failure_count,
+                            open_until = %open_until,
+                            "Circuit breaker opened due to consecutive failures"
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(
+                    webhook_id = %webhook_id,
+                    error = %e,
+                    "Failed to increment consecutive failures"
+                );
+            }
+        }
     }
 
     /// Sign the payload with HMAC-SHA256.
@@ -406,5 +483,17 @@ mod tests {
     #[test]
     fn test_webhook_timeout_constant() {
         assert_eq!(WEBHOOK_TIMEOUT_SECS, 5);
+    }
+
+    #[test]
+    fn test_circuit_breaker_threshold_constant() {
+        // Circuit breaker opens after 5 consecutive failures
+        assert_eq!(CIRCUIT_BREAKER_THRESHOLD, 5);
+    }
+
+    #[test]
+    fn test_circuit_breaker_cooldown_constant() {
+        // Circuit stays open for 5 minutes (300 seconds)
+        assert_eq!(CIRCUIT_BREAKER_COOLDOWN_SECS, 300);
     }
 }
