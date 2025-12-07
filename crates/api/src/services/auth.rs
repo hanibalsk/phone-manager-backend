@@ -144,8 +144,15 @@ impl AuthService {
         apple_client_id: Option<String>,
     ) -> Result<Self, AuthError> {
         // Convert literal \n sequences to actual newlines (for env var compatibility)
-        let private_key = jwt_config.private_key.replace("\\n", "\n");
-        let public_key = jwt_config.public_key.replace("\\n", "\n");
+        // Handle both escaped \\n and literal \n from different env parsing methods
+        let private_key = Self::normalize_pem_key(&jwt_config.private_key);
+        let public_key = Self::normalize_pem_key(&jwt_config.public_key);
+
+        tracing::debug!(
+            "JWT key lengths - private: {}, public: {}",
+            private_key.len(),
+            public_key.len()
+        );
 
         let jwt = JwtConfig::new(
             &private_key,
@@ -165,6 +172,43 @@ impl AuthService {
             google_client_id,
             apple_auth_client,
         })
+    }
+
+    /// Normalize PEM key by converting various newline representations to actual newlines.
+    /// Handles: literal "\n" string, escaped "\\n", and already-correct newlines.
+    fn normalize_pem_key(key: &str) -> String {
+        tracing::debug!(
+            "Raw key first 80 chars: {:?}",
+            &key[..80.min(key.len())]
+        );
+
+        // Strip surrounding quotes if present (some env file parsers include them)
+        let key = key.trim_matches('"').trim_matches('\'');
+
+        // Replace literal \n sequences with actual newlines
+        // In the env file: \n is stored as two characters (backslash + n)
+        // We need to convert them to actual newline characters
+        let normalized = key.replace("\\n", "\n");
+
+        // Also check if we have the string "\\n" which would appear as 4 chars in debug
+        let normalized = normalized.replace(r#"\n"#, "\n");
+
+        let newline_count = normalized.matches('\n').count();
+        tracing::debug!(
+            "Normalized key has {} newlines, length: {}",
+            newline_count,
+            normalized.len()
+        );
+
+        // If the key still doesn't have proper PEM structure, log for debugging
+        if newline_count == 0 && normalized.len() > 100 {
+            tracing::error!(
+                "PEM key missing newlines after normalization. First 80 chars: {:?}",
+                &normalized[..80.min(normalized.len())]
+            );
+        }
+
+        normalized
     }
 
     /// Register a new user with email and password.

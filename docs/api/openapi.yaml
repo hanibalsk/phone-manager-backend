@@ -39,7 +39,7 @@ info:
 servers:
   - url: http://localhost:8080
     description: Local development
-  - url: https://api.phonemanager.example.com
+  - url: https://loc.rlt.sk
     description: Production
 
 tags:
