@@ -181,7 +181,7 @@ Critical production requirements:
 - Key prefix (8 chars after `pm_`) for identification via `shared::crypto::extract_key_prefix()`
 
 **JWT Details:**
-- ES256 algorithm (ECDSA with P-256 curve)
+- RS256 algorithm (RSA-SHA256 with 2048-bit keys)
 - OAuth social login (Google, Apple) with proper token validation
 - Tokens include user ID, email, and role claims
 
