@@ -22,6 +22,7 @@ pub mod movement_event;
 pub mod org_user;
 pub mod organization;
 pub mod proximity_alert;
+pub mod registration_invite;
 pub mod setting;
 pub mod trip;
 pub mod trip_path_correction;
@@ -58,6 +59,7 @@ pub use movement_event::MovementEventEntity;
 pub use org_user::{OrgUserEntity, OrgUserRoleDb, OrgUserWithDetailsEntity};
 pub use organization::{OrganizationEntity, OrganizationWithUsageEntity, PlanTypeDb};
 pub use proximity_alert::ProximityAlertEntity;
+pub use registration_invite::RegistrationInviteEntity;
 pub use setting::{
     DeviceSettingEntity, DeviceSettingWithDefinitionEntity, SettingCategoryDb, SettingDataTypeDb,
     SettingDefinitionEntity, SettingLockEntity,

@@ -180,3 +180,63 @@ immutable_cache_max_age = 31536000
 # Cache max-age for mutable assets (index.html) in seconds
 # Default: 1 minute (60)
 mutable_cache_max_age = 60
+
+[auth_toggles]
+# Whether public registration is enabled (default: true)
+# Set to false to disable registration endpoint
+# Set via PM__AUTH_TOGGLES__REGISTRATION_ENABLED
+registration_enabled = true
+
+# Whether invite-only mode is enabled (default: false)
+# When true, registration requires a valid invite token
+# Set via PM__AUTH_TOGGLES__INVITE_ONLY
+invite_only = false
+
+# Whether OAuth-only mode is enabled (default: false)
+# When true, password-based registration and login are disabled
+# Users must use Google or Apple OAuth
+# Set via PM__AUTH_TOGGLES__OAUTH_ONLY
+oauth_only = false
+
+[features]
+# Whether geofences feature is enabled (default: true)
+# When disabled, geofence endpoints return 404
+# Set via PM__FEATURES__GEOFENCES_ENABLED
+geofences_enabled = true
+
+# Whether proximity alerts feature is enabled (default: true)
+# When disabled, proximity alert endpoints return 404
+# Set via PM__FEATURES__PROXIMITY_ALERTS_ENABLED
+proximity_alerts_enabled = true
+
+# Whether webhooks feature is enabled (default: true)
+# When disabled, webhook endpoints return 404
+# Set via PM__FEATURES__WEBHOOKS_ENABLED
+webhooks_enabled = true
+
+# Whether movement tracking feature is enabled (default: true)
+# When disabled, trips and movement events endpoints return 404
+# Set via PM__FEATURES__MOVEMENT_TRACKING_ENABLED
+movement_tracking_enabled = true
+
+# Whether B2B/organization features are enabled (default: true)
+# When disabled, organization, policy, and enrollment endpoints return 404
+# Set via PM__FEATURES__B2B_ENABLED
+b2b_enabled = true
+
+# Whether geofence events feature is enabled (default: true)
+# When disabled, geofence event endpoints return 404
+# Set via PM__FEATURES__GEOFENCE_EVENTS_ENABLED
+geofence_events_enabled = true
+
+[admin]
+# Bootstrap admin email (empty = skip bootstrap)
+# When set, creates an admin user on first startup if no admin exists
+# SECURITY: Remove after initial setup!
+# Set via PM__ADMIN__BOOTSTRAP_EMAIL
+bootstrap_email = ""
+
+# Bootstrap admin password (required if bootstrap_email is set)
+# SECURITY: Remove after initial setup!
+# Set via PM__ADMIN__BOOTSTRAP_PASSWORD
+bootstrap_password = ""

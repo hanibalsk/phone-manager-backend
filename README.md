@@ -13,7 +13,9 @@ A high-performance Rust backend API for the Phone Manager mobile application. Ha
 - **Geofences & Events** - Per-device circular geofences with enter/exit/dwell event tracking
 - **Webhooks** - Event delivery to external endpoints with HMAC-SHA256 signatures and circuit breaker
 - **API Key Authentication** - Secure SHA-256 hashed API key authentication with admin roles
-- **JWT Authentication** - User authentication with OAuth social login (Google, Apple)
+- **JWT Authentication** - RS256 user authentication with OAuth social login (Google, Apple)
+- **Configuration Toggles** - Runtime feature flags for registration, OAuth-only, invite-only modes
+- **Admin Bootstrap** - Automatic first admin creation via environment variables
 - **Rate Limiting** - Per-API-key rate limiting using sliding window algorithm
 - **Prometheus Metrics** - Production-ready observability with request counters and latency histograms
 - **GDPR Compliance** - Data export and hard deletion for privacy compliance
@@ -24,18 +26,18 @@ A high-performance Rust backend API for the Phone Manager mobile application. Ha
 
 | Component | Technology | Version |
 |-----------|------------|---------|
-| Language | Rust | 1.75+ |
-| Web Framework | Axum | 0.7 |
-| Async Runtime | Tokio | 1.37 |
-| Database | PostgreSQL + SQLx | 0.7 |
+| Language | Rust | 1.83+ |
+| Web Framework | Axum | 0.8 |
+| Async Runtime | Tokio | 1.42 |
+| Database | PostgreSQL + SQLx | 0.8 |
 | Rate Limiting | Governor | 0.7 |
-| Metrics | Prometheus | 0.14 |
+| Metrics | Prometheus | 0.24 |
 
 ## Quick Start
 
 ### Prerequisites
 
-- Rust 1.75+ (`rustup update stable`)
+- Rust 1.83+ (`rustup update stable`)
 - PostgreSQL 14+
 - SQLx CLI (`cargo install sqlx-cli --no-default-features --features postgres`)
 
@@ -290,6 +292,16 @@ Configuration uses TOML files with environment variable overrides.
 | `PM__FRONTEND__STAGING_HOSTNAME` | No | - | Hostname for staging environment |
 | `PM__FRONTEND__PRODUCTION_HOSTNAME` | No | - | Hostname for production environment |
 | `PM__FRONTEND__DEFAULT_ENVIRONMENT` | No | `production` | Default when hostname doesn't match |
+| `PM__AUTH__REGISTRATION_ENABLED` | No | `true` | Enable user registration |
+| `PM__AUTH__INVITE_ONLY` | No | `false` | Require invite token for registration |
+| `PM__AUTH__OAUTH_ONLY` | No | `false` | Disable password auth, require OAuth |
+| `PM__FEATURES__GEOFENCES_ENABLED` | No | `true` | Enable geofence features |
+| `PM__FEATURES__PROXIMITY_ALERTS_ENABLED` | No | `true` | Enable proximity alert features |
+| `PM__FEATURES__WEBHOOKS_ENABLED` | No | `true` | Enable webhook features |
+| `PM__FEATURES__MOVEMENT_TRACKING_ENABLED` | No | `true` | Enable trips and movement events |
+| `PM__FEATURES__B2B_ENABLED` | No | `true` | Enable B2B/organization features |
+| `PM__ADMIN__BOOTSTRAP_EMAIL` | No | - | Email for first admin user (one-time) |
+| `PM__ADMIN__BOOTSTRAP_PASSWORD` | No | - | Password for first admin (remove after setup!) |
 
 ### Configuration Files
 
@@ -584,7 +596,7 @@ The API supports three authentication methods:
 - Admin keys have elevated privileges for management operations
 
 **JWT Authentication:**
-- ES256 algorithm (ECDSA with P-256 curve)
+- RS256 algorithm (RSA-SHA256 with 2048-bit keys)
 - OAuth social login support (Google, Apple)
 - Tokens include user ID, email, and role claims
 

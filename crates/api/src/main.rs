@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::time::Duration;
 use tracing::{info, warn};
 
-use phone_manager_api::{app, config, jobs, middleware};
+use phone_manager_api::{app, config, jobs, middleware, services};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -55,6 +55,11 @@ async fn main() -> Result<()> {
         .run(&pool)
         .await?;
     info!("Migrations completed");
+
+    // Bootstrap admin user if configured
+    if let Err(e) = services::admin_bootstrap::bootstrap_admin(&pool, &config.admin).await {
+        warn!("Admin bootstrap failed: {}. Continuing startup...", e);
+    }
 
     // Start job scheduler
     let mut scheduler = jobs::JobScheduler::new();
