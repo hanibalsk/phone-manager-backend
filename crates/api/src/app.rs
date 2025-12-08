@@ -629,11 +629,18 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         )
         // Public invite info (Story 11.4)
         .route("/api/v1/invites/:code", get(invites::get_invite_info))
-        // Device enrollment (Story 13.5) - token is the auth
-        .route("/api/v1/devices/enroll", post(enrollment::enroll_device))
         .route("/api/health/ready", get(health::ready))
         .route("/api/health/live", get(health::live))
         .route("/metrics", get(metrics_handler));
+
+    // B2B public routes (no auth but requires B2B feature enabled)
+    let b2b_public_routes = Router::new()
+        // Device enrollment (Story 13.5) - token is the auth, requires B2B
+        .route("/api/v1/devices/enroll", post(enrollment::enroll_device))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            require_b2b,
+        ));
 
     // OpenAPI documentation routes (public, no auth)
     let openapi_routes = Router::new()
@@ -645,6 +652,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
     // Merge all routes
     let mut app = Router::new()
         .merge(public_routes)
+        .merge(b2b_public_routes)
         .merge(auth_routes)
         .merge(user_routes)
         .merge(group_routes)

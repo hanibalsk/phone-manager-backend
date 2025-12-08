@@ -68,6 +68,18 @@ pub async fn bootstrap_admin(
     // Hash the password using argon2 (same as auth service)
     let password_hash = hash_password(&config.bootstrap_password)?;
 
+    // Generate admin API key before transaction (no side effects)
+    let api_key = generate_api_key();
+    let key_hash = sha256_hex(&api_key);
+    // extract_key_prefix always succeeds for our generated keys (pm_ + 32 chars)
+    let key_prefix = extract_key_prefix(&api_key).unwrap_or(&api_key[..8]);
+
+    // Use a transaction to ensure user and API key are created atomically.
+    // This prevents the scenario where user is created but API key insert fails,
+    // leaving the system with no admin access (since the email exists, future
+    // boots would skip bootstrap).
+    let mut tx = pool.begin().await?;
+
     // Create admin user
     let user_id: Uuid = sqlx::query_scalar(
         r#"
@@ -78,15 +90,10 @@ pub async fn bootstrap_admin(
     )
     .bind(&config.bootstrap_email)
     .bind(&password_hash)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
 
-    // Generate admin API key
-    let api_key = generate_api_key();
-    let key_hash = sha256_hex(&api_key);
-    // extract_key_prefix always succeeds for our generated keys (pm_ + 32 chars)
-    let key_prefix = extract_key_prefix(&api_key).unwrap_or(&api_key[..8]);
-
+    // Create admin API key
     sqlx::query(
         r#"
         INSERT INTO api_keys (key_hash, key_prefix, user_id, is_admin, description)
@@ -96,8 +103,11 @@ pub async fn bootstrap_admin(
     .bind(&key_hash)
     .bind(&key_prefix)
     .bind(user_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+
+    // Commit the transaction - if this fails, both inserts are rolled back
+    tx.commit().await?;
 
     info!(
         email = %config.bootstrap_email,

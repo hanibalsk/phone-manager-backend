@@ -64,10 +64,34 @@ impl RegistrationInviteRepository {
         .await
     }
 
-    /// Marks an invite as used by a user.
+    /// Claims an invite atomically without associating a user yet.
     ///
-    /// This should be called after successful registration.
-    pub async fn mark_used(
+    /// This uses `AND used_at IS NULL` to prevent race conditions where
+    /// two concurrent registrations could both try to use the same invite.
+    /// The `used_by` field is left NULL and should be set via `set_used_by`
+    /// after user creation succeeds.
+    ///
+    /// Returns `true` if the invite was successfully claimed,
+    /// `false` if it was already claimed (race condition detected).
+    pub async fn claim(&self, invite_id: Uuid) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            UPDATE registration_invites
+            SET used_at = NOW()
+            WHERE id = $1 AND used_at IS NULL
+            "#,
+        )
+        .bind(invite_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Sets the user who used an already-claimed invite.
+    ///
+    /// This should be called after user creation succeeds to record
+    /// which user consumed the invite for auditing purposes.
+    pub async fn set_used_by(
         &self,
         invite_id: Uuid,
         user_id: Uuid,
@@ -75,7 +99,7 @@ impl RegistrationInviteRepository {
         sqlx::query(
             r#"
             UPDATE registration_invites
-            SET used_at = NOW(), used_by = $2
+            SET used_by = $2
             WHERE id = $1
             "#,
         )
@@ -84,6 +108,32 @@ impl RegistrationInviteRepository {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    /// Marks an invite as used by a user atomically (single operation).
+    ///
+    /// This uses `AND used_at IS NULL` to prevent race conditions where
+    /// two concurrent registrations could both succeed with the same invite.
+    ///
+    /// Returns `true` if the invite was successfully marked as used,
+    /// `false` if it was already used (race condition detected).
+    pub async fn mark_used(
+        &self,
+        invite_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            UPDATE registration_invites
+            SET used_at = NOW(), used_by = $2
+            WHERE id = $1 AND used_at IS NULL
+            "#,
+        )
+        .bind(invite_id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() > 0)
     }
 
     /// Lists all invites, optionally filtered by usage status.

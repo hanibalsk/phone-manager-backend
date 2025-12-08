@@ -116,8 +116,14 @@ pub async fn register(
         ));
     }
 
-    // Handle invite-only mode
-    let validated_invite_id = if state.config.auth_toggles.invite_only {
+    // Validate request first
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    // Handle invite-only mode - validate and claim invite atomically BEFORE user creation
+    // This prevents race conditions where two concurrent registrations could both use the same invite
+    let claimed_invite_id = if state.config.auth_toggles.invite_only {
         // Require invite token
         let invite_token = request.invite_token.as_ref().ok_or_else(|| {
             ApiError::Validation("Registration requires an invite token".to_string())
@@ -131,7 +137,7 @@ pub async fn register(
             .map_err(|e| ApiError::Internal(format!("Database error: {}", e)))?
             .ok_or_else(|| ApiError::Validation("Invalid invite token".to_string()))?;
 
-        // Check if invite is valid
+        // Check if invite is valid (not expired, not used)
         if !invite.is_valid() {
             return Err(ApiError::Validation(
                 "Invite token has expired or already been used".to_string(),
@@ -145,15 +151,25 @@ pub async fn register(
             ));
         }
 
+        // Atomically claim the invite BEFORE creating the user
+        // This uses `AND used_at IS NULL` to prevent race conditions
+        // Only sets used_at, leaves used_by NULL (will be updated after user creation)
+        let claimed = invite_repo
+            .claim(invite.id)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Database error: {}", e)))?;
+
+        if !claimed {
+            // Another concurrent registration claimed this invite first
+            return Err(ApiError::Conflict(
+                "Invite token was just used by another registration".to_string(),
+            ));
+        }
+
         Some(invite.id)
     } else {
         None
     };
-
-    // Validate request
-    request
-        .validate()
-        .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     // Create auth service
     let auth_service = create_auth_service(&state)?;
@@ -174,15 +190,17 @@ pub async fn register(
             _ => ApiError::Internal(e.to_string()),
         })?;
 
-    // Mark invite as used if in invite-only mode
-    if let Some(invite_id) = validated_invite_id {
+    // If we claimed an invite, update it with the actual user ID for auditing.
+    // This is best-effort: the critical operations (user creation, invite claiming) succeeded,
+    // so we only log a warning if updating the audit trail fails.
+    if let Some(invite_id) = claimed_invite_id {
         let invite_repo = RegistrationInviteRepository::new(state.pool.clone());
-        if let Err(e) = invite_repo.mark_used(invite_id, result.user_id).await {
+        if let Err(e) = invite_repo.set_used_by(invite_id, result.user_id).await {
             tracing::warn!(
                 invite_id = %invite_id,
                 user_id = %result.user_id,
                 error = %e,
-                "Failed to mark invite as used - user was still registered"
+                "Failed to update invite with user ID (audit trail incomplete)"
             );
         }
     }
