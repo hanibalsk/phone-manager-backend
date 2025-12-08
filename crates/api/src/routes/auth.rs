@@ -1,6 +1,7 @@
 //! Authentication routes for user registration, login, and token management.
 
 use axum::{extract::State, http::StatusCode, Json};
+use persistence::repositories::RegistrationInviteRepository;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -56,6 +57,9 @@ pub struct RegisterRequest {
     /// Device name (required if device_id provided)
     #[allow(dead_code)] // Used in future story for device linking
     pub device_name: Option<String>,
+
+    /// Optional invite token (required when invite_only mode is enabled)
+    pub invite_token: Option<String>,
 }
 
 /// User information in response.
@@ -99,6 +103,53 @@ pub async fn register(
     State(state): State<AppState>,
     Json(request): Json<RegisterRequest>,
 ) -> Result<(StatusCode, Json<RegisterResponse>), ApiError> {
+    // Check auth toggles
+    if !state.config.auth_toggles.registration_enabled {
+        return Err(ApiError::Forbidden(
+            "Registration is currently disabled".to_string(),
+        ));
+    }
+
+    if state.config.auth_toggles.oauth_only {
+        return Err(ApiError::Forbidden(
+            "Password registration is disabled. Please use OAuth to sign up.".to_string(),
+        ));
+    }
+
+    // Handle invite-only mode
+    let validated_invite_id = if state.config.auth_toggles.invite_only {
+        // Require invite token
+        let invite_token = request.invite_token.as_ref().ok_or_else(|| {
+            ApiError::Validation("Registration requires an invite token".to_string())
+        })?;
+
+        // Validate the invite token
+        let invite_repo = RegistrationInviteRepository::new(state.pool.clone());
+        let invite = invite_repo
+            .find_by_token(invite_token)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Database error: {}", e)))?
+            .ok_or_else(|| ApiError::Validation("Invalid invite token".to_string()))?;
+
+        // Check if invite is valid
+        if !invite.is_valid() {
+            return Err(ApiError::Validation(
+                "Invite token has expired or already been used".to_string(),
+            ));
+        }
+
+        // Check email restriction if set
+        if !invite.can_be_used_by(&request.email) {
+            return Err(ApiError::Validation(
+                "This invite is restricted to a different email address".to_string(),
+            ));
+        }
+
+        Some(invite.id)
+    } else {
+        None
+    };
+
     // Validate request
     request
         .validate()
@@ -122,6 +173,19 @@ pub async fn register(
             AuthError::TokenError(e) => ApiError::Internal(format!("Token error: {}", e)),
             _ => ApiError::Internal(e.to_string()),
         })?;
+
+    // Mark invite as used if in invite-only mode
+    if let Some(invite_id) = validated_invite_id {
+        let invite_repo = RegistrationInviteRepository::new(state.pool.clone());
+        if let Err(e) = invite_repo.mark_used(invite_id, result.user_id).await {
+            tracing::warn!(
+                invite_id = %invite_id,
+                user_id = %result.user_id,
+                error = %e,
+                "Failed to mark invite as used - user was still registered"
+            );
+        }
+    }
 
     // Build response
     let response = RegisterResponse {
@@ -205,6 +269,13 @@ pub async fn login(
     State(state): State<AppState>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, ApiError> {
+    // Check auth toggles
+    if state.config.auth_toggles.oauth_only {
+        return Err(ApiError::Forbidden(
+            "Password login is disabled. Please use OAuth to sign in.".to_string(),
+        ));
+    }
+
     // Validate request
     request
         .validate()
@@ -633,6 +704,7 @@ mod tests {
             display_name: "Test User".to_string(),
             device_id: None,
             device_name: None,
+            invite_token: None,
         };
 
         assert!(request.validate().is_ok());
@@ -646,6 +718,7 @@ mod tests {
             display_name: "Test User".to_string(),
             device_id: None,
             device_name: None,
+            invite_token: None,
         };
 
         assert!(request.validate().is_err());
@@ -659,6 +732,7 @@ mod tests {
             display_name: "Test User".to_string(),
             device_id: None,
             device_name: None,
+            invite_token: None,
         };
 
         assert!(request.validate().is_err());
@@ -672,6 +746,7 @@ mod tests {
             display_name: "".to_string(),
             device_id: None,
             device_name: None,
+            invite_token: None,
         };
 
         assert!(request.validate().is_err());
@@ -685,6 +760,7 @@ mod tests {
             display_name: "A".repeat(101),
             device_id: None,
             device_name: None,
+            invite_token: None,
         };
 
         assert!(request.validate().is_err());

@@ -25,6 +25,7 @@ pub mod openapi;
 pub mod organizations;
 pub mod privacy;
 pub mod proximity_alerts;
+pub mod public_config;
 pub mod trips;
 pub mod users;
 pub mod versioning;

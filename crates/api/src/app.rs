@@ -16,14 +16,16 @@ use tower_http::{
 use crate::config::Config;
 use crate::middleware::{
     auth_rate_limit_middleware, metrics_handler, metrics_middleware, rate_limit_middleware,
-    require_admin, require_auth, security_headers_middleware, trace_id, version_check,
-    AuthRateLimiterState, ExportRateLimiterState, RateLimiterState,
+    require_admin, require_auth, require_b2b, require_geofence_events, require_geofences,
+    require_movement_tracking, require_proximity_alerts, require_webhooks,
+    security_headers_middleware, trace_id, version_check, AuthRateLimiterState,
+    ExportRateLimiterState, RateLimiterState,
 };
 use crate::routes::{
     admin, admin_groups, admin_users, audit_logs, auth, bulk_import, dashboard, device_policies,
     device_settings, devices, enrollment, enrollment_tokens, fleet, frontend, geofence_events,
     geofences, groups, health, invites, locations, movement_events, openapi, organizations, privacy,
-    proximity_alerts, trips, users, versioning, webhooks,
+    proximity_alerts, public_config, trips, users, versioning, webhooks,
 };
 use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
@@ -159,10 +161,8 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             .allow_headers(Any)
     };
 
-    // Protected routes (require API key authentication)
-    // Using /api/v1 prefix for versioned API
-    // Middleware order: auth runs first, then rate limiting (which needs the auth info)
-    let protected_routes = Router::new()
+    // Core protected routes (always enabled - require API key authentication)
+    let core_protected_routes = Router::new()
         // Device routes (v1)
         .route("/api/v1/devices/register", post(devices::register_device))
         .route("/api/v1/devices", get(devices::get_group_devices))
@@ -175,6 +175,18 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/devices/:device_id/locations",
             get(locations::get_location_history),
         )
+        // Privacy routes (v1) - GDPR compliance
+        .route(
+            "/api/v1/devices/:device_id/data-export",
+            get(privacy::export_device_data),
+        )
+        .route(
+            "/api/v1/devices/:device_id/data",
+            delete(privacy::delete_device_data),
+        );
+
+    // Movement tracking routes (feature toggle: movement_tracking_enabled)
+    let movement_routes = Router::new()
         // Movement event routes (v1)
         .route(
             "/api/v1/movement-events",
@@ -204,7 +216,13 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/devices/:device_id/trips",
             get(trips::get_device_trips),
         )
-        // Geofence routes (v1)
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_movement_tracking,
+        ));
+
+    // Geofence routes (feature toggle: geofences_enabled)
+    let geofence_routes = Router::new()
         .route("/api/v1/geofences", post(geofences::create_geofence))
         .route("/api/v1/geofences", get(geofences::list_geofences))
         .route(
@@ -219,7 +237,13 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/geofences/:geofence_id",
             delete(geofences::delete_geofence),
         )
-        // Proximity alert routes (v1)
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_geofences,
+        ));
+
+    // Proximity alert routes (feature toggle: proximity_alerts_enabled)
+    let proximity_routes = Router::new()
         .route(
             "/api/v1/proximity-alerts",
             post(proximity_alerts::create_proximity_alert),
@@ -240,22 +264,28 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/proximity-alerts/:alert_id",
             delete(proximity_alerts::delete_proximity_alert),
         )
-        // Webhook routes (v1) - Story 15.1
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_proximity_alerts,
+        ));
+
+    // Webhook routes (feature toggle: webhooks_enabled)
+    let webhook_routes = Router::new()
         .route("/api/v1/webhooks", post(webhooks::create_webhook))
         .route("/api/v1/webhooks", get(webhooks::list_webhooks))
-        .route(
-            "/api/v1/webhooks/:webhook_id",
-            get(webhooks::get_webhook),
-        )
-        .route(
-            "/api/v1/webhooks/:webhook_id",
-            put(webhooks::update_webhook),
-        )
+        .route("/api/v1/webhooks/:webhook_id", get(webhooks::get_webhook))
+        .route("/api/v1/webhooks/:webhook_id", put(webhooks::update_webhook))
         .route(
             "/api/v1/webhooks/:webhook_id",
             delete(webhooks::delete_webhook),
         )
-        // Geofence event routes (v1) - Story 15.2
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_webhooks,
+        ));
+
+    // Geofence event routes (feature toggle: geofence_events_enabled)
+    let geofence_event_routes = Router::new()
         .route(
             "/api/v1/geofence-events",
             post(geofence_events::create_geofence_event),
@@ -268,15 +298,21 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/geofence-events/:event_id",
             get(geofence_events::get_geofence_event),
         )
-        // Privacy routes (v1) - GDPR compliance
-        .route(
-            "/api/v1/devices/:device_id/data-export",
-            get(privacy::export_device_data),
-        )
-        .route(
-            "/api/v1/devices/:device_id/data",
-            delete(privacy::delete_device_data),
-        )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_geofence_events,
+        ));
+
+    // Protected routes (require API key authentication)
+    // Merge all feature routes with core routes
+    // Middleware order: feature check -> auth -> rate limiting
+    let protected_routes = Router::new()
+        .merge(core_protected_routes)
+        .merge(movement_routes)
+        .merge(geofence_routes)
+        .merge(proximity_routes)
+        .merge(webhook_routes)
+        .merge(geofence_event_routes)
         // Rate limiting runs after auth (needs API key ID from auth)
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -285,8 +321,8 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         // Auth runs first (outermost layer = runs first)
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
-    // Admin routes (require admin API key)
-    let admin_routes = Router::new()
+    // Core admin routes (always enabled - require admin API key)
+    let core_admin_routes = Router::new()
         .route(
             "/api/v1/admin/devices/inactive",
             delete(admin::delete_inactive_devices),
@@ -295,12 +331,14 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/admin/devices/:device_id/reactivate",
             post(admin::reactivate_device),
         )
-        .route("/api/v1/admin/stats", get(admin::get_admin_stats))
+        .route("/api/v1/admin/stats", get(admin::get_admin_stats));
+
+    // B2B/Organization admin routes (feature toggle: b2b_enabled)
+    let b2b_admin_routes = Router::new()
         // Organization management routes (Story 13.1)
         .route(
             "/api/admin/v1/organizations",
-            post(organizations::create_organization)
-                .get(organizations::list_organizations),
+            post(organizations::create_organization).get(organizations::list_organizations),
         )
         .route(
             "/api/admin/v1/organizations/:org_id",
@@ -315,19 +353,16 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         // Organization user management routes (Story 13.2)
         .route(
             "/api/admin/v1/organizations/:org_id/users",
-            post(organizations::add_org_user)
-                .get(organizations::list_org_users),
+            post(organizations::add_org_user).get(organizations::list_org_users),
         )
         .route(
             "/api/admin/v1/organizations/:org_id/users/:user_id",
-            put(organizations::update_org_user)
-                .delete(organizations::remove_org_user),
+            put(organizations::update_org_user).delete(organizations::remove_org_user),
         )
         // Device policy management routes (Story 13.3)
         .route(
             "/api/admin/v1/organizations/:org_id/policies",
-            post(device_policies::create_policy)
-                .get(device_policies::list_policies),
+            post(device_policies::create_policy).get(device_policies::list_policies),
         )
         .route(
             "/api/admin/v1/organizations/:org_id/policies/:policy_id",
@@ -389,6 +424,12 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/admin/v1/organizations/:org_id/groups",
             admin_groups::router(),
         )
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_b2b));
+
+    // Admin routes (require admin API key)
+    let admin_routes = Router::new()
+        .merge(core_admin_routes)
+        .merge(b2b_admin_routes)
         // Rate limiting for admin routes (separate, higher limit could be configured)
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -581,6 +622,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
     // Public routes (no authentication required)
     let public_routes = Router::new()
         .route("/api/health", get(health::health_check))
+        // Public config - feature flags and auth configuration
+        .route(
+            "/api/v1/config/public",
+            get(public_config::get_public_config),
+        )
         // Public invite info (Story 11.4)
         .route("/api/v1/invites/:code", get(invites::get_invite_info))
         // Device enrollment (Story 13.5) - token is the auth

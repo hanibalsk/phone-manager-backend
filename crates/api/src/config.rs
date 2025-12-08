@@ -26,6 +26,15 @@ pub struct Config {
     /// Frontend static file serving configuration
     #[serde(default)]
     pub frontend: FrontendConfig,
+    /// Authentication toggles (registration, invite-only, oauth-only)
+    #[serde(default)]
+    pub auth_toggles: AuthTogglesConfig,
+    /// Feature toggles for optional modules
+    #[serde(default)]
+    pub features: FeaturesConfig,
+    /// Admin bootstrap configuration
+    #[serde(default)]
+    pub admin: AdminBootstrapConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -416,6 +425,113 @@ fn default_fcm_max_retries() -> u32 {
     3
 }
 
+/// Authentication toggles for controlling registration and login modes.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AuthTogglesConfig {
+    /// Whether email/password registration is enabled (default: true)
+    /// When false, POST /api/v1/auth/register returns 403
+    #[serde(default = "default_true")]
+    pub registration_enabled: bool,
+
+    /// Whether invite-only mode is active (default: false)
+    /// When true, registration requires a valid invite token
+    #[serde(default)]
+    pub invite_only: bool,
+
+    /// Whether OAuth-only mode is active (default: false)
+    /// When true, disables password-based registration and login
+    /// Users must use Google or Apple OAuth to sign up/in
+    #[serde(default)]
+    pub oauth_only: bool,
+}
+
+impl Default for AuthTogglesConfig {
+    fn default() -> Self {
+        Self {
+            registration_enabled: true,
+            invite_only: false,
+            oauth_only: false,
+        }
+    }
+}
+
+/// Feature toggles for enabling/disabling optional modules.
+/// When a feature is disabled, its endpoints return 404 "Feature not available".
+#[derive(Debug, Clone, Deserialize)]
+pub struct FeaturesConfig {
+    /// Geofences feature (default: true)
+    /// Controls: POST/GET/PATCH/DELETE /api/v1/geofences/*
+    #[serde(default = "default_true")]
+    pub geofences_enabled: bool,
+
+    /// Proximity alerts feature (default: true)
+    /// Controls: POST/GET/PATCH/DELETE /api/v1/proximity-alerts/*
+    #[serde(default = "default_true")]
+    pub proximity_alerts_enabled: bool,
+
+    /// Webhooks feature (default: true)
+    /// Controls: POST/GET/PUT/DELETE /api/v1/webhooks/*
+    #[serde(default = "default_true")]
+    pub webhooks_enabled: bool,
+
+    /// Movement tracking feature - trips and movement events (default: true)
+    /// Controls: /api/v1/trips/*, /api/v1/movement-events/*
+    #[serde(default = "default_true")]
+    pub movement_tracking_enabled: bool,
+
+    /// B2B/Organization features (default: true)
+    /// Controls: organizations, device policies, enrollment tokens, fleet management
+    #[serde(default = "default_true")]
+    pub b2b_enabled: bool,
+
+    /// Geofence events feature (default: true)
+    /// Controls: POST/GET /api/v1/geofence-events/*
+    #[serde(default = "default_true")]
+    pub geofence_events_enabled: bool,
+}
+
+impl Default for FeaturesConfig {
+    fn default() -> Self {
+        Self {
+            geofences_enabled: true,
+            proximity_alerts_enabled: true,
+            webhooks_enabled: true,
+            movement_tracking_enabled: true,
+            b2b_enabled: true,
+            geofence_events_enabled: true,
+        }
+    }
+}
+
+/// Admin bootstrap configuration for initial setup.
+/// Allows creating the first admin user via configuration on startup.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AdminBootstrapConfig {
+    /// Bootstrap admin email (if set, creates admin on first startup)
+    /// Set via PM__ADMIN__BOOTSTRAP_EMAIL
+    #[serde(default)]
+    pub bootstrap_email: String,
+
+    /// Bootstrap admin password (required if bootstrap_email is set)
+    /// Set via PM__ADMIN__BOOTSTRAP_PASSWORD
+    /// WARNING: Remove these after initial setup!
+    #[serde(default)]
+    pub bootstrap_password: String,
+}
+
+impl Default for AdminBootstrapConfig {
+    fn default() -> Self {
+        Self {
+            bootstrap_email: String::new(),
+            bootstrap_password: String::new(),
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
 /// Frontend static file serving configuration for admin UI.
 #[derive(Debug, Clone, Deserialize)]
 pub struct FrontendConfig {
@@ -593,6 +709,23 @@ impl Config {
             default_environment = "production"
             immutable_cache_max_age = 31536000
             mutable_cache_max_age = 60
+
+            [auth_toggles]
+            registration_enabled = true
+            invite_only = false
+            oauth_only = false
+
+            [features]
+            geofences_enabled = true
+            proximity_alerts_enabled = true
+            webhooks_enabled = true
+            movement_tracking_enabled = true
+            b2b_enabled = true
+            geofence_events_enabled = true
+
+            [admin]
+            bootstrap_email = ""
+            bootstrap_password = ""
         "#;
 
         let mut builder = config::Config::builder()

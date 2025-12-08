@@ -184,6 +184,23 @@ YQIDAQAB
             high_priority: false,
         },
         frontend: phone_manager_api::config::FrontendConfig::default(),
+        auth_toggles: phone_manager_api::config::AuthTogglesConfig {
+            registration_enabled: true,
+            invite_only: false,
+            oauth_only: false,
+        },
+        features: phone_manager_api::config::FeaturesConfig {
+            geofences_enabled: true,
+            proximity_alerts_enabled: true,
+            webhooks_enabled: true,
+            movement_tracking_enabled: true,
+            b2b_enabled: true,
+            geofence_events_enabled: true,
+        },
+        admin: phone_manager_api::config::AdminBootstrapConfig {
+            bootstrap_email: String::new(),
+            bootstrap_password: String::new(),
+        },
     }
 }
 

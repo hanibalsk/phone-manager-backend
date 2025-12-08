@@ -1,5 +1,6 @@
 //! External service integrations.
 
+pub mod admin_bootstrap;
 pub mod apple_auth;
 pub mod auth;
 pub mod email;

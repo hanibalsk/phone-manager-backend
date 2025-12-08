@@ -103,6 +103,23 @@ PM__FRONTEND__BASE_DIR=/app/frontend
 PM__FRONTEND__STAGING_HOSTNAME=admin-staging.example.com
 PM__FRONTEND__PRODUCTION_HOSTNAME=admin.example.com
 PM__FRONTEND__DEFAULT_ENVIRONMENT=production
+
+# Auth Toggles (optional - all default to permissive)
+PM__AUTH_TOGGLES__REGISTRATION_ENABLED=true   # Set false to disable registration
+PM__AUTH_TOGGLES__INVITE_ONLY=false           # Set true to require invite tokens
+PM__AUTH_TOGGLES__OAUTH_ONLY=false            # Set true to disable password auth
+
+# Feature Toggles (optional - all default to enabled)
+PM__FEATURES__GEOFENCES_ENABLED=true          # Geofence endpoints
+PM__FEATURES__PROXIMITY_ALERTS_ENABLED=true   # Proximity alert endpoints
+PM__FEATURES__WEBHOOKS_ENABLED=true           # Webhook endpoints
+PM__FEATURES__MOVEMENT_TRACKING_ENABLED=true  # Trips and movement events
+PM__FEATURES__B2B_ENABLED=true                # Organizations, policies, enrollment
+PM__FEATURES__GEOFENCE_EVENTS_ENABLED=true    # Geofence event endpoints
+
+# Admin Bootstrap (initial setup only - REMOVE after first startup!)
+PM__ADMIN__BOOTSTRAP_EMAIL=admin@company.com
+PM__ADMIN__BOOTSTRAP_PASSWORD=initial-secure-password
 ```
 
 ### Production Configuration Validation

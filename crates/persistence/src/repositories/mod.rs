@@ -21,6 +21,7 @@ pub mod movement_event;
 pub mod org_user;
 pub mod organization;
 pub mod proximity_alert;
+pub mod registration_invite;
 pub mod setting;
 pub mod trip;
 pub mod trip_path_correction;
@@ -50,6 +51,9 @@ pub use movement_event::{MovementEventInput, MovementEventQuery, MovementEventRe
 pub use org_user::OrgUserRepository;
 pub use organization::OrganizationRepository;
 pub use proximity_alert::ProximityAlertRepository;
+pub use registration_invite::{
+    default_expiration, generate_invite_token, RegistrationInviteRepository,
+};
 pub use setting::SettingRepository;
 pub use trip::{TripInput, TripQuery, TripRepository, TripUpdateInput};
 pub use trip_path_correction::{
