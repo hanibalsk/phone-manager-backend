@@ -298,6 +298,94 @@ Critical production requirements:
 | DELETE | `/api/v1/admin/devices/inactive` | Delete inactive devices |
 | POST | `/api/v1/admin/devices/:device_id/reactivate` | Reactivate device |
 
+### B2B Organization Admin (requires `require_b2b` middleware)
+
+#### Organizations
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/admin/v1/organizations` | Create organization |
+| GET | `/api/admin/v1/organizations` | List organizations |
+| GET | `/api/admin/v1/organizations/:org_id` | Get organization |
+| PUT | `/api/admin/v1/organizations/:org_id` | Update organization |
+| DELETE | `/api/admin/v1/organizations/:org_id` | Delete organization |
+| GET | `/api/admin/v1/organizations/:org_id/usage` | Get organization usage metrics |
+
+#### Organization Users
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/admin/v1/organizations/:org_id/users` | Add user to organization |
+| GET | `/api/admin/v1/organizations/:org_id/users` | List organization users |
+| PUT | `/api/admin/v1/organizations/:org_id/users/:user_id` | Update user role/permissions |
+| DELETE | `/api/admin/v1/organizations/:org_id/users/:user_id` | Remove user from organization |
+
+#### Organization API Keys
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/admin/v1/organizations/:org_id/api-keys` | Create organization API key |
+| GET | `/api/admin/v1/organizations/:org_id/api-keys` | List organization API keys |
+| GET | `/api/admin/v1/organizations/:org_id/api-keys/:key_id` | Get API key details |
+| PATCH | `/api/admin/v1/organizations/:org_id/api-keys/:key_id` | Update API key (name/description) |
+| DELETE | `/api/admin/v1/organizations/:org_id/api-keys/:key_id` | Revoke API key |
+
+#### Organization Member Invitations
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/admin/v1/organizations/:org_id/invitations` | Create member invitation |
+| GET | `/api/admin/v1/organizations/:org_id/invitations` | List invitations |
+| GET | `/api/admin/v1/organizations/:org_id/invitations/:invite_id` | Get invitation details |
+| DELETE | `/api/admin/v1/organizations/:org_id/invitations/:invite_id` | Revoke invitation |
+| POST | `/api/v1/invitations/:token/accept` | Accept invitation (public) |
+
+#### Organization Webhooks
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/admin/v1/organizations/:org_id/webhooks` | Create organization webhook |
+| GET | `/api/admin/v1/organizations/:org_id/webhooks` | List organization webhooks |
+| GET | `/api/admin/v1/organizations/:org_id/webhooks/:webhook_id` | Get webhook details |
+| PUT | `/api/admin/v1/organizations/:org_id/webhooks/:webhook_id` | Update webhook |
+| DELETE | `/api/admin/v1/organizations/:org_id/webhooks/:webhook_id` | Delete webhook |
+
+**Supported Webhook Event Types:**
+- `device.enrolled`, `device.unenrolled`, `device.assigned`, `device.unassigned`
+- `member.joined`, `member.removed`
+- `policy.applied`, `policy.updated`
+
+#### Device Policies
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/admin/v1/organizations/:org_id/policies` | Create device policy |
+| GET | `/api/admin/v1/organizations/:org_id/policies` | List policies |
+| GET | `/api/admin/v1/organizations/:org_id/policies/:policy_id` | Get policy |
+| PUT | `/api/admin/v1/organizations/:org_id/policies/:policy_id` | Update policy |
+| DELETE | `/api/admin/v1/organizations/:org_id/policies/:policy_id` | Delete policy |
+| POST | `/api/admin/v1/organizations/:org_id/policies/:policy_id/apply` | Apply policy to targets |
+| POST | `/api/admin/v1/organizations/:org_id/policies/:policy_id/unapply` | Remove policy from targets |
+
+#### Enrollment Tokens
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/admin/v1/organizations/:org_id/enrollment-tokens` | Create enrollment token |
+| GET | `/api/admin/v1/organizations/:org_id/enrollment-tokens` | List enrollment tokens |
+| GET | `/api/admin/v1/organizations/:org_id/enrollment-tokens/:token_id` | Get token details |
+| DELETE | `/api/admin/v1/organizations/:org_id/enrollment-tokens/:token_id` | Revoke token |
+| GET | `/api/admin/v1/organizations/:org_id/enrollment-tokens/:token_id/qr` | Get QR code |
+
+#### Fleet Management
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/v1/organizations/:org_id/devices` | List fleet devices |
+| GET | `/api/admin/v1/organizations/:org_id/devices/summary` | Get fleet summary |
+| POST | `/api/admin/v1/organizations/:org_id/devices/:device_id/assign` | Assign device to user |
+| DELETE | `/api/admin/v1/organizations/:org_id/devices/:device_id/assign` | Unassign device |
+| POST | `/api/admin/v1/organizations/:org_id/devices/:device_id/commands` | Issue device command |
+
+#### Dashboard & Audit
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/v1/organizations/:org_id/dashboard` | Get dashboard metrics |
+| GET | `/api/admin/v1/organizations/:org_id/audit-logs` | List audit logs |
+| POST | `/api/admin/v1/organizations/:org_id/audit-logs/export` | Export audit logs |
+
 ### Health
 | Method | Path | Description |
 |--------|------|-------------|

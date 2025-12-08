@@ -73,6 +73,14 @@ tags:
     description: Device enrollment for organizations
   - name: Admin
     description: Administrative operations
+  - name: Organizations
+    description: Organization management (B2B Admin)
+  - name: Organization API Keys
+    description: Organization API key management
+  - name: Organization Invitations
+    description: Organization member invitation management
+  - name: Organization Webhooks
+    description: Organization webhook management
 
 security:
   - BearerAuth: []
@@ -2142,6 +2150,306 @@ components:
         message:
           type: string
 
+    # ==========================================
+    # Organization API Key Schemas
+    # ==========================================
+    CreateApiKeyRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "Production API Key"
+        description:
+          type: string
+          maxLength: 255
+          example: "Used by mobile app"
+        expires_in_days:
+          type: integer
+          minimum: 1
+          maximum: 365
+          nullable: true
+          example: 365
+
+    CreateApiKeyResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        key:
+          type: string
+          description: "Full API key (shown only once)"
+        key_prefix:
+          type: string
+        name:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    ApiKeyResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        key_prefix:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    ListApiKeysResponse:
+      type: object
+      properties:
+        api_keys:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiKeyResponse"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    UpdateApiKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 255
+
+    # ==========================================
+    # Organization Invitation Schemas
+    # ==========================================
+    CreateInvitationRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, member]
+          default: member
+        note:
+          type: string
+          maxLength: 255
+        expires_in_days:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 7
+
+    InvitationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, expired]
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        note:
+          type: string
+          nullable: true
+        invited_by:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+
+    ListInvitationsResponse:
+      type: object
+      properties:
+        invitations:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvitationResponse"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        summary:
+          type: object
+          properties:
+            pending:
+              type: integer
+            accepted:
+              type: integer
+            expired:
+              type: integer
+
+    AcceptInvitationRequest:
+      type: object
+      required:
+        - password
+        - display_name
+      properties:
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    AcceptInvitationResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserResponse"
+        organization:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+        role:
+          type: string
+        access_token:
+          type: string
+        token_expires_at:
+          type: string
+          format: date-time
+
+    # ==========================================
+    # Organization Webhook Schemas
+    # ==========================================
+    CreateOrgWebhookRequest:
+      type: object
+      required:
+        - name
+        - target_url
+        - secret
+        - event_types
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "Production Events"
+        target_url:
+          type: string
+          format: uri
+          description: "Must be HTTPS"
+          example: "https://api.example.com/webhooks"
+        secret:
+          type: string
+          minLength: 16
+          maxLength: 256
+          description: "HMAC-SHA256 signing secret"
+        event_types:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum:
+              - device.enrolled
+              - device.unenrolled
+              - device.assigned
+              - device.unassigned
+              - member.joined
+              - member.removed
+              - policy.applied
+              - policy.updated
+
+    UpdateOrgWebhookRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        target_url:
+          type: string
+          format: uri
+        secret:
+          type: string
+          minLength: 16
+          maxLength: 256
+        enabled:
+          type: boolean
+        event_types:
+          type: array
+          items:
+            type: string
+
+    OrgWebhookResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        target_url:
+          type: string
+        enabled:
+          type: boolean
+        event_types:
+          type: array
+          items:
+            type: string
+        consecutive_failures:
+          type: integer
+        circuit_open_until:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ListOrgWebhooksResponse:
+      type: object
+      properties:
+        webhooks:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrgWebhookResponse"
+
   responses:
     BadRequest:
       description: Validation error
@@ -4185,5 +4493,512 @@ paths:
                 $ref: "#/components/schemas/ReactivateDeviceResponse"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ==========================================
+  # Organization API Keys
+  # ==========================================
+  /api/admin/v1/organizations/{org_id}/api-keys:
+    post:
+      tags: [Organization API Keys]
+      summary: Create organization API key
+      operationId: createOrgApiKey
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApiKeyRequest"
+      responses:
+        "201":
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateApiKeyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Key limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      tags: [Organization API Keys]
+      summary: List organization API keys
+      operationId: listOrgApiKeys
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: include_inactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: API keys retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListApiKeysResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/api-keys/{key_id}:
+    get:
+      tags: [Organization API Keys]
+      summary: Get API key details
+      operationId: getOrgApiKey
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: key_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: API key details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Organization API Keys]
+      summary: Update API key
+      operationId: updateOrgApiKey
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: key_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateApiKeyRequest"
+      responses:
+        "200":
+          description: API key updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Organization API Keys]
+      summary: Revoke API key
+      operationId: revokeOrgApiKey
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: key_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: API key revoked
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ==========================================
+  # Organization Member Invitations
+  # ==========================================
+  /api/admin/v1/organizations/{org_id}/invitations:
+    post:
+      tags: [Organization Invitations]
+      summary: Create member invitation
+      operationId: createOrgInvitation
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvitationRequest"
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateInvitationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Duplicate invitation or already a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      tags: [Organization Invitations]
+      summary: List invitations
+      operationId: listOrgInvitations
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, accepted, expired, all]
+            default: pending
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Invitations retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListInvitationsResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/invitations/{invite_id}:
+    get:
+      tags: [Organization Invitations]
+      summary: Get invitation details
+      operationId: getOrgInvitation
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invite_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Invitation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Organization Invitations]
+      summary: Revoke invitation
+      operationId: revokeOrgInvitation
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invite_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Invitation revoked
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/invitations/{token}/accept:
+    post:
+      tags: [Organization Invitations]
+      summary: Accept invitation (public)
+      description: Accept a member invitation and create user account. No authentication required.
+      operationId: acceptInvitation
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptInvitationRequest"
+      responses:
+        "201":
+          description: Invitation accepted, user created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptInvitationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Invitation already used or email exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ==========================================
+  # Organization Webhooks
+  # ==========================================
+  /api/admin/v1/organizations/{org_id}/webhooks:
+    post:
+      tags: [Organization Webhooks]
+      summary: Create organization webhook
+      operationId: createOrgWebhook
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrgWebhookRequest"
+      responses:
+        "201":
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgWebhookResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Webhook limit reached or name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      tags: [Organization Webhooks]
+      summary: List organization webhooks
+      operationId: listOrgWebhooks
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Webhooks retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListOrgWebhooksResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/webhooks/{webhook_id}:
+    get:
+      tags: [Organization Webhooks]
+      summary: Get webhook details
+      operationId: getOrgWebhook
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: webhook_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Webhook details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgWebhookResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Organization Webhooks]
+      summary: Update webhook
+      operationId: updateOrgWebhook
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: webhook_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrgWebhookRequest"
+      responses:
+        "200":
+          description: Webhook updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgWebhookResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [Organization Webhooks]
+      summary: Delete webhook
+      operationId: deleteOrgWebhook
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: webhook_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Webhook deleted
         "404":
           $ref: "#/components/responses/NotFound"

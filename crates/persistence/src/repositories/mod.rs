@@ -18,8 +18,11 @@ pub mod idempotency_key;
 pub mod invite;
 pub mod location;
 pub mod movement_event;
+pub mod org_member_invite;
 pub mod org_user;
+pub mod org_webhook;
 pub mod organization;
+pub mod organization_settings;
 pub mod proximity_alert;
 pub mod registration_invite;
 pub mod setting;
@@ -48,8 +51,14 @@ pub use idempotency_key::IdempotencyKeyRepository;
 pub use invite::InviteRepository;
 pub use location::{LocationHistoryQuery, LocationInput, LocationRepository};
 pub use movement_event::{MovementEventInput, MovementEventQuery, MovementEventRepository};
+pub use org_member_invite::{
+    calculate_invite_expiration, default_invite_expiration, generate_org_member_invite_token,
+    InviteSummaryCounts, OrgMemberInviteRepository,
+};
 pub use org_user::OrgUserRepository;
+pub use org_webhook::OrgWebhookRepository;
 pub use organization::OrganizationRepository;
+pub use organization_settings::OrganizationSettingsRepository;
 pub use proximity_alert::ProximityAlertRepository;
 pub use registration_invite::{
     default_expiration, generate_invite_token, RegistrationInviteRepository,

@@ -22,10 +22,11 @@ use crate::middleware::{
     ExportRateLimiterState, RateLimiterState,
 };
 use crate::routes::{
-    admin, admin_groups, admin_users, audit_logs, auth, bulk_import, dashboard, device_policies,
-    device_settings, devices, enrollment, enrollment_tokens, fleet, frontend, geofence_events,
-    geofences, groups, health, invites, locations, movement_events, openapi, organizations, privacy,
-    proximity_alerts, public_config, trips, users, versioning, webhooks,
+    admin, admin_groups, admin_users, api_keys, audit_logs, auth, bulk_import, dashboard,
+    device_policies, device_settings, devices, enrollment, enrollment_tokens, fleet, frontend,
+    geofence_events, geofences, groups, health, invites, locations, movement_events, openapi,
+    org_invitations, org_webhooks, organization_settings, organizations, privacy, proximity_alerts,
+    public_config, trips, users, versioning, webhooks,
 };
 use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
@@ -423,6 +424,47 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .nest(
             "/api/admin/v1/organizations/:org_id/groups",
             admin_groups::router(),
+        )
+        // Organization settings routes
+        .route(
+            "/api/admin/v1/organizations/:org_id/settings",
+            get(organization_settings::get_organization_settings)
+                .put(organization_settings::update_organization_settings),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/settings/verify-pin",
+            post(organization_settings::verify_unlock_pin),
+        )
+        // Organization API keys routes
+        .route(
+            "/api/admin/v1/organizations/:org_id/api-keys",
+            post(api_keys::create_api_key).get(api_keys::list_api_keys),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/api-keys/:key_id",
+            get(api_keys::get_api_key)
+                .patch(api_keys::update_api_key)
+                .delete(api_keys::revoke_api_key),
+        )
+        // Organization member invitations routes
+        .route(
+            "/api/admin/v1/organizations/:org_id/invitations",
+            post(org_invitations::create_invitation).get(org_invitations::list_invitations),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/invitations/:invite_id",
+            get(org_invitations::get_invitation).delete(org_invitations::revoke_invitation),
+        )
+        // Organization webhooks routes
+        .route(
+            "/api/admin/v1/organizations/:org_id/webhooks",
+            post(org_webhooks::create_webhook).get(org_webhooks::list_webhooks),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/webhooks/:webhook_id",
+            get(org_webhooks::get_webhook)
+                .put(org_webhooks::update_webhook)
+                .delete(org_webhooks::delete_webhook),
         )
         .route_layer(middleware::from_fn_with_state(state.clone(), require_b2b));
 

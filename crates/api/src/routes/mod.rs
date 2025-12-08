@@ -1,6 +1,7 @@
 //! HTTP route handlers.
 
 pub mod admin;
+pub mod api_keys;
 pub mod frontend;
 pub mod admin_groups;
 pub mod admin_users;
@@ -21,7 +22,10 @@ pub mod health;
 pub mod invites;
 pub mod locations;
 pub mod movement_events;
+pub mod org_invitations;
+pub mod org_webhooks;
 pub mod openapi;
+pub mod organization_settings;
 pub mod organizations;
 pub mod privacy;
 pub mod proximity_alerts;
