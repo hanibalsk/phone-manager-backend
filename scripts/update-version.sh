@@ -25,14 +25,14 @@ fi
 echo "Updating Rust backend version to $VERSION"
 
 # Update Cargo.toml workspace version
-# Match: version = "X.Y.Z" under [workspace.package]
+# Match: version = "X.Y.Z" under [workspace.package] (not rust-version)
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    sed -i '' -E '/\[workspace\.package\]/,/^\[/ s/(version = ")[^"]+"/\1'"$VERSION"'"/' "$CARGO_TOML"
+    # macOS - use ^version to avoid matching rust-version
+    sed -i '' -E '/\[workspace\.package\]/,/^\[/ s/^(version = ")[^"]+"/\1'"$VERSION"'"/' "$CARGO_TOML"
     sed -i '' -E 's/(version: ")[^"]+"/\1'"$VERSION"'"/' "$OPENAPI_FILE"
 else
-    # Linux
-    sed -i -E '/\[workspace\.package\]/,/^\[/ s/(version = ")[^"]+"/\1'"$VERSION"'"/' "$CARGO_TOML"
+    # Linux - use ^version to avoid matching rust-version
+    sed -i -E '/\[workspace\.package\]/,/^\[/ s/^(version = ")[^"]+"/\1'"$VERSION"'"/' "$CARGO_TOML"
     sed -i -E 's/(version: ")[^"]+"/\1'"$VERSION"'"/' "$OPENAPI_FILE"
 fi
 
