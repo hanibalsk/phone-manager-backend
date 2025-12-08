@@ -1,7 +1,7 @@
 openapi: "3.1.0"
 info:
   title: Phone Manager API
-  version: "0.9.0"
+  version: "0.10.0"
   description: |
     REST API for the Phone Manager mobile application.
     Handles device registration, location tracking, group management,
@@ -127,6 +127,11 @@ components:
           type: string
           nullable: true
           description: Display name for the linked device
+        invite_token:
+          type: string
+          nullable: true
+          description: Invite token (required when PM__AUTH__INVITE_ONLY=true)
+          example: "abc123XYZ"
 
     RegisterResponse:
       type: object
@@ -2244,6 +2249,11 @@ paths:
     post:
       tags: [Auth]
       summary: Register a new user
+      description: |
+        Register a new user account. Behavior depends on configuration:
+        - Returns 403 if `PM__AUTH__REGISTRATION_ENABLED=false`
+        - Returns 403 if `PM__AUTH__OAUTH_ONLY=true` (use OAuth instead)
+        - Requires `invite_token` if `PM__AUTH__INVITE_ONLY=true`
       operationId: register
       security: []
       requestBody:
@@ -2261,6 +2271,12 @@ paths:
                 $ref: "#/components/schemas/RegisterResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "403":
+          description: Registration disabled or OAuth required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           $ref: "#/components/responses/Conflict"
 
@@ -2268,6 +2284,8 @@ paths:
     post:
       tags: [Auth]
       summary: Login with email and password
+      description: |
+        Login with email and password. Returns 403 if `PM__AUTH__OAUTH_ONLY=true`.
       operationId: login
       security: []
       requestBody:
