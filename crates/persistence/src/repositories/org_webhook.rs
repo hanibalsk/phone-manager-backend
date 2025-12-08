@@ -116,6 +116,7 @@ impl OrgWebhookRepository {
     }
 
     /// Updates a webhook (partial update).
+    #[allow(clippy::too_many_arguments)]
     pub async fn update(
         &self,
         webhook_id: Uuid,

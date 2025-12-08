@@ -13,7 +13,7 @@ use chrono::Utc;
 use domain::models::{
     CreateInvitationRequest, CreateInvitationResponse, InvitationPagination, InvitationResponse,
     InvitationStatus, InvitationSummary, InvitedByInfo, ListInvitationsQuery,
-    ListInvitationsResponse,
+    ListInvitationsResponse, MAX_INVITATIONS_PER_ORG,
 };
 use persistence::entities::OrgMemberInviteEntity;
 use persistence::repositories::{
@@ -68,6 +68,17 @@ pub async fn create_invitation(
         return Err(ApiError::Conflict(
             "A pending invitation already exists for this email".to_string(),
         ));
+    }
+
+    // Check pending invitation limit for the organization
+    let pending_count = invite_repo
+        .count_by_organization_with_status(org_id, Some("pending"))
+        .await?;
+    if pending_count >= MAX_INVITATIONS_PER_ORG {
+        return Err(ApiError::Conflict(format!(
+            "Maximum pending invitation limit ({}) reached for this organization",
+            MAX_INVITATIONS_PER_ORG
+        )));
     }
 
     // Generate token
@@ -130,6 +141,7 @@ pub async fn create_invitation(
 /// GET /api/admin/v1/organizations/:org_id/invitations
 ///
 /// List invitations for an organization with optional status filter.
+/// Status filter: "pending" (default), "accepted", "expired", "all"
 pub async fn list_invitations(
     State(state): State<AppState>,
     Extension(auth): Extension<ApiKeyAuth>,
@@ -145,18 +157,25 @@ pub async fn list_invitations(
     let invite_repo = OrgMemberInviteRepository::new(state.pool.clone());
     let user_repo = UserRepository::new(state.pool.clone());
 
-    // Get invitations
-    let include_accepted = query.include_accepted();
+    // Normalize status filter (default to "pending" if not specified)
+    let status_filter = query.status.as_deref().unwrap_or("pending");
+
+    // Get invitations with status filtering applied in SQL
     let entities = invite_repo
-        .list_by_organization(org_id, include_accepted, query.per_page(), query.offset())
+        .list_by_organization_with_status(
+            org_id,
+            Some(status_filter),
+            query.per_page(),
+            query.offset(),
+        )
         .await?;
 
-    // Get total count for pagination
+    // Get total count for pagination (must match the same status filter)
     let total = invite_repo
-        .count_by_organization(org_id, include_accepted)
+        .count_by_organization_with_status(org_id, Some(status_filter))
         .await?;
 
-    // Get summary counts
+    // Get summary counts (always shows all statuses for reference)
     let summary_counts = invite_repo.get_summary_counts(org_id).await?;
 
     // Convert entities to responses
@@ -178,26 +197,10 @@ pub async fn list_invitations(
         invitations.push(entity_to_response(entity, invited_by));
     }
 
-    // Filter by status if specified (for expired filtering)
-    let invitations = match query.status.as_deref() {
-        Some("expired") => invitations
-            .into_iter()
-            .filter(|i| i.status == InvitationStatus::Expired)
-            .collect(),
-        Some("pending") => invitations
-            .into_iter()
-            .filter(|i| i.status == InvitationStatus::Pending)
-            .collect(),
-        Some("accepted") => invitations
-            .into_iter()
-            .filter(|i| i.status == InvitationStatus::Accepted)
-            .collect(),
-        _ => invitations, // "all" or None
-    };
-
     info!(
         admin_key_id = auth.api_key_id,
         organization_id = %org_id,
+        status_filter = %status_filter,
         total_invitations = total,
         "Listed organization member invitations"
     );

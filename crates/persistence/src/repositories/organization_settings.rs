@@ -112,8 +112,9 @@ impl OrganizationSettingsRepository {
         unlock_pin_hash: Option<String>,
     ) -> Result<OrganizationSettingsEntity, sqlx::Error> {
         // Ensure settings exist first
-        let current = self.get_or_create(organization_id).await?;
+        let _current = self.get_or_create(organization_id).await?;
 
+        // Perform the update and propagate any errors
         sqlx::query_as::<_, OrganizationSettingsEntity>(
             r#"
             UPDATE organization_settings
@@ -127,7 +128,6 @@ impl OrganizationSettingsRepository {
         .bind(unlock_pin_hash)
         .fetch_one(&self.pool)
         .await
-        .or_else(|_| Ok(current))
     }
 
     /// Deletes settings for an organization.

@@ -505,7 +505,7 @@ impl Default for FeaturesConfig {
 
 /// Admin bootstrap configuration for initial setup.
 /// Allows creating the first admin user via configuration on startup.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct AdminBootstrapConfig {
     /// Bootstrap admin email (if set, creates admin on first startup)
     /// Set via PM__ADMIN__BOOTSTRAP_EMAIL
@@ -517,15 +517,6 @@ pub struct AdminBootstrapConfig {
     /// WARNING: Remove these after initial setup!
     #[serde(default)]
     pub bootstrap_password: String,
-}
-
-impl Default for AdminBootstrapConfig {
-    fn default() -> Self {
-        Self {
-            bootstrap_email: String::new(),
-            bootstrap_password: String::new(),
-        }
-    }
 }
 
 fn default_true() -> bool {

@@ -101,7 +101,7 @@ pub async fn bootstrap_admin(
         "#,
     )
     .bind(&key_hash)
-    .bind(&key_prefix)
+    .bind(key_prefix)
     .bind(user_id)
     .execute(&mut *tx)
     .await?;

@@ -20,6 +20,7 @@ impl OrgMemberInviteRepository {
     }
 
     /// Creates a new organization member invite.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
         org_id: Uuid,
@@ -87,32 +88,62 @@ impl OrgMemberInviteRepository {
         .await
     }
 
-    /// Lists invites for an organization with optional status filter.
-    pub async fn list_by_organization(
+    /// Lists invites for an organization with status filter.
+    ///
+    /// Status filter options:
+    /// - "pending": not accepted and not expired
+    /// - "accepted": has been accepted
+    /// - "expired": not accepted but past expiration
+    /// - "all" or None: all invitations
+    pub async fn list_by_organization_with_status(
         &self,
         org_id: Uuid,
-        include_accepted: bool,
+        status: Option<&str>,
         limit: i64,
         offset: i64,
     ) -> Result<Vec<OrgMemberInviteEntity>, sqlx::Error> {
-        let query = if include_accepted {
-            r#"
-            SELECT id, organization_id, token, email, role, invited_by, expires_at,
-                   accepted_at, accepted_by, created_at, note
-            FROM org_member_invites
-            WHERE organization_id = $1
-            ORDER BY created_at DESC
-            LIMIT $2 OFFSET $3
-            "#
-        } else {
-            r#"
-            SELECT id, organization_id, token, email, role, invited_by, expires_at,
-                   accepted_at, accepted_by, created_at, note
-            FROM org_member_invites
-            WHERE organization_id = $1 AND accepted_at IS NULL
-            ORDER BY created_at DESC
-            LIMIT $2 OFFSET $3
-            "#
+        let query = match status {
+            Some("pending") => {
+                r#"
+                SELECT id, organization_id, token, email, role, invited_by, expires_at,
+                       accepted_at, accepted_by, created_at, note
+                FROM org_member_invites
+                WHERE organization_id = $1 AND accepted_at IS NULL AND expires_at > NOW()
+                ORDER BY created_at DESC
+                LIMIT $2 OFFSET $3
+                "#
+            }
+            Some("accepted") => {
+                r#"
+                SELECT id, organization_id, token, email, role, invited_by, expires_at,
+                       accepted_at, accepted_by, created_at, note
+                FROM org_member_invites
+                WHERE organization_id = $1 AND accepted_at IS NOT NULL
+                ORDER BY created_at DESC
+                LIMIT $2 OFFSET $3
+                "#
+            }
+            Some("expired") => {
+                r#"
+                SELECT id, organization_id, token, email, role, invited_by, expires_at,
+                       accepted_at, accepted_by, created_at, note
+                FROM org_member_invites
+                WHERE organization_id = $1 AND accepted_at IS NULL AND expires_at <= NOW()
+                ORDER BY created_at DESC
+                LIMIT $2 OFFSET $3
+                "#
+            }
+            _ => {
+                // "all" or None - return everything
+                r#"
+                SELECT id, organization_id, token, email, role, invited_by, expires_at,
+                       accepted_at, accepted_by, created_at, note
+                FROM org_member_invites
+                WHERE organization_id = $1
+                ORDER BY created_at DESC
+                LIMIT $2 OFFSET $3
+                "#
+            }
         };
 
         sqlx::query_as::<_, OrgMemberInviteEntity>(query)
@@ -123,28 +154,83 @@ impl OrgMemberInviteRepository {
             .await
     }
 
-    /// Counts invites for an organization.
-    pub async fn count_by_organization(
+    /// Lists invites for an organization (deprecated - use list_by_organization_with_status).
+    #[deprecated(note = "Use list_by_organization_with_status for proper status filtering")]
+    pub async fn list_by_organization(
         &self,
         org_id: Uuid,
         include_accepted: bool,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<OrgMemberInviteEntity>, sqlx::Error> {
+        let status = if include_accepted { Some("all") } else { Some("pending") };
+        self.list_by_organization_with_status(org_id, status, limit, offset).await
+    }
+
+    /// Counts invites for an organization with status filter.
+    pub async fn count_by_organization_with_status(
+        &self,
+        org_id: Uuid,
+        status: Option<&str>,
     ) -> Result<i64, sqlx::Error> {
-        let query = if include_accepted {
-            r#"
-            SELECT COUNT(*) FROM org_member_invites
-            WHERE organization_id = $1
-            "#
-        } else {
-            r#"
-            SELECT COUNT(*) FROM org_member_invites
-            WHERE organization_id = $1 AND accepted_at IS NULL
-            "#
+        let query = match status {
+            Some("pending") => {
+                r#"
+                SELECT COUNT(*) FROM org_member_invites
+                WHERE organization_id = $1 AND accepted_at IS NULL AND expires_at > NOW()
+                "#
+            }
+            Some("accepted") => {
+                r#"
+                SELECT COUNT(*) FROM org_member_invites
+                WHERE organization_id = $1 AND accepted_at IS NOT NULL
+                "#
+            }
+            Some("expired") => {
+                r#"
+                SELECT COUNT(*) FROM org_member_invites
+                WHERE organization_id = $1 AND accepted_at IS NULL AND expires_at <= NOW()
+                "#
+            }
+            _ => {
+                // "all" or None - count everything
+                r#"
+                SELECT COUNT(*) FROM org_member_invites
+                WHERE organization_id = $1
+                "#
+            }
         };
 
         let result: (i64,) = sqlx::query_as(query)
             .bind(org_id)
             .fetch_one(&self.pool)
             .await?;
+
+        Ok(result.0)
+    }
+
+    /// Counts invites for an organization (deprecated - use count_by_organization_with_status).
+    #[deprecated(note = "Use count_by_organization_with_status for proper status filtering")]
+    pub async fn count_by_organization(
+        &self,
+        org_id: Uuid,
+        include_accepted: bool,
+    ) -> Result<i64, sqlx::Error> {
+        let status = if include_accepted { Some("all") } else { Some("pending") };
+        self.count_by_organization_with_status(org_id, status).await
+    }
+
+    /// Counts all invites (including expired and accepted) for limit checking.
+    pub async fn count_all_by_organization(&self, org_id: Uuid) -> Result<i64, sqlx::Error> {
+        let result: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM org_member_invites
+            WHERE organization_id = $1
+            "#,
+        )
+        .bind(org_id)
+        .fetch_one(&self.pool)
+        .await?;
 
         Ok(result.0)
     }
