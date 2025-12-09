@@ -26,6 +26,7 @@ pub mod organization_settings;
 pub mod proximity_alert;
 pub mod registration_invite;
 pub mod setting;
+pub mod system_role;
 pub mod trip;
 pub mod trip_path_correction;
 pub mod unlock_request;
@@ -64,6 +65,7 @@ pub use registration_invite::{
     default_expiration, generate_invite_token, RegistrationInviteRepository,
 };
 pub use setting::SettingRepository;
+pub use system_role::SystemRoleRepository;
 pub use trip::{TripInput, TripQuery, TripRepository, TripUpdateInput};
 pub use trip_path_correction::{
     TripPathCorrectionInput, TripPathCorrectionRepository, TripPathCorrectionUpdateInput,

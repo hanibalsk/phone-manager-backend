@@ -27,6 +27,7 @@ pub mod organization_settings;
 pub mod proximity_alert;
 pub mod registration_invite;
 pub mod setting;
+pub mod system_role;
 pub mod trip;
 pub mod trip_path_correction;
 pub mod unlock_request;
@@ -69,6 +70,9 @@ pub use registration_invite::RegistrationInviteEntity;
 pub use setting::{
     DeviceSettingEntity, DeviceSettingWithDefinitionEntity, SettingCategoryDb, SettingDataTypeDb,
     SettingDefinitionEntity, SettingLockEntity,
+};
+pub use system_role::{
+    AdminOrgAssignmentEntity, AdminOrgAssignmentWithNameEntity, SystemRoleDb, UserSystemRoleEntity,
 };
 pub use trip::TripEntity;
 pub use trip_path_correction::TripPathCorrectionEntity;

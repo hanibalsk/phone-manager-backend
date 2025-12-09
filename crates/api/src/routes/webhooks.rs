@@ -9,6 +9,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use domain::models::{check_usage_warning, ResponseWithWarnings};
 use persistence::repositories::{DeviceRepository, WebhookRepository};
 use tracing::info;
 use uuid::Uuid;
@@ -30,10 +31,11 @@ const DEFAULT_MAX_WEBHOOKS_PER_DEVICE: i64 = 10;
 /// POST /api/v1/webhooks
 ///
 /// AC 15.1.2: Creates webhook with validation
+/// Returns usage warning when webhook count approaches configured limit.
 pub async fn create_webhook(
     State(state): State<AppState>,
     Json(request): Json<CreateWebhookRequest>,
-) -> Result<(StatusCode, Json<WebhookResponse>), ApiError> {
+) -> Result<(StatusCode, Json<ResponseWithWarnings<WebhookResponse>>), ApiError> {
     // Validate request
     request.validate().map_err(|e| {
         let errors: Vec<String> = e
@@ -108,7 +110,14 @@ pub async fn create_webhook(
         "Webhook created"
     );
 
-    Ok((StatusCode::CREATED, Json(response)))
+    // Check for usage warning (new count is count + 1 since we just created one)
+    let new_count = count + 1;
+    let warning_threshold = state.config.limits.warning_threshold_percent;
+    let usage_warning = check_usage_warning("webhooks", new_count, max_webhooks, warning_threshold);
+
+    let response_with_warnings = ResponseWithWarnings::maybe_with_warning(response, usage_warning);
+
+    Ok((StatusCode::CREATED, Json(response_with_warnings)))
 }
 
 /// List webhooks for a device.

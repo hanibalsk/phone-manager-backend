@@ -126,6 +126,11 @@ pub struct LimitsConfig {
     /// Maximum webhooks per device (Story 15.1)
     #[serde(default)]
     pub max_webhooks_per_device: Option<u32>,
+
+    /// Percentage threshold for usage warnings (default: 80%)
+    /// When resource usage reaches this percentage of the limit, include a warning in responses
+    #[serde(default = "default_warning_threshold_percent")]
+    pub warning_threshold_percent: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -221,6 +226,9 @@ fn default_max_display_name_length() -> usize {
 }
 fn default_max_group_id_length() -> usize {
     50
+}
+fn default_warning_threshold_percent() -> u32 {
+    80 // Warn when usage reaches 80% of limit
 }
 fn default_map_matching_provider() -> String {
     "osrm".to_string()
@@ -656,6 +664,7 @@ impl Config {
             location_retention_days = 30
             max_display_name_length = 50
             max_group_id_length = 50
+            warning_threshold_percent = 80
 
             [map_matching]
             provider = "osrm"

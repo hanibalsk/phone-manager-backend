@@ -7,6 +7,7 @@ pub mod metrics;
 pub mod rate_limit;
 pub mod rbac;
 pub mod security_headers;
+pub mod system_rbac;
 pub mod trace_id;
 pub mod user_auth;
 pub mod version_check;
@@ -23,6 +24,11 @@ pub use rate_limit::{
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use rbac::{
     require_group_admin, require_group_member, require_group_owner, GroupMembership,
+};
+#[allow(unused_imports)] // Re-exports for downstream use
+pub use system_rbac::{
+    require_any_system_role, require_org_admin, require_org_manager, require_super_admin,
+    require_support, require_viewer, SystemRoleAuth,
 };
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use security_headers::security_headers_middleware;

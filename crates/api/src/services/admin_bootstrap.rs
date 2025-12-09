@@ -106,14 +106,26 @@ pub async fn bootstrap_admin(
     .execute(&mut *tx)
     .await?;
 
-    // Commit the transaction - if this fails, both inserts are rolled back
+    // Assign super_admin system role to the bootstrap user
+    sqlx::query(
+        r#"
+        INSERT INTO user_system_roles (user_id, role, granted_by)
+        VALUES ($1, 'super_admin', NULL)
+        "#,
+    )
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // Commit the transaction - if this fails, all inserts are rolled back
     tx.commit().await?;
 
     info!(
         email = %config.bootstrap_email,
         user_id = %user_id,
         api_key_prefix = %key_prefix,
-        "Bootstrap admin user created successfully"
+        system_role = "super_admin",
+        "Bootstrap admin user created with super_admin role"
     );
 
     warn!(

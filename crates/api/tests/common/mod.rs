@@ -138,6 +138,7 @@ YQIDAQAB
             max_display_name_length: 50,
             max_group_id_length: 50,
             max_webhooks_per_device: Some(10),
+            warning_threshold_percent: 80,
         },
         map_matching: phone_manager_api::config::MapMatchingConfig {
             provider: "osrm".to_string(),

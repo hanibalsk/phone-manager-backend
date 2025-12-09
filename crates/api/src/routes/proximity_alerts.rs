@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use domain::models::{check_usage_warning, ResponseWithWarnings};
 use persistence::repositories::{DeviceRepository, ProximityAlertRepository};
 use tracing::info;
 use uuid::Uuid;
@@ -23,10 +24,11 @@ const MAX_ALERTS_PER_DEVICE: i64 = 20;
 /// Create a new proximity alert.
 ///
 /// POST /api/v1/proximity-alerts
+/// Returns usage warning when proximity alert count approaches configured limit.
 pub async fn create_proximity_alert(
     State(state): State<AppState>,
     Json(request): Json<CreateProximityAlertRequest>,
-) -> Result<(StatusCode, Json<ProximityAlertResponse>), ApiError> {
+) -> Result<(StatusCode, Json<ResponseWithWarnings<ProximityAlertResponse>>), ApiError> {
     // Validate request
     request.validate().map_err(|e| {
         let errors: Vec<String> = e
@@ -126,7 +128,19 @@ pub async fn create_proximity_alert(
         "Proximity alert created"
     );
 
-    Ok((StatusCode::CREATED, Json(response)))
+    // Check for usage warning (new count is count + 1 since we just created one)
+    let new_count = count + 1;
+    let warning_threshold = state.config.limits.warning_threshold_percent;
+    let usage_warning = check_usage_warning(
+        "proximity_alerts",
+        new_count,
+        MAX_ALERTS_PER_DEVICE,
+        warning_threshold,
+    );
+
+    let response_with_warnings = ResponseWithWarnings::maybe_with_warning(response, usage_warning);
+
+    Ok((StatusCode::CREATED, Json(response_with_warnings)))
 }
 
 /// List proximity alerts for a source device.

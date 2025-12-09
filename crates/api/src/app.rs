@@ -26,7 +26,7 @@ use crate::routes::{
     device_policies, device_settings, devices, enrollment, enrollment_tokens, fleet, frontend,
     geofence_events, geofences, groups, health, invites, locations, movement_events, openapi,
     org_invitations, org_webhooks, organization_settings, organizations, privacy, proximity_alerts,
-    public_config, trips, users, versioning, webhooks,
+    public_config, system_roles, trips, users, versioning, webhooks,
 };
 use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
@@ -480,6 +480,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         // Admin auth runs first
         .route_layer(middleware::from_fn_with_state(state.clone(), require_admin));
 
+    // System role management routes (require JWT auth with system roles)
+    // These routes use the SystemRoleAuth extractor which validates JWT and checks system roles
+    let system_role_routes = Router::new()
+        .nest("/api/admin/v1/system-roles", system_roles::router());
+
     // Legacy routes - redirect to v1 with 301 Moved Permanently
     // These don't require auth since they just redirect
     let legacy_routes = Router::new()
@@ -701,6 +706,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .merge(openapi_routes)
         .merge(protected_routes)
         .merge(admin_routes)
+        .merge(system_role_routes)
         .merge(legacy_routes);
 
     // Add frontend serving as fallback if enabled

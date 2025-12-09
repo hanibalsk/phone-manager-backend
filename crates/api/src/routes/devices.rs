@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use domain::models::{check_usage_warning, ResponseWithWarnings};
 use persistence::repositories::DeviceRepository;
 use serde::Deserialize;
 use tracing::info;
@@ -37,11 +38,12 @@ pub struct GetDevicesResponse {
 ///
 /// Supports both API key authentication (legacy) and JWT authentication.
 /// When JWT authenticated, device is automatically linked to the user.
+/// Returns usage warning when device count in group approaches configured limit.
 pub async fn register_device(
     State(state): State<AppState>,
     optional_user: OptionalUserAuth,
     Json(request): Json<RegisterDeviceRequest>,
-) -> Result<Json<RegisterDeviceResponse>, ApiError> {
+) -> Result<Json<ResponseWithWarnings<RegisterDeviceResponse>>, ApiError> {
     // Validate the request
     request.validate().map_err(|e| {
         let errors: Vec<String> = e
@@ -77,12 +79,15 @@ pub async fn register_device(
         }
     }
 
+    // Track group count for usage warning (only relevant for new devices or group changes)
+    let mut group_count_for_warning: Option<i64> = None;
+    let max_devices = state.config.limits.max_devices_per_group as i64;
+
     // Check group capacity if this is a new device or changing groups
     if is_new_device || is_changing_group {
         let group_count = repo
             .count_active_devices_in_group(&request.group_id)
             .await?;
-        let max_devices = state.config.limits.max_devices_per_group as i64;
 
         if group_count >= max_devices {
             return Err(ApiError::Conflict(format!(
@@ -90,6 +95,9 @@ pub async fn register_device(
                 max_devices
             )));
         }
+
+        // Store for warning calculation
+        group_count_for_warning = Some(group_count);
     }
 
     // Perform upsert
@@ -147,7 +155,18 @@ pub async fn register_device(
         domain::models::Device::from(device)
     };
 
-    Ok(Json(RegisterDeviceResponse::from(final_device)))
+    let response = RegisterDeviceResponse::from(final_device);
+
+    // Check for usage warning (only if we added a device to the group)
+    let usage_warning = group_count_for_warning.and_then(|count| {
+        let new_count = count + 1;
+        let warning_threshold = state.config.limits.warning_threshold_percent;
+        check_usage_warning("devices", new_count, max_devices, warning_threshold)
+    });
+
+    let response_with_warnings = ResponseWithWarnings::maybe_with_warning(response, usage_warning);
+
+    Ok(Json(response_with_warnings))
 }
 
 /// Get all active devices in a group with last location.

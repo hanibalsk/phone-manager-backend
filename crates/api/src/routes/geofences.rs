@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use domain::models::{check_usage_warning, ResponseWithWarnings};
 use persistence::repositories::{DeviceRepository, GeofenceRepository};
 use tracing::info;
 use uuid::Uuid;
@@ -23,10 +24,11 @@ const MAX_GEOFENCES_PER_DEVICE: i64 = 50;
 /// Create a new geofence.
 ///
 /// POST /api/v1/geofences
+/// Returns usage warning when geofence count approaches configured limit.
 pub async fn create_geofence(
     State(state): State<AppState>,
     Json(request): Json<CreateGeofenceRequest>,
-) -> Result<(StatusCode, Json<GeofenceResponse>), ApiError> {
+) -> Result<(StatusCode, Json<ResponseWithWarnings<GeofenceResponse>>), ApiError> {
     // Validate request
     request.validate().map_err(|e| {
         let errors: Vec<String> = e
@@ -104,7 +106,19 @@ pub async fn create_geofence(
         "Geofence created"
     );
 
-    Ok((StatusCode::CREATED, Json(response)))
+    // Check for usage warning (new count is count + 1 since we just created one)
+    let new_count = count + 1;
+    let warning_threshold = state.config.limits.warning_threshold_percent;
+    let usage_warning = check_usage_warning(
+        "geofences",
+        new_count,
+        MAX_GEOFENCES_PER_DEVICE,
+        warning_threshold,
+    );
+
+    let response_with_warnings = ResponseWithWarnings::maybe_with_warning(response, usage_warning);
+
+    Ok((StatusCode::CREATED, Json(response_with_warnings)))
 }
 
 /// List geofences for a device.
