@@ -22,6 +22,7 @@ pub mod org_member_invite;
 pub mod org_user;
 pub mod org_webhook;
 pub mod organization;
+pub mod organization_role;
 pub mod organization_settings;
 pub mod proximity_alert;
 pub mod registration_invite;
@@ -59,6 +60,7 @@ pub use org_member_invite::{
 pub use org_user::OrgUserRepository;
 pub use org_webhook::OrgWebhookRepository;
 pub use organization::OrganizationRepository;
+pub use organization_role::OrganizationRoleRepository;
 pub use organization_settings::OrganizationSettingsRepository;
 pub use proximity_alert::ProximityAlertRepository;
 pub use registration_invite::{

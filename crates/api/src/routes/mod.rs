@@ -31,6 +31,7 @@ pub mod permissions;
 pub mod privacy;
 pub mod proximity_alerts;
 pub mod public_config;
+pub mod roles;
 pub mod system_roles;
 pub mod trips;
 pub mod users;

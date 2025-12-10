@@ -22,6 +22,7 @@ pub mod org_member_invite;
 pub mod org_user;
 pub mod org_webhook;
 pub mod organization;
+pub mod organization_role;
 pub mod organization_settings;
 pub mod permission;
 pub mod proximity_alert;
@@ -123,6 +124,11 @@ pub use organization::{
     ListOrganizationsQuery, ListOrganizationsResponse, Organization, OrganizationPagination,
     OrganizationUsageResponse, OrganizationWithUsage, PlanType, UpdateOrganizationRequest,
     UsageMetric, SLUG_REGEX,
+};
+pub use organization_role::{
+    is_system_role_name, CreateOrganizationRoleRequest, DeleteOrganizationRoleResponse,
+    ListOrganizationRolesQuery, ListOrganizationRolesResponse, OrganizationRole,
+    OrganizationRoleResponse, SYSTEM_ROLE_NAMES,
 };
 pub use organization_settings::{
     OrganizationSettings, OrganizationSettingsResponse, UpdateOrganizationSettingsRequest,

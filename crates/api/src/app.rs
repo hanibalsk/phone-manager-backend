@@ -26,7 +26,7 @@ use crate::routes::{
     device_policies, device_settings, devices, enrollment, enrollment_tokens, fleet, frontend,
     geofence_events, geofences, groups, health, invites, locations, movement_events, openapi,
     org_invitations, org_webhooks, organization_settings, organizations, permissions, privacy,
-    proximity_alerts, public_config, system_roles, trips, users, versioning, webhooks,
+    proximity_alerts, public_config, roles, system_roles, trips, users, versioning, webhooks,
 };
 use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
@@ -473,6 +473,8 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/admin/v1/organizations/:org_id/permissions",
             permissions::router(),
         )
+        // Organization role management routes (Story AP-1.2, AP-1.3)
+        .nest("/api/admin/v1/organizations/:org_id/roles", roles::router())
         .route_layer(middleware::from_fn_with_state(state.clone(), require_b2b));
 
     // Admin routes (require admin API key)

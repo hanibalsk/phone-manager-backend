@@ -58,6 +58,7 @@ pub enum ResourceType {
     Token,
     EnrollmentToken,
     OrgUser,
+    Role,
 }
 
 impl FromStr for ResourceType {
@@ -74,6 +75,7 @@ impl FromStr for ResourceType {
             "token" => Ok(ResourceType::Token),
             "enrollment_token" => Ok(ResourceType::EnrollmentToken),
             "org_user" => Ok(ResourceType::OrgUser),
+            "role" => Ok(ResourceType::Role),
             _ => Err(format!("Unknown resource type: {}", s)),
         }
     }
@@ -91,6 +93,7 @@ impl std::fmt::Display for ResourceType {
             ResourceType::Token => write!(f, "token"),
             ResourceType::EnrollmentToken => write!(f, "enrollment_token"),
             ResourceType::OrgUser => write!(f, "org_user"),
+            ResourceType::Role => write!(f, "role"),
         }
     }
 }
@@ -151,6 +154,11 @@ pub enum AuditAction {
     OrgUserAdd,
     OrgUserUpdate,
     OrgUserRemove,
+
+    // Role actions
+    RoleCreated,
+    RoleUpdated,
+    RoleDeleted,
 }
 
 impl FromStr for AuditAction {
@@ -195,6 +203,9 @@ impl FromStr for AuditAction {
             "org_user.add" => Ok(AuditAction::OrgUserAdd),
             "org_user.update" => Ok(AuditAction::OrgUserUpdate),
             "org_user.remove" => Ok(AuditAction::OrgUserRemove),
+            "role.create" => Ok(AuditAction::RoleCreated),
+            "role.update" => Ok(AuditAction::RoleUpdated),
+            "role.delete" => Ok(AuditAction::RoleDeleted),
             _ => Err(format!("Unknown audit action: {}", s)),
         }
     }
@@ -240,6 +251,9 @@ impl std::fmt::Display for AuditAction {
             AuditAction::OrgUserAdd => "org_user.add",
             AuditAction::OrgUserUpdate => "org_user.update",
             AuditAction::OrgUserRemove => "org_user.remove",
+            AuditAction::RoleCreated => "role.create",
+            AuditAction::RoleUpdated => "role.update",
+            AuditAction::RoleDeleted => "role.delete",
         };
         write!(f, "{}", s)
     }
@@ -324,7 +338,11 @@ pub struct AuditResource {
 
 impl AuditResource {
     /// Create a new audit resource.
-    pub fn new(resource_type: impl Into<String>, id: Option<impl Into<String>>, name: Option<impl Into<String>>) -> Self {
+    pub fn new(
+        resource_type: impl Into<String>,
+        id: Option<impl Into<String>>,
+        name: Option<impl Into<String>>,
+    ) -> Self {
         Self {
             resource_type: resource_type.into(),
             id: id.map(Into::into),
@@ -346,7 +364,11 @@ pub struct AuditMetadata {
 
 impl AuditMetadata {
     /// Create new metadata with common fields.
-    pub fn new(ip_address: Option<IpAddr>, user_agent: Option<String>, request_id: Option<String>) -> Self {
+    pub fn new(
+        ip_address: Option<IpAddr>,
+        user_agent: Option<String>,
+        request_id: Option<String>,
+    ) -> Self {
         Self {
             ip_address: ip_address.map(|ip| ip.to_string()),
             user_agent,
@@ -381,7 +403,11 @@ pub struct CreateAuditLogInput {
 
 impl CreateAuditLogInput {
     /// Create a new audit log input builder.
-    pub fn new(organization_id: Uuid, action: AuditAction, resource_type: impl Into<String>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        action: AuditAction,
+        resource_type: impl Into<String>,
+    ) -> Self {
         Self {
             organization_id,
             actor_id: None,
@@ -441,14 +467,24 @@ impl CreateAuditLogInput {
     }
 
     /// Add a single field change.
-    pub fn add_change(mut self, field: impl Into<String>, old: Option<JsonValue>, new: Option<JsonValue>) -> Self {
+    pub fn add_change(
+        mut self,
+        field: impl Into<String>,
+        old: Option<JsonValue>,
+        new: Option<JsonValue>,
+    ) -> Self {
         let changes = self.changes.get_or_insert_with(HashMap::new);
         changes.insert(field.into(), FieldChange::new(old, new));
         self
     }
 
     /// Set request context.
-    pub fn with_request_context(mut self, ip_address: Option<IpAddr>, user_agent: Option<String>, request_id: Option<String>) -> Self {
+    pub fn with_request_context(
+        mut self,
+        ip_address: Option<IpAddr>,
+        user_agent: Option<String>,
+        request_id: Option<String>,
+    ) -> Self {
         self.ip_address = ip_address;
         self.user_agent = user_agent;
         self.request_id = request_id;
@@ -637,15 +673,27 @@ mod tests {
 
     #[test]
     fn test_resource_type_from_str() {
-        assert_eq!(ResourceType::from_str("device").unwrap(), ResourceType::Device);
-        assert_eq!(ResourceType::from_str("organization").unwrap(), ResourceType::Organization);
+        assert_eq!(
+            ResourceType::from_str("device").unwrap(),
+            ResourceType::Device
+        );
+        assert_eq!(
+            ResourceType::from_str("organization").unwrap(),
+            ResourceType::Organization
+        );
         assert!(ResourceType::from_str("invalid").is_err());
     }
 
     #[test]
     fn test_audit_action_from_str() {
-        assert_eq!(AuditAction::from_str("device.assign").unwrap(), AuditAction::DeviceAssign);
-        assert_eq!(AuditAction::from_str("org.create").unwrap(), AuditAction::OrgCreate);
+        assert_eq!(
+            AuditAction::from_str("device.assign").unwrap(),
+            AuditAction::DeviceAssign
+        );
+        assert_eq!(
+            AuditAction::from_str("org.create").unwrap(),
+            AuditAction::OrgCreate
+        );
         assert!(AuditAction::from_str("invalid.action").is_err());
     }
 
@@ -664,7 +712,11 @@ mod tests {
             .with_user_actor(user_id, Some("admin@example.com".to_string()))
             .with_resource_id("device-123")
             .with_resource_name("Field Tablet 1")
-            .add_change("assigned_user_id", None, Some(serde_json::json!("user-456")));
+            .add_change(
+                "assigned_user_id",
+                None,
+                Some(serde_json::json!("user-456")),
+            );
 
         assert_eq!(input.organization_id, org_id);
         assert_eq!(input.actor_id, Some(user_id));
