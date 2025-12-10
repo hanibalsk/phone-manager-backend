@@ -22,78 +22,40 @@ pub mod org_member_invite;
 pub mod org_user;
 pub mod org_webhook;
 pub mod organization;
-pub mod system_role;
-pub mod usage_warning;
 pub mod organization_settings;
+pub mod permission;
 pub mod proximity_alert;
 pub mod setting;
+pub mod system_role;
 pub mod trip;
 pub mod trip_path_correction;
 pub mod unlock_request;
+pub mod usage_warning;
 pub mod user;
 pub mod webhook;
 
-pub use device::Device;
-pub use device_policy::{
-    AppliedToCount, ApplyPolicyRequest, ApplyPolicyResponse, CreateDevicePolicyRequest,
-    DevicePolicy, DevicePolicyPagination, DevicePolicyResponse, ListDevicePoliciesQuery,
-    ListDevicePoliciesResponse, PolicyTarget, PolicyTargetType, UnapplyPolicyRequest,
-    UnapplyPolicyResponse, UpdateDevicePolicyRequest,
+pub use admin_group::{
+    AdminGroupDetailResponse, AdminGroupItem, AdminGroupListResponse, AdminGroupPagination,
+    AdminGroupProfile, AdminGroupQuery, AdminGroupSortField, AdminGroupSummary,
+    DeactivateGroupResponse, GroupDeviceInfo, GroupMemberInfo, GroupOwnerInfo,
+    UpdateAdminGroupRequest, UpdateAdminGroupResponse,
 };
-pub use enrollment_token::{
-    CreateEnrollmentTokenRequest, EnrollmentToken, EnrollmentTokenPagination,
-    EnrollmentTokenResponse, ListEnrollmentTokensQuery, ListEnrollmentTokensResponse, QrCodeResponse,
-    calculate_expiry, extract_prefix, generate_token,
+pub use admin_user::{
+    AdminUserDetailResponse, AdminUserItem, AdminUserListResponse, AdminUserPagination,
+    AdminUserProfile, AdminUserQuery, AdminUserSortField, AdminUserSummary, RecentAction,
+    RemoveUserResponse, SortOrder as AdminSortOrder, UpdateAdminUserRequest,
+    UpdateAdminUserResponse, UserActivitySummary, UserDeviceInfo, UserGroupInfo,
 };
-pub use geofence::Geofence;
-pub use group::{Group, GroupMembership, GroupRole};
-pub use invite::GroupInvite;
-pub use location::Location;
-pub use movement_event::MovementEvent;
-pub use org_user::{
-    AddOrgUserRequest, ListOrgUsersQuery, ListOrgUsersResponse, OrgUser, OrgUserInfo,
-    OrgUserPagination, OrgUserResponse, OrgUserRole, OrgUserWithDetails, UpdateOrgUserRequest,
-    PERMISSIONS, validate_permissions,
-};
-pub use organization::{
-    CreateOrganizationRequest, CreateOrganizationResponse, DeviceStatusCounts, DeviceUsageMetric,
-    ListOrganizationsQuery, ListOrganizationsResponse, Organization, OrganizationPagination,
-    OrganizationUsageResponse, OrganizationWithUsage, PlanType, UpdateOrganizationRequest, UsageMetric,
-    SLUG_REGEX,
-};
-pub use proximity_alert::ProximityAlert;
-pub use setting::{
-    DeviceSetting, GetSettingsResponse, SettingCategory, SettingDataType, SettingDefinition,
-    SettingValue,
-};
-pub use trip::Trip;
-pub use trip_path_correction::TripPathCorrection;
-pub use unlock_request::{
-    CreateUnlockRequestRequest, CreateUnlockRequestResponse, ListUnlockRequestsQuery,
-    ListUnlockRequestsResponse, RespondToUnlockRequestRequest, RespondToUnlockRequestResponse,
-    UnlockRequestStatus,
-};
-pub use user::{OAuthAccount, OAuthProvider, User, UserSession};
-pub use device_token::{
-    DeviceToken, EnrollmentStatus, calculate_device_token_expiry, extract_device_token_prefix,
-    generate_device_token, DEFAULT_TOKEN_EXPIRY_DAYS, DEVICE_TOKEN_PREFIX,
-};
-pub use enrollment::{
-    DeviceInfo, EnrollDeviceRequest, EnrollDeviceResponse, EnrolledDevice, EnrollmentGroupInfo,
-    EnrollmentPolicyInfo,
-};
-pub use fleet::{
-    AssignDeviceRequest, AssignDeviceResponse, AssignedUserInfo, DeviceCommand, DeviceCommandStatus,
-    DeviceCommandType, DeviceStatusChangeResponse, FleetDeviceItem, FleetDeviceListResponse,
-    FleetDeviceQuery, FleetGroupInfo, FleetLastLocation, FleetPagination, FleetPolicyInfo,
-    FleetSortField, FleetSummary, IssueCommandRequest, IssueCommandResponse, SortOrder,
-    UnassignDeviceResponse,
+pub use api_key::{
+    ApiKeyPagination, ApiKeyResponse, CreateApiKeyRequest, CreateApiKeyResponse, ListApiKeysQuery,
+    ListApiKeysResponse, UpdateApiKeyRequest, MAX_API_KEYS_PER_ORG,
 };
 pub use audit_log::{
-    ActorType, AsyncExportResponse, AuditAction, AuditActor, AuditLog, AuditLogPagination, AuditMetadata,
-    AuditResource, CreateAuditLogInput, ExportAuditLogsQuery, ExportFormat, ExportJobResponse,
-    ExportJobStatus, FieldChange, ListAuditLogsQuery, ListAuditLogsResponse, ResourceType,
-    SyncExportResponse, MAX_EXPORT_RECORDS, MAX_SYNC_EXPORT_RECORDS, EXPORT_JOB_EXPIRY_HOURS,
+    ActorType, AsyncExportResponse, AuditAction, AuditActor, AuditLog, AuditLogPagination,
+    AuditMetadata, AuditResource, CreateAuditLogInput, ExportAuditLogsQuery, ExportFormat,
+    ExportJobResponse, ExportJobStatus, FieldChange, ListAuditLogsQuery, ListAuditLogsResponse,
+    ResourceType, SyncExportResponse, EXPORT_JOB_EXPIRY_HOURS, MAX_EXPORT_RECORDS,
+    MAX_SYNC_EXPORT_RECORDS,
 };
 pub use bulk_import::{
     BulkDeviceImportRequest, BulkDeviceImportResponse, BulkDeviceInput, BulkDeviceItem,
@@ -104,33 +66,42 @@ pub use dashboard::{
     ActivityPeriod, ActivitySummary, DashboardMetrics, DeviceMetrics, DeviceStatusBreakdown,
     EnrollmentMetrics, GroupMetrics, PolicyMetrics, RoleBreakdown, TrendData, Trends, UserMetrics,
 };
-pub use admin_user::{
-    AdminUserDetailResponse, AdminUserItem, AdminUserListResponse, AdminUserPagination,
-    AdminUserProfile, AdminUserQuery, AdminUserSortField, AdminUserSummary, RecentAction,
-    RemoveUserResponse, SortOrder as AdminSortOrder, UpdateAdminUserRequest, UpdateAdminUserResponse,
-    UserActivitySummary, UserDeviceInfo, UserGroupInfo,
+pub use device::Device;
+pub use device_policy::{
+    AppliedToCount, ApplyPolicyRequest, ApplyPolicyResponse, CreateDevicePolicyRequest,
+    DevicePolicy, DevicePolicyPagination, DevicePolicyResponse, ListDevicePoliciesQuery,
+    ListDevicePoliciesResponse, PolicyTarget, PolicyTargetType, UnapplyPolicyRequest,
+    UnapplyPolicyResponse, UpdateDevicePolicyRequest,
 };
-pub use admin_group::{
-    AdminGroupDetailResponse, AdminGroupItem, AdminGroupListResponse, AdminGroupPagination,
-    AdminGroupProfile, AdminGroupQuery, AdminGroupSortField, AdminGroupSummary, DeactivateGroupResponse,
-    GroupDeviceInfo, GroupMemberInfo, GroupOwnerInfo, UpdateAdminGroupRequest, UpdateAdminGroupResponse,
+pub use device_token::{
+    calculate_device_token_expiry, extract_device_token_prefix, generate_device_token, DeviceToken,
+    EnrollmentStatus, DEFAULT_TOKEN_EXPIRY_DAYS, DEVICE_TOKEN_PREFIX,
 };
-pub use webhook::{
-    CreateWebhookRequest, ListWebhooksQuery, ListWebhooksResponse, UpdateWebhookRequest, Webhook,
-    WebhookResponse,
+pub use enrollment::{
+    DeviceInfo, EnrollDeviceRequest, EnrollDeviceResponse, EnrolledDevice, EnrollmentGroupInfo,
+    EnrollmentPolicyInfo,
 };
+pub use enrollment_token::{
+    calculate_expiry, extract_prefix, generate_token, CreateEnrollmentTokenRequest,
+    EnrollmentToken, EnrollmentTokenPagination, EnrollmentTokenResponse, ListEnrollmentTokensQuery,
+    ListEnrollmentTokensResponse, QrCodeResponse,
+};
+pub use fleet::{
+    AssignDeviceRequest, AssignDeviceResponse, AssignedUserInfo, DeviceCommand,
+    DeviceCommandStatus, DeviceCommandType, DeviceStatusChangeResponse, FleetDeviceItem,
+    FleetDeviceListResponse, FleetDeviceQuery, FleetGroupInfo, FleetLastLocation, FleetPagination,
+    FleetPolicyInfo, FleetSortField, FleetSummary, IssueCommandRequest, IssueCommandResponse,
+    SortOrder, UnassignDeviceResponse,
+};
+pub use geofence::Geofence;
 pub use geofence_event::{
     CreateGeofenceEventRequest, GeofenceEvent, GeofenceEventResponse, GeofenceTransitionType,
     ListGeofenceEventsQuery, ListGeofenceEventsResponse,
 };
-pub use organization_settings::{
-    OrganizationSettings, OrganizationSettingsResponse, UpdateOrganizationSettingsRequest,
-    VerifyPinRequest, VerifyPinResponse,
-};
-pub use api_key::{
-    ApiKeyPagination, ApiKeyResponse, CreateApiKeyRequest, CreateApiKeyResponse,
-    ListApiKeysQuery, ListApiKeysResponse, UpdateApiKeyRequest, MAX_API_KEYS_PER_ORG,
-};
+pub use group::{Group, GroupMembership, GroupRole};
+pub use invite::GroupInvite;
+pub use location::Location;
+pub use movement_event::MovementEvent;
 pub use org_member_invite::{
     AcceptInvitationRequest, AcceptInvitationResponse, AcceptedOrgInfo, AcceptedUserInfo,
     CreateInvitationRequest, CreateInvitationResponse, InvitationPagination, InvitationResponse,
@@ -138,9 +109,34 @@ pub use org_member_invite::{
     ListInvitationsResponse, DEFAULT_EXPIRATION_DAYS, MAX_EXPIRATION_DAYS, MAX_INVITATIONS_PER_ORG,
     MIN_EXPIRATION_DAYS,
 };
+pub use org_user::{
+    validate_permissions, AddOrgUserRequest, ListOrgUsersQuery, ListOrgUsersResponse, OrgUser,
+    OrgUserInfo, OrgUserPagination, OrgUserResponse, OrgUserRole, OrgUserWithDetails,
+    UpdateOrgUserRequest, PERMISSIONS,
+};
 pub use org_webhook::{
     CreateOrgWebhookRequest, ListOrgWebhooksResponse, OrgWebhookResponse, UpdateOrgWebhookRequest,
     MAX_WEBHOOKS_PER_ORG, SUPPORTED_EVENT_TYPES,
+};
+pub use organization::{
+    CreateOrganizationRequest, CreateOrganizationResponse, DeviceStatusCounts, DeviceUsageMetric,
+    ListOrganizationsQuery, ListOrganizationsResponse, Organization, OrganizationPagination,
+    OrganizationUsageResponse, OrganizationWithUsage, PlanType, UpdateOrganizationRequest,
+    UsageMetric, SLUG_REGEX,
+};
+pub use organization_settings::{
+    OrganizationSettings, OrganizationSettingsResponse, UpdateOrganizationSettingsRequest,
+    VerifyPinRequest, VerifyPinResponse,
+};
+pub use permission::{
+    get_all_permissions, get_permissions_by_category, get_permissions_by_category_filter,
+    ListPermissionsQuery, ListPermissionsResponse, Permission, PermissionCategory,
+    PermissionsByCategory,
+};
+pub use proximity_alert::ProximityAlert;
+pub use setting::{
+    DeviceSetting, GetSettingsResponse, SettingCategory, SettingDataType, SettingDefinition,
+    SettingValue,
 };
 pub use system_role::{
     AddSystemRoleRequest, AddSystemRoleResponse, AdminOrgAssignment, AssignOrgRequest,
@@ -148,4 +144,16 @@ pub use system_role::{
     RemoveSystemRoleResponse, SystemRole, SystemRoleInfo, UserOrgAssignmentsResponse,
     UserSystemRole, UserSystemRoleDetail, UserSystemRolesResponse, SYSTEM_PERMISSIONS,
 };
+pub use trip::Trip;
+pub use trip_path_correction::TripPathCorrection;
+pub use unlock_request::{
+    CreateUnlockRequestRequest, CreateUnlockRequestResponse, ListUnlockRequestsQuery,
+    ListUnlockRequestsResponse, RespondToUnlockRequestRequest, RespondToUnlockRequestResponse,
+    UnlockRequestStatus,
+};
 pub use usage_warning::{check_usage_warning, ResponseWithWarnings, UsageWarning};
+pub use user::{OAuthAccount, OAuthProvider, User, UserSession};
+pub use webhook::{
+    CreateWebhookRequest, ListWebhooksQuery, ListWebhooksResponse, UpdateWebhookRequest, Webhook,
+    WebhookResponse,
+};

@@ -25,8 +25,8 @@ use crate::routes::{
     admin, admin_groups, admin_users, api_keys, audit_logs, auth, bulk_import, dashboard,
     device_policies, device_settings, devices, enrollment, enrollment_tokens, fleet, frontend,
     geofence_events, geofences, groups, health, invites, locations, movement_events, openapi,
-    org_invitations, org_webhooks, organization_settings, organizations, privacy, proximity_alerts,
-    public_config, system_roles, trips, users, versioning, webhooks,
+    org_invitations, org_webhooks, organization_settings, organizations, permissions, privacy,
+    proximity_alerts, public_config, system_roles, trips, users, versioning, webhooks,
 };
 use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
@@ -71,15 +71,14 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
     };
 
     // Create auth rate limiters for forgot-password and request-verification endpoints
-    let forgot_password_rate_limiter =
-        if config.security.forgot_password_rate_limit_per_hour > 0 {
-            Some(Arc::new(AuthRateLimiterState::new(
-                config.security.forgot_password_rate_limit_per_hour,
-                "forgot-password",
-            )))
-        } else {
-            None
-        };
+    let forgot_password_rate_limiter = if config.security.forgot_password_rate_limit_per_hour > 0 {
+        Some(Arc::new(AuthRateLimiterState::new(
+            config.security.forgot_password_rate_limit_per_hour,
+            "forgot-password",
+        )))
+    } else {
+        None
+    };
 
     let request_verification_rate_limiter =
         if config.security.request_verification_rate_limit_per_hour > 0 {
@@ -275,7 +274,10 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route("/api/v1/webhooks", post(webhooks::create_webhook))
         .route("/api/v1/webhooks", get(webhooks::list_webhooks))
         .route("/api/v1/webhooks/:webhook_id", get(webhooks::get_webhook))
-        .route("/api/v1/webhooks/:webhook_id", put(webhooks::update_webhook))
+        .route(
+            "/api/v1/webhooks/:webhook_id",
+            put(webhooks::update_webhook),
+        )
         .route(
             "/api/v1/webhooks/:webhook_id",
             delete(webhooks::delete_webhook),
@@ -466,6 +468,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
                 .put(org_webhooks::update_webhook)
                 .delete(org_webhooks::delete_webhook),
         )
+        // Organization permissions routes (Story AP-1.1)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/permissions",
+            permissions::router(),
+        )
         .route_layer(middleware::from_fn_with_state(state.clone(), require_b2b));
 
     // Admin routes (require admin API key)
@@ -482,8 +489,8 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
 
     // System role management routes (require JWT auth with system roles)
     // These routes use the SystemRoleAuth extractor which validates JWT and checks system roles
-    let system_role_routes = Router::new()
-        .nest("/api/admin/v1/system-roles", system_roles::router());
+    let system_role_routes =
+        Router::new().nest("/api/admin/v1/system-roles", system_roles::router());
 
     // Legacy routes - redirect to v1 with 301 Moved Permanently
     // These don't require auth since they just redirect
@@ -507,28 +514,19 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route("/api/v1/auth/oauth", post(auth::oauth_login))
         .route("/api/v1/auth/refresh", post(auth::refresh))
         .route("/api/v1/auth/logout", post(auth::logout))
-        .route(
-            "/api/v1/auth/reset-password",
-            post(auth::reset_password),
-        )
+        .route("/api/v1/auth/reset-password", post(auth::reset_password))
         .route("/api/v1/auth/verify-email", post(auth::verify_email));
 
     // Rate-limited forgot-password route (5/hour per IP)
     let forgot_password_routes = if let Some(ref limiter) = state.forgot_password_rate_limiter {
         Router::new()
-            .route(
-                "/api/v1/auth/forgot-password",
-                post(auth::forgot_password),
-            )
+            .route("/api/v1/auth/forgot-password", post(auth::forgot_password))
             .route_layer(middleware::from_fn_with_state(
                 limiter.clone(),
                 auth_rate_limit_middleware,
             ))
     } else {
-        Router::new().route(
-            "/api/v1/auth/forgot-password",
-            post(auth::forgot_password),
-        )
+        Router::new().route("/api/v1/auth/forgot-password", post(auth::forgot_password))
     };
 
     // Rate-limited request-verification route (3/hour per IP)
@@ -581,13 +579,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         // Device settings endpoints (Story 12.2, 12.3, 12.4, 12.5)
         .route(
             "/api/v1/devices/:device_id/settings",
-            get(device_settings::get_device_settings)
-                .put(device_settings::update_device_settings),
+            get(device_settings::get_device_settings).put(device_settings::update_device_settings),
         )
         .route(
             "/api/v1/devices/:device_id/settings/locks",
-            get(device_settings::get_setting_locks)
-                .put(device_settings::bulk_update_locks),
+            get(device_settings::get_setting_locks).put(device_settings::bulk_update_locks),
         )
         .route(
             "/api/v1/devices/:device_id/settings/:key",
@@ -595,8 +591,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         )
         .route(
             "/api/v1/devices/:device_id/settings/:key/lock",
-            post(device_settings::lock_setting)
-                .delete(device_settings::unlock_setting),
+            post(device_settings::lock_setting).delete(device_settings::unlock_setting),
         )
         // Settings sync endpoint (Story 12.7)
         .route(
