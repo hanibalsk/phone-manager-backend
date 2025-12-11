@@ -237,16 +237,40 @@ impl OrganizationRepository {
             None => return Ok(None),
         };
 
-        // Get current user count (org_users table will be created in story 13.2)
-        // For now, return 0 as placeholder
-        let current_users: i64 = 0;
+        // Get current user count from org_users table
+        let current_users: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM org_users WHERE organization_id = $1",
+        )
+        .bind(org_id)
+        .fetch_one(&self.pool)
+        .await?;
 
-        // Get current device count (devices with organization_id will be added later)
-        // For now, return 0 as placeholder
-        let current_devices: i64 = 0;
+        // Get current device count (managed devices with this organization_id)
+        let current_devices: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM devices WHERE organization_id = $1 AND active = true",
+        )
+        .bind(org_id)
+        .fetch_one(&self.pool)
+        .await?;
 
-        // Get current group count (groups with organization_id will be added later)
-        // For now, return 0 as placeholder
+        // Get device counts by enrollment status
+        let device_status_counts = sqlx::query_as::<_, DeviceStatusRow>(
+            r#"
+            SELECT
+                COALESCE(SUM(CASE WHEN enrollment_status = 'enrolled' THEN 1 ELSE 0 END), 0) as enrolled,
+                COALESCE(SUM(CASE WHEN enrollment_status = 'pending' THEN 1 ELSE 0 END), 0) as pending,
+                COALESCE(SUM(CASE WHEN enrollment_status = 'suspended' THEN 1 ELSE 0 END), 0) as suspended,
+                COALESCE(SUM(CASE WHEN enrollment_status = 'retired' THEN 1 ELSE 0 END), 0) as retired
+            FROM devices
+            WHERE organization_id = $1
+            "#,
+        )
+        .bind(org_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Get current group count (groups don't have org_id yet, return 0)
+        // Groups in this system are per-device family sharing, not organization-level
         let current_groups: i64 = 0;
 
         let users_percentage = if org.max_users > 0 {
@@ -280,7 +304,12 @@ impl OrganizationRepository {
                 current: current_devices,
                 max: org.max_devices,
                 percentage: devices_percentage,
-                by_status: DeviceStatusCounts::default(),
+                by_status: DeviceStatusCounts {
+                    enrolled: device_status_counts.enrolled,
+                    pending: device_status_counts.pending,
+                    suspended: device_status_counts.suspended,
+                    retired: device_status_counts.retired,
+                },
             },
             groups: UsageMetric {
                 current: current_groups,
@@ -290,6 +319,15 @@ impl OrganizationRepository {
             period,
         }))
     }
+}
+
+/// Helper struct for device status counts query.
+#[derive(sqlx::FromRow)]
+struct DeviceStatusRow {
+    enrolled: i64,
+    pending: i64,
+    suspended: i64,
+    retired: i64,
 }
 
 #[cfg(test)]
