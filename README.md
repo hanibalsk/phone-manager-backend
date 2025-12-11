@@ -302,6 +302,9 @@ Configuration uses TOML files with environment variable overrides.
 | `PM__FEATURES__B2B_ENABLED` | No | `true` | Enable B2B/organization features |
 | `PM__ADMIN__BOOTSTRAP_EMAIL` | No | - | Email for first admin user (one-time) |
 | `PM__ADMIN__BOOTSTRAP_PASSWORD` | No | - | Password for first admin (remove after setup!) |
+| `PM__REPORTS__REPORTS_DIR` | No | `./reports` | Directory for generated report files |
+| `PM__REPORTS__BATCH_SIZE` | No | `5` | Reports to process per background job batch |
+| `PM__REPORTS__EXPIRATION_DAYS` | No | `7` | Days before generated reports expire |
 
 ### Configuration Files
 

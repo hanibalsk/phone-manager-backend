@@ -120,6 +120,11 @@ PM__FEATURES__GEOFENCE_EVENTS_ENABLED=true    # Geofence event endpoints
 # Admin Bootstrap (initial setup only - REMOVE after first startup!)
 PM__ADMIN__BOOTSTRAP_EMAIL=admin@company.com
 PM__ADMIN__BOOTSTRAP_PASSWORD=initial-secure-password
+
+# Report Generation (optional)
+PM__REPORTS__REPORTS_DIR=./reports            # Directory for generated reports
+PM__REPORTS__BATCH_SIZE=5                     # Reports to process per batch
+PM__REPORTS__EXPIRATION_DAYS=7                # Days before reports expire
 ```
 
 ### Production Configuration Validation

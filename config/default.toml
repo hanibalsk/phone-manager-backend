@@ -240,3 +240,19 @@ bootstrap_email = ""
 # SECURITY: Remove after initial setup!
 # Set via PM__ADMIN__BOOTSTRAP_PASSWORD
 bootstrap_password = ""
+
+[reports]
+# Directory to store generated report files
+# Ensure this directory exists and is writable by the application
+# Set via PM__REPORTS__REPORTS_DIR
+reports_dir = "./reports"
+
+# Number of reports to process per background job batch
+# Higher values process more reports per cycle but use more memory
+# Set via PM__REPORTS__BATCH_SIZE
+batch_size = 5
+
+# Number of days before generated reports expire and are cleaned up
+# After expiration, report files are deleted by the cleanup job
+# Set via PM__REPORTS__EXPIRATION_DAYS
+expiration_days = 7
