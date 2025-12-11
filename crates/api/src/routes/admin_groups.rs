@@ -9,8 +9,10 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
-use chrono::Utc;
-use persistence::repositories::{AdminGroupRepository, OrgUserRepository};
+use chrono::{Duration, Utc};
+use persistence::entities::GroupRoleDb;
+use persistence::repositories::{AdminGroupRepository, InviteRepository, OrgUserRepository};
+use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -18,12 +20,14 @@ use crate::app::AppState;
 use crate::error::ApiError;
 use crate::extractors::UserAuth;
 
+use domain::models::invite::generate_invite_code;
 use domain::models::{
     AddGroupMemberRequest, AddGroupMemberResponse, AdminGroupDetailResponse,
     AdminGroupListResponse, AdminGroupPagination, AdminGroupQuery, AdminSortOrder,
-    DeactivateGroupResponse, GroupMembersPagination, ListGroupMembersQuery,
-    ListGroupMembersResponse, OrgUserRole, RemoveGroupMemberResponse, UpdateAdminGroupRequest,
-    UpdateAdminGroupResponse,
+    CreateGroupInvitationRequest, CreateGroupInvitationResponse, DeactivateGroupResponse,
+    GroupInvitationInfo, GroupMembersPagination, ListGroupInvitationsResponse,
+    ListGroupMembersQuery, ListGroupMembersResponse, OrgUserRole, RemoveGroupMemberResponse,
+    UpdateAdminGroupRequest, UpdateAdminGroupResponse,
 };
 
 /// Create admin group management routes.
@@ -36,6 +40,8 @@ pub fn router() -> Router<AppState> {
         .route("/{group_id}/members", get(list_group_members))
         .route("/{group_id}/members", post(add_group_member))
         .route("/{group_id}/members/{member_id}", delete(remove_group_member))
+        .route("/{group_id}/invitations", get(list_group_invitations))
+        .route("/{group_id}/invitations", post(create_group_invitation))
 }
 
 /// List groups in organization.
@@ -515,6 +521,180 @@ async fn remove_group_member(
     };
 
     Ok((StatusCode::OK, Json(response)))
+}
+
+/// List invitations for a group.
+///
+/// GET /api/admin/v1/organizations/{org_id}/groups/{group_id}/invitations
+#[axum::debug_handler]
+async fn list_group_invitations(
+    State(state): State<AppState>,
+    Path((org_id, group_id)): Path<(Uuid, Uuid)>,
+    user: UserAuth,
+) -> Result<impl IntoResponse, ApiError> {
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+    let admin_group_repo = AdminGroupRepository::new(state.pool.clone());
+    let invite_repo = InviteRepository::new(state.pool.clone());
+
+    // Verify user has access to organization
+    let org_user = org_user_repo
+        .find_by_org_and_user(org_id, user.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
+
+    // Check permission (admin or owner can view invitations)
+    if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
+    }
+
+    // Verify group belongs to organization
+    if !admin_group_repo
+        .group_belongs_to_org(org_id, group_id)
+        .await?
+    {
+        return Err(ApiError::NotFound(
+            "Group not found in organization".to_string(),
+        ));
+    }
+
+    // Get active invitations
+    let invites = invite_repo.list_active_invites(group_id).await?;
+
+    // Map to response format
+    let data: Vec<GroupInvitationInfo> = invites
+        .into_iter()
+        .map(|i| {
+            let invite_url = format!("{}/join/{}", state.config.server.app_base_url, i.code);
+            GroupInvitationInfo {
+                id: i.id,
+                group_id: i.group_id,
+                code: i.code,
+                preset_role: format!("{:?}", i.preset_role).to_lowercase(),
+                max_uses: i.max_uses,
+                current_uses: i.current_uses,
+                expires_at: i.expires_at,
+                created_by: i.created_by,
+                created_by_name: i.creator_display_name,
+                created_at: i.created_at,
+                invite_url,
+            }
+        })
+        .collect();
+
+    info!(
+        org_id = %org_id,
+        group_id = %group_id,
+        user_id = %user.user_id,
+        invite_count = data.len(),
+        "Listed group invitations"
+    );
+
+    let response = ListGroupInvitationsResponse { data };
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// Create a new invitation for a group.
+///
+/// POST /api/admin/v1/organizations/{org_id}/groups/{group_id}/invitations
+#[axum::debug_handler]
+async fn create_group_invitation(
+    State(state): State<AppState>,
+    Path((org_id, group_id)): Path<(Uuid, Uuid)>,
+    user: UserAuth,
+    Json(request): Json<CreateGroupInvitationRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+    let admin_group_repo = AdminGroupRepository::new(state.pool.clone());
+    let invite_repo = InviteRepository::new(state.pool.clone());
+
+    // Verify user has access to organization
+    let org_user = org_user_repo
+        .find_by_org_and_user(org_id, user.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
+
+    // Check permission (admin or owner can create invitations)
+    if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
+    }
+
+    // Verify group belongs to organization
+    if !admin_group_repo
+        .group_belongs_to_org(org_id, group_id)
+        .await?
+    {
+        return Err(ApiError::NotFound(
+            "Group not found in organization".to_string(),
+        ));
+    }
+
+    // Parse preset role (default to member)
+    let preset_role_str = request.preset_role.as_deref().unwrap_or("member");
+    let preset_role_db = match preset_role_str {
+        "admin" => GroupRoleDb::Admin,
+        "member" => GroupRoleDb::Member,
+        _ => {
+            return Err(ApiError::Validation(
+                "Invalid role. Must be admin or member".to_string(),
+            ))
+        }
+    };
+
+    // Generate unique code
+    let code = invite_repo
+        .generate_unique_code(generate_invite_code)
+        .await?;
+
+    // Calculate expiration
+    let expires_in_hours = request.expires_in_hours.unwrap_or(24);
+    let expires_at = Utc::now() + Duration::hours(expires_in_hours as i64);
+
+    // Create invite
+    let max_uses = request.max_uses.unwrap_or(1);
+
+    let invite = invite_repo
+        .create_invite(group_id, &code, preset_role_db, max_uses, expires_at, user.user_id)
+        .await?;
+
+    info!(
+        org_id = %org_id,
+        group_id = %group_id,
+        invite_id = %invite.id,
+        code = %code,
+        user_id = %user.user_id,
+        "Group invitation created"
+    );
+
+    // Generate invite URL
+    let invite_url = format!("{}/join/{}", state.config.server.app_base_url, code);
+
+    let invitation = GroupInvitationInfo {
+        id: invite.id,
+        group_id: invite.group_id,
+        code: invite.code,
+        preset_role: format!("{:?}", invite.preset_role).to_lowercase(),
+        max_uses: invite.max_uses,
+        current_uses: invite.current_uses,
+        expires_at: invite.expires_at,
+        created_by: invite.created_by,
+        created_by_name: None, // Not returned from create_invite
+        created_at: invite.created_at,
+        invite_url,
+    };
+
+    let response = CreateGroupInvitationResponse { invitation };
+
+    Ok((StatusCode::CREATED, Json(response)))
 }
 
 #[cfg(test)]

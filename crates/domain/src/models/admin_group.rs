@@ -253,32 +253,52 @@ pub struct RemoveGroupMemberResponse {
     pub message: String,
 }
 
-/// Request for creating a group invitation.
+/// Request for creating a group invitation (code-based).
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(rename_all = "snake_case")]
 pub struct CreateGroupInvitationRequest {
-    #[validate(email(message = "Invalid email address"))]
-    pub email: String,
-    #[validate(custom(function = "validate_group_role"))]
-    pub role: String,
-    #[validate(range(min = 1, max = 30, message = "Expiration must be between 1 and 30 days"))]
-    pub expires_in_days: Option<u32>,
+    /// Role to assign when joining (default: member). Cannot be owner.
+    #[validate(custom(function = "validate_invitation_role"))]
+    pub preset_role: Option<String>,
+    /// Maximum uses (1-100, default: 1)
+    #[validate(range(min = 1, max = 100, message = "Max uses must be between 1 and 100"))]
+    pub max_uses: Option<i32>,
+    /// Hours until expiry (1-168, default: 24)
+    #[validate(range(min = 1, max = 168, message = "Expiration must be between 1 and 168 hours"))]
+    pub expires_in_hours: Option<i32>,
 }
 
-/// Group invitation info.
+fn validate_invitation_role(role: &str) -> Result<(), validator::ValidationError> {
+    match role {
+        "admin" | "member" => Ok(()),
+        "owner" => {
+            let mut err = validator::ValidationError::new("invalid_role");
+            err.message = Some("Cannot create invite with owner role".into());
+            Err(err)
+        }
+        _ => {
+            let mut err = validator::ValidationError::new("invalid_role");
+            err.message = Some("Role must be admin or member".into());
+            Err(err)
+        }
+    }
+}
+
+/// Group invitation info (code-based).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct GroupInvitationInfo {
     pub id: Uuid,
     pub group_id: Uuid,
-    pub email: String,
-    pub role: String,
-    pub status: String,
-    pub invited_by: Uuid,
-    pub invited_by_email: Option<String>,
-    pub created_at: DateTime<Utc>,
+    pub code: String,
+    pub preset_role: String,
+    pub max_uses: i32,
+    pub current_uses: i32,
     pub expires_at: DateTime<Utc>,
-    pub accepted_at: Option<DateTime<Utc>>,
+    pub created_by: Uuid,
+    pub created_by_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub invite_url: String,
 }
 
 /// Response for creating a group invitation.
@@ -286,28 +306,6 @@ pub struct GroupInvitationInfo {
 #[serde(rename_all = "snake_case")]
 pub struct CreateGroupInvitationResponse {
     pub invitation: GroupInvitationInfo,
-    pub message: String,
-}
-
-/// Query parameters for listing group invitations.
-#[derive(Debug, Clone, Deserialize, Validate, Default)]
-#[serde(rename_all = "snake_case")]
-pub struct ListGroupInvitationsQuery {
-    #[validate(range(min = 1, message = "Page must be at least 1"))]
-    pub page: Option<u32>,
-    #[validate(range(min = 1, max = 100, message = "Per page must be between 1 and 100"))]
-    pub per_page: Option<u32>,
-    pub status: Option<String>,
-}
-
-/// Pagination for group invitations list.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub struct GroupInvitationsPagination {
-    pub page: u32,
-    pub per_page: u32,
-    pub total: i64,
-    pub total_pages: u32,
 }
 
 /// Response for listing group invitations.
@@ -315,7 +313,6 @@ pub struct GroupInvitationsPagination {
 #[serde(rename_all = "snake_case")]
 pub struct ListGroupInvitationsResponse {
     pub data: Vec<GroupInvitationInfo>,
-    pub pagination: GroupInvitationsPagination,
 }
 
 #[cfg(test)]
