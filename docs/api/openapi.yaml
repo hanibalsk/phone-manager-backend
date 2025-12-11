@@ -81,6 +81,26 @@ tags:
     description: Organization member invitation management
   - name: Organization Webhooks
     description: Organization webhook management
+  - name: User Administration
+    description: User lifecycle management (JWT auth)
+  - name: Group Administration
+    description: Admin group management
+  - name: Geofence Administration
+    description: Admin geofence management
+  - name: App Usage
+    description: App usage tracking and analytics
+  - name: Unlock Requests
+    description: Device unlock request management
+  - name: Analytics
+    description: User, device, and API analytics
+  - name: Reports
+    description: Report generation and download
+  - name: System Configuration
+    description: System-wide configuration (super admin)
+  - name: Organization Settings
+    description: Organization settings management
+  - name: Compliance
+    description: GDPR compliance and data subject requests
 
 security:
   - BearerAuth: []
@@ -2449,6 +2469,894 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OrgWebhookResponse"
+
+    # User Administration Schemas
+    AdminUserListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserItem"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        summary:
+          $ref: "#/components/schemas/AdminUserSummary"
+
+    AdminUserItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        display_name:
+          type: string
+        role:
+          type: string
+          enum: [owner, admin, member]
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    AdminUserSummary:
+      type: object
+      properties:
+        total_users:
+          type: integer
+        active_users:
+          type: integer
+        suspended_users:
+          type: integer
+
+    AdminUserDetailResponse:
+      type: object
+      properties:
+        profile:
+          $ref: "#/components/schemas/AdminUserProfile"
+        activity:
+          $ref: "#/components/schemas/UserActivitySummary"
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserDeviceInfo"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserGroupInfo"
+
+    AdminUserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        display_name:
+          type: string
+        role:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    UserActivitySummary:
+      type: object
+      properties:
+        last_login:
+          type: string
+          format: date-time
+        total_sessions:
+          type: integer
+
+    UserDeviceInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        status:
+          type: string
+
+    UserGroupInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        role:
+          type: string
+
+    UpdateAdminUserRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [owner, admin, member]
+        permissions:
+          type: array
+          items:
+            type: string
+
+    MfaStatusResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        method:
+          type: string
+          enum: [totp, sms, email]
+        enrolled_at:
+          type: string
+          format: date-time
+
+    ListUserSessionsResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserSessionInfo"
+
+    UserSessionInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        device_info:
+          type: string
+        ip_address:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_active_at:
+          type: string
+          format: date-time
+
+    # Analytics Schemas
+    UserAnalyticsResponse:
+      type: object
+      properties:
+        organization_id:
+          type: string
+          format: uuid
+        period:
+          $ref: "#/components/schemas/AnalyticsPeriod"
+        summary:
+          $ref: "#/components/schemas/UserAnalyticsSummary"
+        trends:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserActivityTrend"
+        by_role:
+          $ref: "#/components/schemas/UserRoleBreakdown"
+
+    AnalyticsPeriod:
+      type: object
+      properties:
+        start:
+          type: string
+          format: date
+        end:
+          type: string
+          format: date
+
+    UserAnalyticsSummary:
+      type: object
+      properties:
+        total_users:
+          type: integer
+        active_users:
+          type: integer
+        new_users_period:
+          type: integer
+        avg_sessions_per_user:
+          type: number
+        avg_session_duration_seconds:
+          type: number
+
+    UserActivityTrend:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        active_users:
+          type: integer
+        new_users:
+          type: integer
+        returning_users:
+          type: integer
+        total_sessions:
+          type: integer
+
+    UserRoleBreakdown:
+      type: object
+      properties:
+        owners:
+          type: integer
+        admins:
+          type: integer
+        members:
+          type: integer
+
+    DeviceAnalyticsResponse:
+      type: object
+      properties:
+        organization_id:
+          type: string
+          format: uuid
+        period:
+          $ref: "#/components/schemas/AnalyticsPeriod"
+        summary:
+          $ref: "#/components/schemas/DeviceAnalyticsSummary"
+        trends:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceActivityTrend"
+        by_status:
+          $ref: "#/components/schemas/AnalyticsDeviceStatusBreakdown"
+
+    DeviceAnalyticsSummary:
+      type: object
+      properties:
+        total_devices:
+          type: integer
+        active_devices:
+          type: integer
+        new_enrollments_period:
+          type: integer
+        unenrollments_period:
+          type: integer
+        total_locations_reported:
+          type: integer
+        total_geofence_events:
+          type: integer
+        total_commands_issued:
+          type: integer
+
+    DeviceActivityTrend:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        active_devices:
+          type: integer
+        new_enrollments:
+          type: integer
+        unenrollments:
+          type: integer
+        locations_reported:
+          type: integer
+        geofence_events:
+          type: integer
+
+    AnalyticsDeviceStatusBreakdown:
+      type: object
+      properties:
+        registered:
+          type: integer
+        enrolled:
+          type: integer
+        suspended:
+          type: integer
+        retired:
+          type: integer
+
+    ApiUsageAnalyticsResponse:
+      type: object
+      properties:
+        organization_id:
+          type: string
+          format: uuid
+        period:
+          $ref: "#/components/schemas/AnalyticsPeriod"
+        summary:
+          $ref: "#/components/schemas/ApiUsageSummary"
+        trends:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiUsageTrend"
+        top_endpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/EndpointUsage"
+
+    ApiUsageSummary:
+      type: object
+      properties:
+        total_requests:
+          type: integer
+        success_count:
+          type: integer
+        error_count:
+          type: integer
+        success_rate:
+          type: number
+        avg_response_time_ms:
+          type: number
+        p95_response_time_ms:
+          type: integer
+        total_data_transferred_bytes:
+          type: integer
+
+    ApiUsageTrend:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        total_requests:
+          type: integer
+        success_count:
+          type: integer
+        error_count:
+          type: integer
+        avg_response_time_ms:
+          type: number
+
+    EndpointUsage:
+      type: object
+      properties:
+        endpoint:
+          type: string
+        method:
+          type: string
+        total_requests:
+          type: integer
+        success_rate:
+          type: number
+        avg_response_time_ms:
+          type: number
+        percentage:
+          type: number
+
+    # Report Schemas
+    GenerateReportRequest:
+      type: object
+      required:
+        - from
+        - to
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        format:
+          type: string
+          enum: [csv, json, xlsx, pdf]
+          default: csv
+        parameters:
+          type: object
+
+    ReportJobResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        report_type:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        file_size_bytes:
+          type: integer
+        error_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    ReportDownloadResponse:
+      type: object
+      properties:
+        report_id:
+          type: string
+          format: uuid
+        file_name:
+          type: string
+        content_type:
+          type: string
+        file_size_bytes:
+          type: integer
+        content_base64:
+          type: string
+        download_url:
+          type: string
+        url_expires_at:
+          type: string
+          format: date-time
+
+    # App Usage Schemas
+    AppUsageSummaryResponse:
+      type: object
+      properties:
+        period:
+          type: string
+        total_devices:
+          type: integer
+        active_devices:
+          type: integer
+        top_apps:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopAppItem"
+        category_usage:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryUsageItem"
+
+    TopAppItem:
+      type: object
+      properties:
+        app_name:
+          type: string
+        package_name:
+          type: string
+        total_time_minutes:
+          type: integer
+        device_count:
+          type: integer
+
+    CategoryUsageItem:
+      type: object
+      properties:
+        category:
+          type: string
+        total_time_minutes:
+          type: integer
+        percentage:
+          type: number
+
+    AppUsageHistoryResponse:
+      type: object
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AppUsageHistoryEntry"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    AppUsageHistoryEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        apps:
+          type: array
+          items:
+            $ref: "#/components/schemas/AppUsageItem"
+
+    AppUsageItem:
+      type: object
+      properties:
+        app_name:
+          type: string
+        package_name:
+          type: string
+        usage_minutes:
+          type: integer
+        category:
+          type: string
+
+    AppUsageAnalyticsResponse:
+      type: object
+      properties:
+        organization_id:
+          type: string
+          format: uuid
+        period:
+          $ref: "#/components/schemas/AnalyticsPeriod"
+        summary:
+          $ref: "#/components/schemas/AnalyticsSummary"
+        trends:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsTrendPoint"
+
+    AnalyticsSummary:
+      type: object
+      properties:
+        total_usage_minutes:
+          type: integer
+        active_devices:
+          type: integer
+        unique_apps:
+          type: integer
+
+    AnalyticsTrendPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        total_usage_minutes:
+          type: integer
+        active_devices:
+          type: integer
+
+    # Unlock Request Schemas
+    AdminListUnlockRequestsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUnlockRequestItem"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    AdminUnlockRequestItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        device_id:
+          type: string
+          format: uuid
+        user:
+          $ref: "#/components/schemas/AdminUserBrief"
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, denied]
+        requested_at:
+          type: string
+          format: date-time
+        processed_at:
+          type: string
+          format: date-time
+        processed_by:
+          type: string
+          format: uuid
+
+    AdminUserBrief:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        display_name:
+          type: string
+
+    BulkProcessUnlockRequestsRequest:
+      type: object
+      required:
+        - request_ids
+        - action
+      properties:
+        request_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        action:
+          type: string
+          enum: [approve, deny]
+        duration_minutes:
+          type: integer
+        note:
+          type: string
+
+    BulkProcessUnlockRequestsResponse:
+      type: object
+      properties:
+        processed:
+          type: integer
+        failed:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              request_id:
+                type: string
+                format: uuid
+              error:
+                type: string
+
+    # System Configuration Schemas
+    SystemSettingsResponse:
+      type: object
+      properties:
+        server:
+          type: object
+        database:
+          type: object
+        security:
+          type: object
+        features:
+          type: object
+
+    UpdateSystemSettingsRequest:
+      type: object
+      properties:
+        settings:
+          type: object
+
+    FeatureFlagsResponse:
+      type: object
+      properties:
+        flags:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureFlagResponse"
+
+    FeatureFlagResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        enabled:
+          type: boolean
+        description:
+          type: string
+
+    UpdateFeatureFlagRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+
+    RateLimitsResponse:
+      type: object
+      properties:
+        limits:
+          type: array
+          items:
+            type: object
+            properties:
+              endpoint:
+                type: string
+              requests_per_minute:
+                type: integer
+
+    UpdateRateLimitsRequest:
+      type: object
+      properties:
+        limits:
+          type: array
+          items:
+            type: object
+            properties:
+              endpoint:
+                type: string
+              requests_per_minute:
+                type: integer
+
+    MaintenanceModeResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        message:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+
+    ToggleMaintenanceModeRequest:
+      type: object
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+        message:
+          type: string
+
+    EmailTemplatesResponse:
+      type: object
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmailTemplate"
+
+    EmailTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+
+    UpdateEmailTemplateRequest:
+      type: object
+      properties:
+        subject:
+          type: string
+        body:
+          type: string
+
+    NotificationTemplatesResponse:
+      type: object
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationTemplate"
+
+    NotificationTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+
+    UpdateNotificationTemplateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+
+    # Organization Settings Schemas
+    OrganizationSettingsResponse:
+      type: object
+      properties:
+        organization_id:
+          type: string
+          format: uuid
+        settings:
+          type: object
+
+    UpdateOrganizationSettingsRequest:
+      type: object
+      properties:
+        settings:
+          type: object
+
+    VerifyPinRequest:
+      type: object
+      required:
+        - pin
+      properties:
+        pin:
+          type: string
+
+    VerifyPinResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+
+    # Compliance Schemas
+    ComplianceDashboardResponse:
+      type: object
+      properties:
+        organization_id:
+          type: string
+          format: uuid
+        compliance_status:
+          type: string
+          enum: [compliant, non_compliant, needs_review]
+        data_retention:
+          type: object
+        audit_summary:
+          type: object
+        dsr_stats:
+          type: object
+
+    ComplianceReportResponse:
+      type: object
+      properties:
+        organization_id:
+          type: string
+          format: uuid
+        generated_at:
+          type: string
+          format: date-time
+        findings:
+          type: array
+          items:
+            type: object
+
+    ListDataSubjectRequestsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataSubjectRequestResponse"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    CreateDataSubjectRequestRequest:
+      type: object
+      required:
+        - type
+        - subject_email
+      properties:
+        type:
+          type: string
+          enum: [access, erasure, rectification, portability]
+        subject_email:
+          type: string
+        notes:
+          type: string
+
+    DataSubjectRequestResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        subject_email:
+          type: string
+        status:
+          type: string
+          enum: [pending, in_progress, completed, rejected]
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    ProcessDataSubjectRequestRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum: [approve, reject, complete]
+        notes:
+          type: string
 
   responses:
     BadRequest:
@@ -5000,5 +5908,1412 @@ paths:
       responses:
         "204":
           description: Webhook deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ============================================================================
+  # User Administration (JWT Auth)
+  # ============================================================================
+  /api/admin/v1/organizations/{org_id}/admin-users:
+    get:
+      tags: [User Administration]
+      summary: List users in organization
+      operationId: listAdminUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [owner, admin, member]
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserListResponse"
+    post:
+      tags: [User Administration]
+      summary: Add user to organization
+      operationId: createAdminUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddOrgUserRequest"
+      responses:
+        "201":
+          description: User added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUserResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: User already in organization
+
+  /api/admin/v1/organizations/{org_id}/admin-users/{user_id}:
+    get:
+      tags: [User Administration]
+      summary: Get user details
+      operationId: getAdminUserDetail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserDetailResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [User Administration]
+      summary: Update user
+      operationId: updateAdminUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAdminUserRequest"
+      responses:
+        "200":
+          description: User updated
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [User Administration]
+      summary: Remove user from organization
+      operationId: removeAdminUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User removed
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/admin-users/{user_id}/suspend:
+    post:
+      tags: [User Administration]
+      summary: Suspend user
+      operationId: suspendAdminUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: User suspended
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/admin-users/{user_id}/reactivate:
+    post:
+      tags: [User Administration]
+      summary: Reactivate suspended user
+      operationId: reactivateAdminUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User reactivated
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/admin-users/{user_id}/reset-password:
+    post:
+      tags: [User Administration]
+      summary: Trigger password reset email
+      operationId: triggerPasswordReset
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Password reset email sent
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/admin-users/{user_id}/mfa:
+    get:
+      tags: [User Administration]
+      summary: Get MFA status
+      operationId: getAdminUserMfaStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: MFA status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaStatusResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [User Administration]
+      summary: Reset MFA
+      operationId: resetAdminUserMfa
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: MFA reset
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/admin-users/{user_id}/mfa/force:
+    post:
+      tags: [User Administration]
+      summary: Force MFA enrollment
+      operationId: forceAdminUserMfa
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: MFA enrollment forced
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/admin-users/{user_id}/sessions:
+    get:
+      tags: [User Administration]
+      summary: List user sessions
+      operationId: listAdminUserSessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Session list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUserSessionsResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [User Administration]
+      summary: Revoke all sessions
+      operationId: revokeAllAdminUserSessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: All sessions revoked
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/admin-users/{user_id}/sessions/{session_id}:
+    delete:
+      tags: [User Administration]
+      summary: Revoke specific session
+      operationId: revokeAdminUserSession
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Session revoked
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ============================================================================
+  # Analytics
+  # ============================================================================
+  /api/admin/v1/organizations/{org_id}/analytics/users:
+    get:
+      tags: [Analytics]
+      summary: Get user analytics
+      operationId: getUserAnalytics
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: group_by
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        "200":
+          description: User analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAnalyticsResponse"
+
+  /api/admin/v1/organizations/{org_id}/analytics/devices:
+    get:
+      tags: [Analytics]
+      summary: Get device analytics
+      operationId: getDeviceAnalytics
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: group_by
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        "200":
+          description: Device analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceAnalyticsResponse"
+
+  /api/admin/v1/organizations/{org_id}/analytics/api:
+    get:
+      tags: [Analytics]
+      summary: Get API usage analytics
+      operationId: getApiUsageAnalytics
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: group_by
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        "200":
+          description: API usage analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiUsageAnalyticsResponse"
+
+  # ============================================================================
+  # Reports
+  # ============================================================================
+  /api/admin/v1/organizations/{org_id}/reports/users:
+    post:
+      tags: [Reports]
+      summary: Generate user report
+      operationId: generateUserReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateReportRequest"
+      responses:
+        "202":
+          description: Report generation started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportJobResponse"
+
+  /api/admin/v1/organizations/{org_id}/reports/devices:
+    post:
+      tags: [Reports]
+      summary: Generate device report
+      operationId: generateDeviceReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateReportRequest"
+      responses:
+        "202":
+          description: Report generation started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportJobResponse"
+
+  /api/admin/v1/organizations/{org_id}/reports/{report_id}/status:
+    get:
+      tags: [Reports]
+      summary: Get report generation status
+      operationId: getReportStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: report_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Report status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportJobResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/reports/{report_id}/download:
+    get:
+      tags: [Reports]
+      summary: Download generated report
+      operationId: downloadReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: report_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Report download
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportDownloadResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ============================================================================
+  # App Usage
+  # ============================================================================
+  /api/admin/v1/organizations/{org_id}/app-usage/summary:
+    get:
+      tags: [App Usage]
+      summary: Get app usage summary
+      operationId: getAppUsageSummary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        "200":
+          description: App usage summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUsageSummaryResponse"
+
+  /api/admin/v1/organizations/{org_id}/devices/{device_id}/app-usage:
+    get:
+      tags: [App Usage]
+      summary: Get device app usage history
+      operationId: getDeviceAppUsage
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Device app usage history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUsageHistoryResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/app-usage/analytics:
+    get:
+      tags: [App Usage]
+      summary: Get app usage analytics
+      operationId: getAppUsageAnalytics
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: group_by
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        "200":
+          description: App usage analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUsageAnalyticsResponse"
+
+  # ============================================================================
+  # Unlock Requests
+  # ============================================================================
+  /api/admin/v1/organizations/{org_id}/unlock-requests:
+    get:
+      tags: [Unlock Requests]
+      summary: List unlock requests
+      operationId: listUnlockRequests
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, denied]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Unlock request list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminListUnlockRequestsResponse"
+
+  /api/admin/v1/organizations/{org_id}/unlock-requests/{request_id}:
+    get:
+      tags: [Unlock Requests]
+      summary: Get unlock request details
+      operationId: getUnlockRequest
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Unlock request details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUnlockRequestItem"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/unlock-requests/{request_id}/approve:
+    post:
+      tags: [Unlock Requests]
+      summary: Approve unlock request
+      operationId: approveUnlockRequest
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                duration_minutes:
+                  type: integer
+                note:
+                  type: string
+      responses:
+        "200":
+          description: Request approved
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/unlock-requests/{request_id}/deny:
+    post:
+      tags: [Unlock Requests]
+      summary: Deny unlock request
+      operationId: denyUnlockRequest
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Request denied
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/unlock-requests/bulk:
+    post:
+      tags: [Unlock Requests]
+      summary: Bulk process unlock requests
+      operationId: bulkProcessUnlockRequests
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkProcessUnlockRequestsRequest"
+      responses:
+        "200":
+          description: Bulk processing result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkProcessUnlockRequestsResponse"
+
+  # ============================================================================
+  # System Configuration (Super Admin)
+  # ============================================================================
+  /api/admin/v1/system/settings:
+    get:
+      tags: [System Configuration]
+      summary: Get system settings
+      operationId: getSystemSettings
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: System settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSettingsResponse"
+    put:
+      tags: [System Configuration]
+      summary: Update system settings
+      operationId: updateSystemSettings
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSystemSettingsRequest"
+      responses:
+        "200":
+          description: Settings updated
+
+  /api/admin/v1/system/feature-flags:
+    get:
+      tags: [System Configuration]
+      summary: List feature flags
+      operationId: listFeatureFlags
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Feature flags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeatureFlagsResponse"
+
+  /api/admin/v1/system/feature-flags/{flag_id}:
+    get:
+      tags: [System Configuration]
+      summary: Get feature flag
+      operationId: getFeatureFlag
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: flag_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Feature flag
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeatureFlagResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [System Configuration]
+      summary: Update feature flag
+      operationId: updateFeatureFlag
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: flag_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFeatureFlagRequest"
+      responses:
+        "200":
+          description: Feature flag updated
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/system/rate-limits:
+    get:
+      tags: [System Configuration]
+      summary: Get rate limits configuration
+      operationId: getRateLimits
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Rate limits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimitsResponse"
+    put:
+      tags: [System Configuration]
+      summary: Update rate limits
+      operationId: updateRateLimits
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRateLimitsRequest"
+      responses:
+        "200":
+          description: Rate limits updated
+
+  /api/admin/v1/system/maintenance:
+    get:
+      tags: [System Configuration]
+      summary: Get maintenance mode status
+      operationId: getMaintenanceStatus
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Maintenance status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaintenanceModeResponse"
+    post:
+      tags: [System Configuration]
+      summary: Toggle maintenance mode
+      operationId: toggleMaintenanceMode
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToggleMaintenanceModeRequest"
+      responses:
+        "200":
+          description: Maintenance mode toggled
+
+  /api/admin/v1/system/email-templates:
+    get:
+      tags: [System Configuration]
+      summary: List email templates
+      operationId: listEmailTemplates
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Email templates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailTemplatesResponse"
+
+  /api/admin/v1/system/email-templates/{template_id}:
+    put:
+      tags: [System Configuration]
+      summary: Update email template
+      operationId: updateEmailTemplate
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmailTemplateRequest"
+      responses:
+        "200":
+          description: Template updated
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/system/notification-templates:
+    get:
+      tags: [System Configuration]
+      summary: List notification templates
+      operationId: listNotificationTemplates
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Notification templates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationTemplatesResponse"
+
+  /api/admin/v1/system/notification-templates/{template_id}:
+    put:
+      tags: [System Configuration]
+      summary: Update notification template
+      operationId: updateNotificationTemplate
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNotificationTemplateRequest"
+      responses:
+        "200":
+          description: Template updated
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ============================================================================
+  # Organization Settings
+  # ============================================================================
+  /api/admin/v1/organizations/{org_id}/settings:
+    get:
+      tags: [Organization Settings]
+      summary: Get organization settings
+      operationId: getOrgSettings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Organization settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationSettingsResponse"
+    put:
+      tags: [Organization Settings]
+      summary: Update organization settings
+      operationId: updateOrgSettings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationSettingsRequest"
+      responses:
+        "200":
+          description: Settings updated
+
+  /api/admin/v1/organizations/{org_id}/settings/verify-pin:
+    post:
+      tags: [Organization Settings]
+      summary: Verify security PIN
+      operationId: verifyOrgPin
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyPinRequest"
+      responses:
+        "200":
+          description: PIN verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyPinResponse"
+        "401":
+          description: Invalid PIN
+
+  # ============================================================================
+  # Compliance
+  # ============================================================================
+  /api/admin/v1/organizations/{org_id}/compliance/dashboard:
+    get:
+      tags: [Compliance]
+      summary: Get compliance dashboard
+      operationId: getComplianceDashboard
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Compliance dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplianceDashboardResponse"
+
+  /api/admin/v1/organizations/{org_id}/compliance/report:
+    get:
+      tags: [Compliance]
+      summary: Generate compliance report
+      operationId: getComplianceReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, pdf, csv]
+            default: json
+      responses:
+        "200":
+          description: Compliance report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplianceReportResponse"
+
+  /api/admin/v1/organizations/{org_id}/data-subject-requests:
+    get:
+      tags: [Compliance]
+      summary: List data subject requests
+      operationId: listDataSubjectRequests
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, in_progress, completed, rejected]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Data subject request list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListDataSubjectRequestsResponse"
+    post:
+      tags: [Compliance]
+      summary: Create data subject request
+      operationId: createDataSubjectRequest
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDataSubjectRequestRequest"
+      responses:
+        "201":
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataSubjectRequestResponse"
+
+  /api/admin/v1/organizations/{org_id}/data-subject-requests/{request_id}:
+    get:
+      tags: [Compliance]
+      summary: Get data subject request details
+      operationId: getDataSubjectRequest
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Request details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataSubjectRequestResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/data-subject-requests/{request_id}/process:
+    post:
+      tags: [Compliance]
+      summary: Process data subject request
+      operationId: processDataSubjectRequest
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcessDataSubjectRequestRequest"
+      responses:
+        "200":
+          description: Request processed
         "404":
           $ref: "#/components/responses/NotFound"

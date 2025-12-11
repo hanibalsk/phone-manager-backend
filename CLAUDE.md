@@ -384,7 +384,108 @@ Critical production requirements:
 |--------|------|-------------|
 | GET | `/api/admin/v1/organizations/:org_id/dashboard` | Get dashboard metrics |
 | GET | `/api/admin/v1/organizations/:org_id/audit-logs` | List audit logs |
-| POST | `/api/admin/v1/organizations/:org_id/audit-logs/export` | Export audit logs |
+| GET | `/api/admin/v1/organizations/:org_id/audit-logs/export` | Export audit logs (async) |
+
+#### User Administration (JWT Auth)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/v1/organizations/:org_id/admin-users` | List users with details |
+| POST | `/api/admin/v1/organizations/:org_id/admin-users` | Create/add user to org |
+| GET | `/api/admin/v1/organizations/:org_id/admin-users/:user_id` | Get user details |
+| PUT | `/api/admin/v1/organizations/:org_id/admin-users/:user_id` | Update user |
+| DELETE | `/api/admin/v1/organizations/:org_id/admin-users/:user_id` | Remove user |
+| POST | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/suspend` | Suspend user |
+| POST | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/reactivate` | Reactivate user |
+| POST | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/reset-password` | Trigger password reset |
+| GET | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/mfa` | Get MFA status |
+| POST | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/mfa/force` | Force MFA enrollment |
+| DELETE | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/mfa` | Reset MFA |
+| GET | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/sessions` | List user sessions |
+| DELETE | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/sessions/:session_id` | Revoke session |
+| DELETE | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/sessions` | Revoke all sessions |
+
+#### Group Administration
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/v1/organizations/:org_id/admin-groups` | List groups |
+| GET | `/api/admin/v1/organizations/:org_id/admin-groups/:group_id` | Get group details |
+| PUT | `/api/admin/v1/organizations/:org_id/admin-groups/:group_id` | Update group |
+| DELETE | `/api/admin/v1/organizations/:org_id/admin-groups/:group_id` | Deactivate group |
+| GET | `/api/admin/v1/organizations/:org_id/admin-groups/:group_id/members` | List group members |
+| POST | `/api/admin/v1/organizations/:org_id/admin-groups/:group_id/members` | Add member |
+| DELETE | `/api/admin/v1/organizations/:org_id/admin-groups/:group_id/members/:user_id` | Remove member |
+| GET | `/api/admin/v1/organizations/:org_id/admin-groups/:group_id/invitations` | List invitations |
+| POST | `/api/admin/v1/organizations/:org_id/admin-groups/:group_id/invitations` | Create invitation |
+
+#### Geofence Administration
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/v1/organizations/:org_id/admin-geofences` | List geofences |
+| POST | `/api/admin/v1/organizations/:org_id/admin-geofences` | Create geofence |
+| GET | `/api/admin/v1/organizations/:org_id/admin-geofences/:geofence_id` | Get geofence |
+| PUT | `/api/admin/v1/organizations/:org_id/admin-geofences/:geofence_id` | Update geofence |
+| DELETE | `/api/admin/v1/organizations/:org_id/admin-geofences/:geofence_id` | Delete geofence |
+| GET | `/api/admin/v1/organizations/:org_id/admin-geofences/events` | List geofence events |
+| GET | `/api/admin/v1/organizations/:org_id/devices/:device_id/locations` | Get device locations |
+| GET | `/api/admin/v1/organizations/:org_id/devices/locations` | Get all device locations |
+| GET | `/api/admin/v1/organizations/:org_id/locations/analytics` | Location analytics |
+
+#### App Usage & Unlock Requests
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/v1/organizations/:org_id/app-usage/summary` | App usage summary |
+| GET | `/api/admin/v1/organizations/:org_id/devices/:device_id/app-usage` | Device app usage |
+| GET | `/api/admin/v1/organizations/:org_id/app-usage/analytics` | App usage analytics |
+| GET | `/api/admin/v1/organizations/:org_id/unlock-requests` | List unlock requests |
+| GET | `/api/admin/v1/organizations/:org_id/unlock-requests/:request_id` | Get unlock request |
+| POST | `/api/admin/v1/organizations/:org_id/unlock-requests/:request_id/approve` | Approve request |
+| POST | `/api/admin/v1/organizations/:org_id/unlock-requests/:request_id/deny` | Deny request |
+| POST | `/api/admin/v1/organizations/:org_id/unlock-requests/bulk` | Bulk process requests |
+
+#### Analytics & Reports
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/v1/organizations/:org_id/analytics/users` | User analytics |
+| GET | `/api/admin/v1/organizations/:org_id/analytics/devices` | Device analytics |
+| GET | `/api/admin/v1/organizations/:org_id/analytics/api` | API usage analytics |
+| POST | `/api/admin/v1/organizations/:org_id/reports/users` | Generate user report |
+| POST | `/api/admin/v1/organizations/:org_id/reports/devices` | Generate device report |
+| GET | `/api/admin/v1/organizations/:org_id/reports/:report_id/status` | Get report status |
+| GET | `/api/admin/v1/organizations/:org_id/reports/:report_id/download` | Download report |
+
+#### System Configuration (Super Admin)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/v1/system/settings` | Get system settings |
+| PUT | `/api/admin/v1/system/settings` | Update system settings |
+| GET | `/api/admin/v1/system/feature-flags` | List feature flags |
+| GET | `/api/admin/v1/system/feature-flags/:flag_id` | Get feature flag |
+| PUT | `/api/admin/v1/system/feature-flags/:flag_id` | Update feature flag |
+| GET | `/api/admin/v1/system/rate-limits` | Get rate limits |
+| PUT | `/api/admin/v1/system/rate-limits` | Update rate limits |
+| GET | `/api/admin/v1/system/maintenance` | Get maintenance status |
+| POST | `/api/admin/v1/system/maintenance` | Toggle maintenance mode |
+| GET | `/api/admin/v1/system/email-templates` | List email templates |
+| PUT | `/api/admin/v1/system/email-templates/:template_id` | Update email template |
+| GET | `/api/admin/v1/system/notification-templates` | List notification templates |
+| PUT | `/api/admin/v1/system/notification-templates/:template_id` | Update notification template |
+
+#### Organization Settings
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/v1/organizations/:org_id/settings` | Get org settings |
+| PUT | `/api/admin/v1/organizations/:org_id/settings` | Update org settings |
+| POST | `/api/admin/v1/organizations/:org_id/settings/verify-pin` | Verify security PIN |
+
+#### Compliance
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/v1/organizations/:org_id/compliance/dashboard` | Compliance dashboard |
+| GET | `/api/admin/v1/organizations/:org_id/compliance/report` | Compliance report |
+| GET | `/api/admin/v1/organizations/:org_id/data-subject-requests` | List DSR requests |
+| POST | `/api/admin/v1/organizations/:org_id/data-subject-requests` | Create DSR |
+| GET | `/api/admin/v1/organizations/:org_id/data-subject-requests/:request_id` | Get DSR |
+| POST | `/api/admin/v1/organizations/:org_id/data-subject-requests/:request_id/process` | Process DSR |
 
 ### Health
 | Method | Path | Description |
