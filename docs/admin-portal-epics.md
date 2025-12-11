@@ -13,7 +13,7 @@
 |---------|------|-----------|----------|--------|
 | AP-1 | RBAC & Access Control | 3 | High | 100% ✅ |
 | AP-2 | Organization Management | 7 | High | 100% ✅ |
-| AP-3 | User Administration | 13 | High | 100% ✅ |
+| AP-3 | User Administration | 13 | High | 92% ⚠️ |
 | AP-4 | Device Fleet Administration | 15 | High | 100% ✅ |
 | AP-5 | Groups Administration | 10 | Medium | 100% ✅ |
 | AP-6 | Location & Geofence Administration | 13 | Low | 100% ✅ |
@@ -24,8 +24,11 @@
 | AP-11 | Audit & Compliance | 8 | High | 100% ✅ |
 
 **Total:** 115 endpoints across 11 epics
-**Current Implementation:** 115 endpoints (100%)
-**Remaining:** 0 endpoints (0%)
+**Current Implementation:** ~113 endpoints (98%)
+**Remaining:** ~2 endpoints (2%)
+
+### ⚠️ Known Discrepancies
+- **AP-3**: Route path is `/admin-users` not `/users` - documented correctly to match implementation
 
 ---
 
@@ -196,38 +199,48 @@ Complete organization lifecycle management including creation, configuration, us
 ## AP-3: User Administration
 
 **Priority:** High
-**Status:** 100% ✅ (13/13 endpoints)
+**Status:** 92% ⚠️ (12/13 endpoints)
 **Dependencies:** AP-1 (RBAC), AP-2 (Organizations)
 
 ### Description
 Comprehensive user lifecycle management including creation, suspension, password management, MFA administration, and session management.
 
+### ⚠️ Route Path Discrepancy
+**Documented Path:** `/api/admin/v1/organizations/:org_id/users`
+**Actual Path:** `/api/admin/v1/organizations/:org_id/admin-users`
+
+The actual routes are mounted at `/admin-users`, not `/users`. This needs alignment for API contract consistency.
+
 ### User Stories
 
 #### AP-3.1: List Users ✅
 **Status:** ✅ Implemented
-**Endpoint:** `GET /api/admin/v1/organizations/:org_id/users`
+**Documented Endpoint:** `GET /api/admin/v1/organizations/:org_id/users`
+**Actual Endpoint:** `GET /api/admin/v1/organizations/:org_id/admin-users`
 **File:** `crates/api/src/routes/admin_users.rs`
 
 ---
 
 #### AP-3.2: Get User Details ✅
 **Status:** ✅ Implemented
-**Endpoint:** `GET /api/admin/v1/organizations/:org_id/users/:user_id`
+**Documented Endpoint:** `GET /api/admin/v1/organizations/:org_id/users/:user_id`
+**Actual Endpoint:** `GET /api/admin/v1/organizations/:org_id/admin-users/:user_id`
 **File:** `crates/api/src/routes/admin_users.rs`
 
 ---
 
-#### AP-3.3: Create User ✅
-**Status:** ✅ Implemented
-**Endpoint:** `POST /api/admin/v1/organizations/:org_id/users`
-**File:** `crates/api/src/routes/admin_users.rs`
+#### AP-3.3: Create User ⚠️
+**Status:** ⚠️ Partial - Route exists in `organizations.rs` with API key auth, not JWT auth
+**Documented Endpoint:** `POST /api/admin/v1/organizations/:org_id/users`
+**Actual:** `POST /api/admin/v1/organizations/:org_id/users` (in organizations.rs, API key auth)
+**Note:** No POST handler in `admin_users.rs` router. Create user exists via separate route.
 
 ---
 
 #### AP-3.4: Update User ✅
 **Status:** ✅ Implemented
-**Endpoint:** `PUT /api/admin/v1/organizations/:org_id/users/:user_id`
+**Documented Endpoint:** `PUT /api/admin/v1/organizations/:org_id/users/:user_id`
+**Actual Endpoint:** `PUT /api/admin/v1/organizations/:org_id/admin-users/:user_id`
 **File:** `crates/api/src/routes/admin_users.rs`
 
 ---
@@ -630,13 +643,21 @@ Complete webhook lifecycle management including testing, delivery logs, and retr
 ## AP-8: App Usage & Unlock Requests
 
 **Priority:** Low
-**Status:** 100% ✅ (13/13 endpoints)
+**Status:** 100% ✅ (11/11 endpoints)
 **Dependencies:** AP-4 (Devices)
 
 ### Description
 App usage tracking and unlock request management for device settings.
 
-### Implemented Endpoints ✅
+### App Usage Endpoints ✅
+
+| Endpoint | Description | File |
+|----------|-------------|------|
+| `GET /api/admin/v1/organizations/:org_id/devices/:device_id/app-usage` | App usage summary | `app_usage.rs` |
+| `GET /api/admin/v1/organizations/:org_id/devices/:device_id/app-usage/history` | Usage history | `app_usage.rs` |
+| `GET /api/admin/v1/organizations/:org_id/app-usage/analytics` | Org-wide analytics | `app_usage.rs` |
+
+### Unlock Request Endpoints ✅
 
 | Endpoint | Description | File |
 |----------|-------------|------|
@@ -652,17 +673,19 @@ App usage tracking and unlock request management for device settings.
 |----------|-------------|------|
 | `GET /api/v1/devices/:device_id/settings` | Get device settings | `device_settings.rs` |
 | `PUT /api/v1/devices/:device_id/settings` | Update device settings | `device_settings.rs` |
-| `GET /api/v1/devices/:device_id/settings/locks` | Get setting locks | `device_settings.rs` |
-| `PUT /api/v1/devices/:device_id/settings/locks` | Bulk update locks | `device_settings.rs` |
-| `PUT /api/v1/devices/:device_id/settings/:key` | Update specific setting | `device_settings.rs` |
-| `POST /api/v1/devices/:device_id/settings/:key/lock` | Lock setting | `device_settings.rs` |
-| `DELETE /api/v1/devices/:device_id/settings/:key/lock` | Unlock setting | `device_settings.rs` |
 | `POST /api/v1/devices/:device_id/settings/:key/unlock-request` | Create unlock request | `device_settings.rs` |
 
-### Features
+### Features (Implemented)
+- App usage tracking per device with date filtering
+- Top apps by foreground time
+- Usage history with pagination
+- Organization-wide usage analytics with trends
 - Setting lock/unlock workflow
 - Admin approval for unlock requests
 - Bulk processing capabilities
+
+### Database Migration
+- Migration `051_app_usage.sql` adds `app_usage` and `app_usage_daily_aggregates` tables
 
 ---
 
@@ -675,15 +698,21 @@ App usage tracking and unlock request management for device settings.
 ### Description
 System-wide configuration management including settings, templates, rate limits, and feature flags.
 
-### Implemented Endpoints ✅
+### System Configuration Endpoints ✅
 
 | Endpoint | Description | File |
 |----------|-------------|------|
 | `GET /api/admin/v1/system/settings` | Get system settings | `system_config.rs` |
 | `GET /api/admin/v1/system/feature-flags` | List feature flags | `system_config.rs` |
+| `PUT /api/admin/v1/system/feature-flags/:flag_id` | Update feature flag (FR-9.5) | `system_config.rs` |
 | `GET /api/admin/v1/system/rate-limits` | Get rate limits | `system_config.rs` |
+| `PUT /api/admin/v1/system/rate-limits` | Configure rate limits (FR-9.4) | `system_config.rs` |
 | `GET /api/admin/v1/system/maintenance` | Get maintenance status | `system_config.rs` |
 | `POST /api/admin/v1/system/maintenance` | Toggle maintenance | `system_config.rs` |
+| `GET /api/admin/v1/system/templates` | List notification templates (FR-9.3) | `system_config.rs` |
+| `PUT /api/admin/v1/system/templates/:template_id` | Update notification template (FR-9.3) | `system_config.rs` |
+| `GET /api/admin/v1/system/email-templates` | List email templates (FR-9.6) | `system_config.rs` |
+| `PUT /api/admin/v1/system/email-templates/:template_id` | Update email template (FR-9.6) | `system_config.rs` |
 
 ### Organization Settings ✅
 
@@ -693,22 +722,22 @@ System-wide configuration management including settings, templates, rate limits,
 | `PUT /api/admin/v1/organizations/:org_id/settings` | Update org settings | `organization_settings.rs` |
 | `POST /api/admin/v1/organizations/:org_id/settings/verify-pin` | Verify unlock PIN | `organization_settings.rs` |
 
-### System Role Management (super_admin) ✅
-
-| Endpoint | Description | File |
-|----------|-------------|------|
-| `GET /api/admin/v1/system-roles` | List system roles | `system_roles.rs` |
-| `GET /api/admin/v1/system-roles/users/:user_id/roles` | Get user's system roles | `system_roles.rs` |
-| `POST /api/admin/v1/system-roles/users/:user_id/roles` | Add system role | `system_roles.rs` |
-| `DELETE /api/admin/v1/system-roles/users/:user_id/roles/:role` | Remove system role | `system_roles.rs` |
-| `GET /api/admin/v1/system-roles/users/:user_id/org-assignments` | Get org assignments | `system_roles.rs` |
-| `POST /api/admin/v1/system-roles/users/:user_id/org-assignments` | Assign org | `system_roles.rs` |
-
-### Features
+### Features (Implemented)
 - Super admin role enforcement
 - In-memory maintenance mode state
-- Feature flag management
+- Database-backed feature flag management with enable/disable
+- Database-backed rate limit configuration
+- Notification template management (push, in-app, SMS)
+- Email template management (welcome, password reset, verification, invitation)
 - Unlock PIN with Argon2 hashing
+- Full audit trail via updated_by tracking
+
+### Database Tables
+- `feature_flags` - Feature flag states with category grouping
+- `rate_limit_configs` - Rate limit configurations per endpoint type
+- `notification_templates` - Push/in-app notification templates
+- `email_templates` - HTML and text email templates
+- `system_settings` - Key-value store for runtime settings
 
 ---
 
@@ -728,6 +757,13 @@ Dashboard metrics and analytics reporting for organizational insights.
 | `GET /api/admin/v1/organizations/:org_id/dashboard` | Dashboard metrics | `dashboard.rs` |
 | `GET /api/admin/v1/organizations/:org_id/compliance` | Compliance dashboard | `compliance.rs` |
 | `GET /api/admin/v1/organizations/:org_id/compliance/report` | Compliance report | `compliance.rs` |
+| `GET /api/admin/v1/organizations/:org_id/analytics/users` | User analytics | `analytics.rs` |
+| `GET /api/admin/v1/organizations/:org_id/analytics/devices` | Device analytics | `analytics.rs` |
+| `GET /api/admin/v1/organizations/:org_id/analytics/api` | API usage analytics | `analytics.rs` |
+| `POST /api/admin/v1/organizations/:org_id/reports/users` | Generate user report | `analytics.rs` |
+| `POST /api/admin/v1/organizations/:org_id/reports/devices` | Generate device report | `analytics.rs` |
+| `GET /api/admin/v1/organizations/:org_id/reports/:report_id/status` | Check report status | `analytics.rs` |
+| `GET /api/admin/v1/organizations/:org_id/reports/:report_id/download` | Download report | `analytics.rs` |
 
 ### Dashboard Metrics Include
 - Device counts (total, enrolled, pending, suspended, retired)
@@ -745,6 +781,32 @@ Dashboard metrics and analytics reporting for organizational insights.
 - Compliance status (Compliant, NeedsAttention, NonCompliant)
 - Findings with severity levels
 - Automated recommendations
+
+### User Analytics (FR-10.1)
+- Total users, active users, new users in period
+- Average sessions per user, session duration
+- Role breakdown (owners, admins, members)
+- Activity trends by day/week/month
+
+### Device Analytics (FR-10.2)
+- Total devices, active devices
+- Enrollments and unenrollments in period
+- Location reports, geofence events, commands issued
+- Device status breakdown (registered, enrolled, suspended, retired)
+- Activity trends by day/week/month
+
+### API Usage Analytics (FR-10.3)
+- Total requests, success/error counts, success rate
+- Average and P95 response times
+- Total data transferred
+- Top endpoints by usage
+- Trends by day/week/month
+
+### Report Generation (FR-10.4 - FR-10.7)
+- Async report job creation (user, device analytics)
+- Report status polling (pending, processing, completed, failed)
+- Report download with presigned URLs
+- Configurable date ranges and formats (CSV, JSON, XLSX, PDF)
 
 ---
 
@@ -785,9 +847,10 @@ Comprehensive audit logging and GDPR compliance features. Foundation for enterpr
 ---
 
 #### AP-11.3: Export Audit Logs ✅
-**Endpoint:** `POST /api/admin/v1/organizations/:org_id/audit-logs/export`
+**Endpoint:** `GET /api/admin/v1/organizations/:org_id/audit-logs/export`
 **Status:** ✅ Implemented
 **File:** `crates/api/src/routes/audit_logs.rs`
+**Note:** Uses GET with query parameters for filtering (format, actor_id, action, from, to)
 
 ---
 

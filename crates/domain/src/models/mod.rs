@@ -3,7 +3,9 @@
 pub mod admin_geofence;
 pub mod admin_group;
 pub mod admin_user;
+pub mod analytics;
 pub mod api_key;
+pub mod app_usage;
 pub mod audit_log;
 pub mod bulk_import;
 pub mod compliance;
@@ -62,6 +64,14 @@ pub use admin_user::{
     AdminUserProfile, AdminUserQuery, AdminUserSortField, AdminUserSummary, RecentAction,
     RemoveUserResponse, SortOrder as AdminSortOrder, UpdateAdminUserRequest,
     UpdateAdminUserResponse, UserActivitySummary, UserDeviceInfo, UserGroupInfo,
+};
+pub use analytics::{
+    AnalyticsGroupBy, AnalyticsPeriod, ApiUsageAnalyticsQuery, ApiUsageAnalyticsResponse,
+    ApiUsageSummary, ApiUsageTrend, DeviceActivityTrend, DeviceAnalyticsQuery,
+    DeviceAnalyticsResponse, DeviceAnalyticsSummary,
+    DeviceStatusBreakdown as AnalyticsDeviceStatusBreakdown, EndpointUsage, GenerateReportRequest,
+    ReportDownloadResponse, ReportFormat, ReportJobResponse, ReportStatus, UserActivityTrend,
+    UserAnalyticsQuery, UserAnalyticsResponse, UserAnalyticsSummary, UserRoleBreakdown,
 };
 pub use api_key::{
     ApiKeyPagination, ApiKeyResponse, CreateApiKeyRequest, CreateApiKeyResponse, ListApiKeysQuery,
@@ -184,10 +194,14 @@ pub use setting::{
     SettingValue,
 };
 pub use system_config::{
-    AuthTogglesInfo, DatabaseSettingsInfo, EmailSettingsInfo, FcmSettingsInfo, FeatureFlagsInfo,
-    FeatureFlagsResponse, FrontendSettingsInfo, LimitsSettingsInfo, LoggingSettingsInfo,
-    MaintenanceModeResponse, MapMatchingSettingsInfo, RateLimitsResponse, SecuritySettingsInfo,
-    ServerSettingsInfo, SystemSettingsResponse, ToggleMaintenanceModeRequest,
+    AuthTogglesInfo, DatabaseSettingsInfo, EmailSettingsInfo, EmailTemplate, EmailTemplatesResponse,
+    FcmSettingsInfo, FeatureFlagResponse, FeatureFlagsInfo, FeatureFlagsResponse,
+    FrontendSettingsInfo, LimitsSettingsInfo, LoggingSettingsInfo, MaintenanceModeResponse,
+    MapMatchingSettingsInfo, NotificationTemplate, NotificationTemplatesResponse, RateLimitConfigItem,
+    RateLimitsResponse, SecuritySettingsInfo, ServerSettingsInfo, SystemSettingItem,
+    SystemSettingsResponse, ToggleMaintenanceModeRequest, UpdateEmailTemplateRequest,
+    UpdateFeatureFlagRequest, UpdateNotificationTemplateRequest, UpdateRateLimitsRequest,
+    UpdateSystemSettingsRequest, UpdateSystemSettingsResponse,
 };
 pub use system_role::{
     AddSystemRoleRequest, AddSystemRoleResponse, AdminOrgAssignment, AssignOrgRequest,
@@ -204,6 +218,12 @@ pub use unlock_request::{
     BulkProcessUnlockRequestsResponse, CreateUnlockRequestRequest, CreateUnlockRequestResponse,
     DenyUnlockRequestRequest, ListUnlockRequestsQuery, ListUnlockRequestsResponse,
     RespondToUnlockRequestRequest, RespondToUnlockRequestResponse, UnlockRequestStatus,
+};
+pub use app_usage::{
+    AnalyticsSummary, AnalyticsTrendPoint, AppUsageAnalyticsQuery, AppUsageAnalyticsResponse,
+    AppUsageHistoryEntry, AppUsageHistoryQuery, AppUsageHistoryResponse, AppUsageItem,
+    AppUsagePagination, AppUsagePeriod, AppUsageSummary, AppUsageSummaryQuery,
+    AppUsageSummaryResponse, CategoryUsageItem, TopAppItem,
 };
 pub use usage_warning::{check_usage_warning, ResponseWithWarnings, UsageWarning};
 pub use user::{OAuthAccount, OAuthProvider, User, UserSession};

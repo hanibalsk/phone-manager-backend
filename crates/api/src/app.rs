@@ -23,12 +23,12 @@ use crate::middleware::{
 };
 use crate::routes::{
     admin, admin_geofences, admin_groups, admin_locations, admin_unlock_requests, admin_users,
-    api_keys, audit_logs, auth, bulk_import, compliance, dashboard, data_subject_requests,
-    device_policies, device_settings, devices,
-    enrollment, enrollment_tokens, fleet, frontend, geofence_events, geofences, groups, health,
-    invites, locations, movement_events, openapi, org_invitations, org_webhooks,
-    organization_settings, organizations, permissions, privacy, proximity_alerts, public_config,
-    roles, system_config, system_roles, trips, users, versioning, webhooks,
+    analytics, api_keys, app_usage, audit_logs, auth, bulk_import, compliance, dashboard,
+    data_subject_requests, device_policies, device_settings, devices, enrollment, enrollment_tokens,
+    fleet, frontend, geofence_events, geofences, groups, health, invites, locations, movement_events,
+    openapi, org_invitations, org_webhooks, organization_settings, organizations, permissions,
+    privacy, proximity_alerts, public_config, roles, system_config, system_roles, trips, users,
+    versioning, webhooks,
 };
 use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
@@ -542,6 +542,26 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .nest(
             "/api/admin/v1/organizations/:org_id/unlock-requests",
             admin_unlock_requests::router(),
+        )
+        // App usage routes - device level (Story AP-8.1, AP-8.2)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/devices/:device_id/app-usage",
+            app_usage::device_router(),
+        )
+        // App usage routes - organization level analytics (Story AP-8.7)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/app-usage",
+            app_usage::org_router(),
+        )
+        // Analytics routes (Story AP-10.1, AP-10.2, AP-10.3)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/analytics",
+            analytics::router(),
+        )
+        // Report generation routes (Story AP-10.4, AP-10.5, AP-10.6, AP-10.7)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/reports",
+            analytics::reports_router(),
         )
         .route_layer(middleware::from_fn_with_state(state.clone(), require_b2b));
 

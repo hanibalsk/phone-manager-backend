@@ -50,6 +50,56 @@ impl DeviceRepository {
         result
     }
 
+    /// Find a fleet device by organization ID and device ID.
+    /// Returns the device entity if it belongs to the organization.
+    pub async fn find_fleet_device(
+        &self,
+        organization_id: Uuid,
+        device_id: Uuid,
+    ) -> Result<Option<FleetDeviceEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("find_fleet_device");
+        let result = sqlx::query_as::<_, FleetDeviceEntity>(
+            r#"
+            SELECT
+                d.id,
+                d.device_id,
+                d.display_name,
+                d.platform,
+                COALESCE(d.is_managed, false) as is_managed,
+                d.enrollment_status,
+                d.enrolled_at,
+                d.created_at,
+                d.last_seen_at,
+                COALESCE(d.group_id, '') as group_id,
+                d.assigned_user_id,
+                u.email as assigned_user_email,
+                u.display_name as assigned_user_display_name,
+                d.policy_id,
+                p.name as policy_name,
+                loc.latitude as last_latitude,
+                loc.longitude as last_longitude,
+                loc.timestamp as last_location_time
+            FROM devices d
+            LEFT JOIN users u ON d.assigned_user_id = u.id
+            LEFT JOIN device_policies p ON d.policy_id = p.id
+            LEFT JOIN LATERAL (
+                SELECT latitude, longitude, timestamp
+                FROM locations
+                WHERE device_id = d.device_id
+                ORDER BY timestamp DESC
+                LIMIT 1
+            ) loc ON true
+            WHERE d.organization_id = $1 AND d.device_id = $2
+            "#,
+        )
+        .bind(organization_id)
+        .bind(device_id)
+        .fetch_optional(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
     /// Count active devices in a group.
     pub async fn count_active_devices_in_group(&self, group_id: &str) -> Result<i64, sqlx::Error> {
         let timer = QueryTimer::new("count_active_devices_in_group");

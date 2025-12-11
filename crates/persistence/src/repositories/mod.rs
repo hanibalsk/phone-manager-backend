@@ -3,7 +3,9 @@
 pub mod admin_geofence;
 pub mod admin_group;
 pub mod admin_user;
+pub mod analytics;
 pub mod api_key;
+pub mod app_usage;
 pub mod audit_export_job;
 pub mod audit_log;
 pub mod data_subject_request;
@@ -29,6 +31,7 @@ pub mod organization_settings;
 pub mod proximity_alert;
 pub mod registration_invite;
 pub mod setting;
+pub mod system_config;
 pub mod system_role;
 pub mod trip;
 pub mod trip_path_correction;
@@ -40,7 +43,9 @@ pub mod webhook_delivery;
 pub use admin_geofence::AdminGeofenceRepository;
 pub use admin_group::AdminGroupRepository;
 pub use admin_user::AdminUserRepository;
+pub use analytics::AnalyticsRepository;
 pub use api_key::ApiKeyRepository;
+pub use app_usage::AppUsageRepository;
 pub use audit_export_job::{AuditExportJobRepository, ExportJob};
 pub use audit_log::AuditLogRepository;
 pub use data_subject_request::{
@@ -74,6 +79,7 @@ pub use registration_invite::{
     default_expiration, generate_invite_token, RegistrationInviteRepository,
 };
 pub use setting::SettingRepository;
+pub use system_config::SystemConfigRepository;
 pub use system_role::SystemRoleRepository;
 pub use trip::{TripInput, TripQuery, TripRepository, TripUpdateInput};
 pub use trip_path_correction::{

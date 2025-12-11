@@ -5,7 +5,9 @@
 pub mod admin_geofence;
 pub mod admin_group;
 pub mod admin_user;
+pub mod analytics;
 pub mod api_key;
+pub mod app_usage;
 pub mod audit_export_job;
 pub mod audit_log;
 pub mod data_subject_request;
@@ -29,6 +31,7 @@ pub mod organization_settings;
 pub mod proximity_alert;
 pub mod registration_invite;
 pub mod setting;
+pub mod system_config;
 pub mod system_role;
 pub mod trip;
 pub mod trip_path_correction;
@@ -49,7 +52,16 @@ pub use admin_user::{
     AdminUserEntity, AdminUserProfileEntity, AdminUserSummaryEntity, RecentActionEntity,
     UserDeviceEntity, UserGroupEntity,
 };
+pub use analytics::{
+    ApiUsageDailyEntity, ApiUsageSummaryEntity, DeviceActivityDailyEntity,
+    DeviceAnalyticsSummaryEntity, DeviceStatusCountEntity, EndpointUsageEntity, ReportJobEntity,
+    RoleCountEntity, UserActivityDailyEntity, UserAnalyticsSummaryEntity,
+};
 pub use api_key::ApiKeyEntity;
+pub use app_usage::{
+    AnalyticsTrendEntity, AppUsageDailyAggregateEntity, AppUsageEntity, AppUsageSummaryEntity,
+    CategoryUsageEntity, OrgAnalyticsSummaryEntity, TopAppEntity,
+};
 pub use audit_export_job::AuditExportJobEntity;
 pub use audit_log::AuditLogEntity;
 pub use data_subject_request::{
@@ -81,6 +93,10 @@ pub use registration_invite::RegistrationInviteEntity;
 pub use setting::{
     DeviceSettingEntity, DeviceSettingWithDefinitionEntity, SettingCategoryDb, SettingDataTypeDb,
     SettingDefinitionEntity, SettingLockEntity,
+};
+pub use system_config::{
+    EmailTemplateEntity, FeatureFlagEntity, NotificationTemplateEntity, RateLimitConfigEntity,
+    SystemSettingEntity,
 };
 pub use system_role::{
     AdminOrgAssignmentEntity, AdminOrgAssignmentWithNameEntity, SystemRoleDb, UserSystemRoleEntity,
