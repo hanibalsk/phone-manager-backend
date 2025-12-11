@@ -20,10 +20,10 @@ use crate::extractors::UserAuth;
 use crate::services::auth::{AuthError, AuthService};
 
 use domain::models::{
-    validate_permissions, AdminUserDetailResponse, AdminUserListResponse, AdminUserPagination,
-    AdminUserQuery, ForceMfaResponse, ListUserSessionsResponse, MfaMethod, MfaStatusResponse,
-    OrgUserRole, ReactivateOrgUserResponse, RemoveUserResponse, ResetMfaResponse,
-    RevokeAllSessionsResponse, RevokeSessionResponse, SuspendOrgUserRequest,
+    validate_permissions, AddOrgUserRequest, AdminUserDetailResponse, AdminUserListResponse,
+    AdminUserPagination, AdminUserQuery, ForceMfaResponse, ListUserSessionsResponse, MfaMethod,
+    MfaStatusResponse, OrgUserResponse, OrgUserRole, ReactivateOrgUserResponse, RemoveUserResponse,
+    ResetMfaResponse, RevokeAllSessionsResponse, RevokeSessionResponse, SuspendOrgUserRequest,
     SuspendOrgUserResponse, TriggerPasswordResetResponse, UpdateAdminUserRequest,
     UpdateAdminUserResponse, UserSessionInfo,
 };
@@ -31,7 +31,7 @@ use domain::models::{
 /// Create admin user management routes.
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(list_users))
+        .route("/", get(list_users).post(create_user))
         .route("/{user_id}", get(get_user_detail))
         .route("/{user_id}", put(update_user))
         .route("/{user_id}", delete(remove_user))
@@ -69,6 +69,82 @@ fn create_auth_service(state: &AppState) -> Result<AuthService, ApiError> {
         tracing::error!(error = %e, "Failed to initialize auth service");
         ApiError::Internal(format!("Failed to initialize auth service: {}", e))
     })
+}
+
+/// Create/add a user to organization.
+///
+/// POST /api/admin/v1/organizations/{org_id}/users
+#[axum::debug_handler]
+async fn create_user(
+    State(state): State<AppState>,
+    Path(org_id): Path<Uuid>,
+    user: UserAuth,
+    Json(request): Json<AddOrgUserRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
+
+    // Validate permissions if provided
+    if let Some(ref perms) = request.permissions {
+        validate_permissions(perms).map_err(ApiError::Validation)?;
+    }
+
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+    let user_repo = UserRepository::new(state.pool.clone());
+
+    // Verify caller has admin access to organization
+    let caller_org_user = org_user_repo
+        .find_by_org_and_user(org_id, user.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
+
+    // Check permission (admin or owner can add users)
+    if caller_org_user.role != OrgUserRole::Owner && caller_org_user.role != OrgUserRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
+    }
+
+    // Find user by email
+    let target_user = user_repo.find_by_email(&request.email).await?;
+    let target_user = match target_user {
+        Some(u) => u,
+        None => {
+            return Err(ApiError::NotFound(format!(
+                "User with email '{}' not found. Invite flow not implemented yet.",
+                request.email
+            )));
+        }
+    };
+
+    // Check if user is already in organization
+    if org_user_repo.exists(org_id, target_user.id).await? {
+        return Err(ApiError::Conflict(
+            "User is already a member of this organization".to_string(),
+        ));
+    }
+
+    // Use provided permissions or default for role
+    let permissions = request
+        .permissions
+        .unwrap_or_else(|| request.role.default_permissions());
+
+    // Create org user
+    let org_user = org_user_repo
+        .create(org_id, target_user.id, request.role, &permissions, None)
+        .await?;
+
+    tracing::info!(
+        caller_user_id = %user.user_id,
+        organization_id = %org_id,
+        target_user_id = %target_user.id,
+        role = %request.role,
+        "Added user to organization via JWT auth"
+    );
+
+    Ok((StatusCode::CREATED, Json(OrgUserResponse { org_user })))
 }
 
 /// List users in organization.
