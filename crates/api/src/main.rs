@@ -73,6 +73,17 @@ async fn main() -> Result<()> {
     scheduler.register(jobs::WebhookRetryJob::new(pool.clone(), 10));
     // Webhook cleanup job - runs daily to clean up old delivery records
     scheduler.register(jobs::WebhookCleanupJob::new(pool.clone(), Some(7)));
+    // Report generation job - runs every 30 seconds to process pending report jobs
+    scheduler.register(jobs::ReportGenerationJob::new(
+        pool.clone(),
+        config.reports.batch_size,
+        std::path::PathBuf::from(&config.reports.reports_dir),
+    ));
+    // Report cleanup job - runs daily to clean up expired reports
+    scheduler.register(jobs::ReportCleanupJob::new(
+        pool.clone(),
+        std::path::PathBuf::from(&config.reports.reports_dir),
+    ));
     scheduler.start();
 
     // Build application

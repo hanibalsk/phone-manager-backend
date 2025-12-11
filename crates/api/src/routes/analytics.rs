@@ -3,10 +3,15 @@
 //! AP-10: Dashboard & Analytics - User, Device, and API analytics
 
 use axum::{
+    body::Body,
     extract::{Path, Query, State},
+    http::header,
+    response::Response,
     routing::{get, post},
     Json, Router,
 };
+use tokio::fs::File;
+use tokio_util::io::ReaderStream;
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use uuid::Uuid;
 
@@ -17,7 +22,7 @@ use domain::models::{
     AnalyticsDeviceStatusBreakdown, AnalyticsGroupBy, AnalyticsPeriod, ApiUsageAnalyticsQuery,
     ApiUsageAnalyticsResponse, ApiUsageSummary, ApiUsageTrend, DeviceActivityTrend,
     DeviceAnalyticsQuery, DeviceAnalyticsResponse, DeviceAnalyticsSummary, EndpointUsage,
-    GenerateReportRequest, OrgUserRole, ReportDownloadResponse, ReportJobResponse, ReportStatus,
+    GenerateReportRequest, OrgUserRole, ReportJobResponse, ReportStatus,
     UserActivityTrend, UserAnalyticsQuery, UserAnalyticsResponse, UserAnalyticsSummary,
     UserRoleBreakdown,
 };
@@ -360,7 +365,39 @@ async fn generate_user_report(
         .create_report_job(org_id, "user_analytics", parameters, user.user_id)
         .await?;
 
-    // TODO: Spawn background task to generate report
+    // TODO(FR-10.5-10.9): Report Generation Background Worker
+    // ============================================================
+    // This is a stub implementation. A background worker is needed to:
+    //
+    // 1. Process report jobs asynchronously (FR-10.5)
+    //    - Monitor `report_jobs` table for pending jobs
+    //    - Update job status: pending -> processing -> completed/failed
+    //    - Set started_at when processing begins
+    //    - Set completed_at when processing finishes
+    //
+    // 2. Generate actual report content (FR-10.5)
+    //    - Query user analytics data from AnalyticsRepository
+    //    - Aggregate metrics: active users, sessions, activity patterns
+    //    - Apply date range filters from job parameters
+    //
+    // 3. Export to requested format (FR-10.6, FR-10.7)
+    //    - Support CSV format with proper headers and escaping
+    //    - Support JSON format with structured data
+    //    - Support PDF format for printable reports
+    //    - Store generated files in configurable storage (local/S3)
+    //
+    // 4. Handle report lifecycle (FR-10.8, FR-10.9)
+    //    - Set file_size_bytes after generation
+    //    - Set expires_at (e.g., 7 days from completion)
+    //    - Implement cleanup job to delete expired reports
+    //    - Store download URL or file path for retrieval
+    //
+    // Implementation approach:
+    // - Create a ReportGenerationWorker similar to WebhookRetryWorker
+    // - Run on a configurable interval (e.g., every 30 seconds)
+    // - Use tokio::spawn for async processing
+    // - Implement proper error handling and retry logic
+    // ============================================================
 
     let response = ReportJobResponse {
         id: job.id,
@@ -404,7 +441,13 @@ async fn generate_device_report(
         .create_report_job(org_id, "device_analytics", parameters, user.user_id)
         .await?;
 
-    // TODO: Spawn background task to generate report
+    // TODO(FR-10.5-10.9): Report Generation Background Worker
+    // See detailed implementation notes in generate_user_report above.
+    // This handler creates a device analytics report job that includes:
+    // - Device enrollment statistics
+    // - Device activity and status distribution
+    // - Policy compliance metrics
+    // - Device health and connectivity patterns
 
     let response = ReportJobResponse {
         id: job.id,
@@ -460,12 +503,14 @@ async fn get_report_status(
 }
 
 /// Download report (FR-10.7).
+///
+/// Streams the actual report file to the client with appropriate headers.
 #[axum::debug_handler]
 async fn download_report(
     State(state): State<AppState>,
     Path((org_id, report_id)): Path<(Uuid, Uuid)>,
     user: UserAuth,
-) -> Result<Json<ReportDownloadResponse>, ApiError> {
+) -> Result<Response, ApiError> {
     // Verify user has admin access to organization
     verify_org_admin(&state.pool, org_id, user.user_id).await?;
 
@@ -484,31 +529,71 @@ async fn download_report(
         )));
     }
 
-    // Check if file exists
-    let file_path = job
+    // Check if file path exists in database
+    let file_name = job
         .file_path
         .ok_or_else(|| ApiError::NotFound("Report file not found".to_string()))?;
 
-    // For now, return a placeholder response
-    // In production, this would either:
-    // 1. Return a presigned URL for S3/GCS
-    // 2. Return base64-encoded content for small files
-    // 3. Stream the file directly
-    let response = ReportDownloadResponse {
-        report_id: job.id,
-        file_name: format!(
-            "{}_{}.csv",
-            job.report_type,
-            job.created_at.format("%Y%m%d_%H%M%S")
-        ),
-        content_type: "text/csv".to_string(),
-        file_size_bytes: job.file_size_bytes.unwrap_or(0),
-        content_base64: None, // Would be populated for small files
-        download_url: Some(file_path), // Would be a presigned URL in production
-        url_expires_at: Some(Utc::now() + Duration::hours(1)),
+    // Build full path using config
+    let reports_dir = std::path::PathBuf::from(&state.config.reports.reports_dir);
+    let full_path = reports_dir.join(&file_name);
+
+    // Open the file
+    let file = File::open(&full_path).await.map_err(|e| {
+        tracing::error!(
+            error = %e,
+            path = %full_path.display(),
+            "Failed to open report file"
+        );
+        ApiError::NotFound("Report file not found on disk".to_string())
+    })?;
+
+    // Get file metadata for content-length
+    let metadata = file.metadata().await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to get file metadata");
+        ApiError::Internal("Failed to read report file".to_string())
+    })?;
+
+    // Determine content type based on file extension
+    let content_type = if file_name.ends_with(".csv") {
+        "text/csv"
+    } else if file_name.ends_with(".json") {
+        "application/json"
+    } else {
+        "application/octet-stream"
     };
 
-    Ok(Json(response))
+    // Create a friendly download filename
+    let download_filename = format!(
+        "{}_{}.{}",
+        job.report_type,
+        job.created_at.format("%Y%m%d_%H%M%S"),
+        if file_name.ends_with(".csv") {
+            "csv"
+        } else {
+            "json"
+        }
+    );
+
+    // Stream the file
+    let stream = ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    // Build response with appropriate headers
+    let response = Response::builder()
+        .header(header::CONTENT_TYPE, content_type)
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", download_filename),
+        )
+        .header(header::CONTENT_LENGTH, metadata.len())
+        .body(body)
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to build response");
+            ApiError::Internal("Failed to build response".to_string())
+        })?;
+
+    Ok(response)
 }
 
 // Helper functions for trend aggregation

@@ -204,6 +204,11 @@ YQIDAQAB
             bootstrap_email: String::new(),
             bootstrap_password: String::new(),
         },
+        reports: phone_manager_api::config::ReportsConfig {
+            reports_dir: "./test_reports".to_string(),
+            batch_size: 5,
+            expiration_days: 7,
+        },
     }
 }
 

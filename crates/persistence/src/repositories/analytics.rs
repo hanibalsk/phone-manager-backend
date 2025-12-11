@@ -388,4 +388,133 @@ impl AnalyticsRepository {
         .fetch_all(&self.pool)
         .await
     }
+
+    // ========================================================================
+    // Report Job Processing (FR-10.5-10.9)
+    // ========================================================================
+
+    /// Find pending report jobs ready for processing.
+    pub async fn find_pending_report_jobs(
+        &self,
+        batch_size: i64,
+    ) -> Result<Vec<ReportJobEntity>, sqlx::Error> {
+        sqlx::query_as::<_, ReportJobEntity>(
+            r#"
+            SELECT id, organization_id, report_type, status, parameters, file_path,
+                   file_size_bytes, error_message, created_by, started_at, completed_at,
+                   expires_at, created_at, updated_at
+            FROM report_jobs
+            WHERE status = 'pending'
+            ORDER BY created_at ASC
+            LIMIT $1
+            "#,
+        )
+        .bind(batch_size)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    /// Mark report job as processing.
+    pub async fn mark_report_processing(
+        &self,
+        job_id: Uuid,
+    ) -> Result<ReportJobEntity, sqlx::Error> {
+        sqlx::query_as::<_, ReportJobEntity>(
+            r#"
+            UPDATE report_jobs
+            SET status = 'processing',
+                started_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING id, organization_id, report_type, status, parameters, file_path,
+                      file_size_bytes, error_message, created_by, started_at, completed_at,
+                      expires_at, created_at, updated_at
+            "#,
+        )
+        .bind(job_id)
+        .fetch_one(&self.pool)
+        .await
+    }
+
+    /// Mark report job as completed successfully.
+    pub async fn mark_report_completed(
+        &self,
+        job_id: Uuid,
+        file_path: &str,
+        file_size_bytes: i64,
+    ) -> Result<ReportJobEntity, sqlx::Error> {
+        sqlx::query_as::<_, ReportJobEntity>(
+            r#"
+            UPDATE report_jobs
+            SET status = 'completed',
+                file_path = $2,
+                file_size_bytes = $3,
+                completed_at = NOW(),
+                expires_at = NOW() + INTERVAL '7 days',
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING id, organization_id, report_type, status, parameters, file_path,
+                      file_size_bytes, error_message, created_by, started_at, completed_at,
+                      expires_at, created_at, updated_at
+            "#,
+        )
+        .bind(job_id)
+        .bind(file_path)
+        .bind(file_size_bytes)
+        .fetch_one(&self.pool)
+        .await
+    }
+
+    /// Mark report job as failed.
+    pub async fn mark_report_failed(
+        &self,
+        job_id: Uuid,
+        error_message: &str,
+    ) -> Result<ReportJobEntity, sqlx::Error> {
+        sqlx::query_as::<_, ReportJobEntity>(
+            r#"
+            UPDATE report_jobs
+            SET status = 'failed',
+                error_message = $2,
+                completed_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING id, organization_id, report_type, status, parameters, file_path,
+                      file_size_bytes, error_message, created_by, started_at, completed_at,
+                      expires_at, created_at, updated_at
+            "#,
+        )
+        .bind(job_id)
+        .bind(error_message)
+        .fetch_one(&self.pool)
+        .await
+    }
+
+    /// Delete expired report jobs and their files.
+    pub async fn delete_expired_report_jobs(&self) -> Result<Vec<ReportJobEntity>, sqlx::Error> {
+        // First get the jobs to delete (so we can clean up files)
+        let expired = sqlx::query_as::<_, ReportJobEntity>(
+            r#"
+            SELECT id, organization_id, report_type, status, parameters, file_path,
+                   file_size_bytes, error_message, created_by, started_at, completed_at,
+                   expires_at, created_at, updated_at
+            FROM report_jobs
+            WHERE status = 'completed' AND expires_at < NOW()
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        // Delete expired jobs
+        sqlx::query(
+            r#"
+            DELETE FROM report_jobs
+            WHERE status = 'completed' AND expires_at < NOW()
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(expired)
+    }
 }

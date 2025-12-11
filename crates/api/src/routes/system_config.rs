@@ -26,6 +26,7 @@ use domain::models::{
     RateLimitConfigItem, RateLimitsResponse, SecuritySettingsInfo, ServerSettingsInfo,
     SystemSettingsResponse, ToggleMaintenanceModeRequest, UpdateEmailTemplateRequest,
     UpdateFeatureFlagRequest, UpdateNotificationTemplateRequest, UpdateRateLimitsRequest,
+    UpdateSystemSettingsRequest, UpdateSystemSettingsResponse,
 };
 use persistence::repositories::SystemConfigRepository;
 
@@ -45,7 +46,10 @@ struct MaintenanceState {
 /// These routes require super_admin role for management operations.
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/settings", get(get_system_settings))
+        .route(
+            "/settings",
+            get(get_system_settings).put(update_system_settings),
+        )
         .route("/feature-flags", get(get_feature_flags))
         .route("/feature-flags/{flag_id}", put(update_feature_flag))
         .route(
@@ -157,6 +161,221 @@ async fn get_system_settings(
         user_id = %system_auth.user_id,
         "Retrieved system settings"
     );
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// Update system settings.
+///
+/// PUT /api/admin/v1/system/settings
+///
+/// Updates system configuration settings.
+/// Only updates settings that are provided in the request.
+/// Requires super_admin role.
+#[axum::debug_handler(state = AppState)]
+async fn update_system_settings(
+    State(state): State<AppState>,
+    system_auth: SystemRoleAuth,
+    Json(request): Json<UpdateSystemSettingsRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Only super_admin can update system settings
+    if !system_auth.is_super_admin() {
+        return Err(ApiError::Forbidden(
+            "Super admin access required".to_string(),
+        ));
+    }
+
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
+
+    let repo = SystemConfigRepository::new(state.pool.clone());
+    let mut updated_keys = Vec::new();
+
+    // Update logging level
+    if let Some(ref level) = request.logging_level {
+        repo.upsert_system_setting(
+            "logging.level",
+            serde_json::json!(level),
+            Some("Logging level"),
+            "logging",
+            false,
+            system_auth.user_id,
+        )
+        .await?;
+        updated_keys.push("logging.level".to_string());
+    }
+
+    // Update CORS origins
+    if let Some(ref origins) = request.cors_origins {
+        repo.upsert_system_setting(
+            "security.cors_origins",
+            serde_json::json!(origins),
+            Some("CORS allowed origins"),
+            "security",
+            false,
+            system_auth.user_id,
+        )
+        .await?;
+        updated_keys.push("security.cors_origins".to_string());
+    }
+
+    // Update max devices per group
+    if let Some(max_devices) = request.max_devices_per_group {
+        repo.upsert_system_setting(
+            "limits.max_devices_per_group",
+            serde_json::json!(max_devices),
+            Some("Maximum devices per group"),
+            "limits",
+            false,
+            system_auth.user_id,
+        )
+        .await?;
+        updated_keys.push("limits.max_devices_per_group".to_string());
+    }
+
+    // Update max batch size
+    if let Some(max_batch) = request.max_batch_size {
+        repo.upsert_system_setting(
+            "limits.max_batch_size",
+            serde_json::json!(max_batch),
+            Some("Maximum batch size for location uploads"),
+            "limits",
+            false,
+            system_auth.user_id,
+        )
+        .await?;
+        updated_keys.push("limits.max_batch_size".to_string());
+    }
+
+    // Update location retention days
+    if let Some(retention_days) = request.location_retention_days {
+        repo.upsert_system_setting(
+            "limits.location_retention_days",
+            serde_json::json!(retention_days),
+            Some("Location data retention in days"),
+            "limits",
+            false,
+            system_auth.user_id,
+        )
+        .await?;
+        updated_keys.push("limits.location_retention_days".to_string());
+    }
+
+    // Update warning threshold percent
+    if let Some(threshold) = request.warning_threshold_percent {
+        repo.upsert_system_setting(
+            "limits.warning_threshold_percent",
+            serde_json::json!(threshold),
+            Some("Warning threshold percentage for limits"),
+            "limits",
+            false,
+            system_auth.user_id,
+        )
+        .await?;
+        updated_keys.push("limits.warning_threshold_percent".to_string());
+    }
+
+    info!(
+        user_id = %system_auth.user_id,
+        updated_keys = ?updated_keys,
+        "Updated system settings"
+    );
+
+    // Build response with current settings
+    // Note: The config struct contains the startup configuration.
+    // Database-stored settings would override these in a production system.
+    let config = &state.config;
+
+    let settings = SystemSettingsResponse {
+        server: ServerSettingsInfo {
+            host: config.server.host.clone(),
+            port: config.server.port,
+            request_timeout_secs: config.server.request_timeout_secs,
+            max_body_size: config.server.max_body_size,
+            app_base_url: config.server.app_base_url.clone(),
+        },
+        database: DatabaseSettingsInfo {
+            max_connections: config.database.max_connections,
+            min_connections: config.database.min_connections,
+            connect_timeout_secs: config.database.connect_timeout_secs,
+            idle_timeout_secs: config.database.idle_timeout_secs,
+        },
+        logging: LoggingSettingsInfo {
+            level: request.logging_level.clone().unwrap_or_else(|| config.logging.level.clone()),
+            format: config.logging.format.clone(),
+        },
+        security: SecuritySettingsInfo {
+            cors_origins: request
+                .cors_origins
+                .clone()
+                .unwrap_or_else(|| config.security.cors_origins.clone()),
+            rate_limit_per_minute: config.security.rate_limit_per_minute,
+            export_rate_limit_per_hour: config.security.export_rate_limit_per_hour,
+            forgot_password_rate_limit_per_hour: config
+                .security
+                .forgot_password_rate_limit_per_hour,
+            request_verification_rate_limit_per_hour: config
+                .security
+                .request_verification_rate_limit_per_hour,
+        },
+        limits: LimitsSettingsInfo {
+            max_devices_per_group: request
+                .max_devices_per_group
+                .map(|v| v as usize)
+                .unwrap_or(config.limits.max_devices_per_group),
+            max_batch_size: request
+                .max_batch_size
+                .map(|v| v as usize)
+                .unwrap_or(config.limits.max_batch_size),
+            location_retention_days: request
+                .location_retention_days
+                .unwrap_or(config.limits.location_retention_days),
+            max_display_name_length: config.limits.max_display_name_length,
+            max_group_id_length: config.limits.max_group_id_length,
+            max_webhooks_per_device: config.limits.max_webhooks_per_device,
+            warning_threshold_percent: request
+                .warning_threshold_percent
+                .unwrap_or(config.limits.warning_threshold_percent),
+        },
+        map_matching: MapMatchingSettingsInfo {
+            provider: config.map_matching.provider.clone(),
+            enabled: config.map_matching.enabled,
+            timeout_ms: config.map_matching.timeout_ms,
+            rate_limit_per_minute: config.map_matching.rate_limit_per_minute,
+            circuit_breaker_failures: config.map_matching.circuit_breaker_failures,
+            circuit_breaker_reset_secs: config.map_matching.circuit_breaker_reset_secs,
+        },
+        email: EmailSettingsInfo {
+            enabled: config.email.enabled,
+            provider: config.email.provider.clone(),
+            sender_email: config.email.sender_email.clone(),
+            sender_name: config.email.sender_name.clone(),
+            template_style: config.email.template_style.clone(),
+        },
+        fcm: FcmSettingsInfo {
+            enabled: config.fcm.enabled,
+            project_id: config.fcm.project_id.clone(),
+            timeout_ms: config.fcm.timeout_ms,
+            max_retries: config.fcm.max_retries,
+            high_priority: config.fcm.high_priority,
+        },
+        frontend: FrontendSettingsInfo {
+            enabled: config.frontend.enabled,
+            base_dir: config.frontend.base_dir.clone(),
+            staging_hostname: config.frontend.staging_hostname.clone(),
+            production_hostname: config.frontend.production_hostname.clone(),
+            default_environment: config.frontend.default_environment.clone(),
+            immutable_cache_max_age: config.frontend.immutable_cache_max_age,
+            mutable_cache_max_age: config.frontend.mutable_cache_max_age,
+        },
+    };
+
+    let response = UpdateSystemSettingsResponse {
+        updated: updated_keys,
+        settings,
+    };
 
     Ok((StatusCode::OK, Json(response)))
 }

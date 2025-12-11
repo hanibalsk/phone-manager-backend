@@ -35,6 +35,9 @@ pub struct Config {
     /// Admin bootstrap configuration
     #[serde(default)]
     pub admin: AdminBootstrapConfig,
+    /// Reports configuration
+    #[serde(default)]
+    pub reports: ReportsConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -531,6 +534,44 @@ fn default_true() -> bool {
     true
 }
 
+/// Reports generation configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReportsConfig {
+    /// Directory to store generated reports
+    #[serde(default = "default_reports_dir")]
+    pub reports_dir: String,
+
+    /// Number of reports to process per batch
+    #[serde(default = "default_reports_batch_size")]
+    pub batch_size: i64,
+
+    /// Report expiration in days (default: 7)
+    #[serde(default = "default_report_expiration_days")]
+    pub expiration_days: u32,
+}
+
+impl Default for ReportsConfig {
+    fn default() -> Self {
+        Self {
+            reports_dir: default_reports_dir(),
+            batch_size: default_reports_batch_size(),
+            expiration_days: default_report_expiration_days(),
+        }
+    }
+}
+
+fn default_reports_dir() -> String {
+    "./reports".to_string()
+}
+
+fn default_reports_batch_size() -> i64 {
+    5
+}
+
+fn default_report_expiration_days() -> u32 {
+    7
+}
+
 /// Frontend static file serving configuration for admin UI.
 #[derive(Debug, Clone, Deserialize)]
 pub struct FrontendConfig {
@@ -726,6 +767,11 @@ impl Config {
             [admin]
             bootstrap_email = ""
             bootstrap_password = ""
+
+            [reports]
+            reports_dir = "./reports"
+            batch_size = 5
+            expiration_days = 7
         "#;
 
         let mut builder = config::Config::builder()
