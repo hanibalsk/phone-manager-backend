@@ -1029,6 +1029,112 @@ impl DeviceRepository {
 
         Ok(result)
     }
+
+    /// Bulk update a device (for fleet management).
+    /// Returns the list of fields that were updated.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn bulk_update_device(
+        &self,
+        device_id: i64,
+        organization_id: Uuid,
+        display_name: Option<&str>,
+        group_id: Option<&str>,
+        policy_id: Option<Uuid>,
+        assigned_user_id: Option<Uuid>,
+        clear_assigned_user: bool,
+    ) -> Result<(DeviceEntity, Vec<String>), sqlx::Error> {
+        let now = Utc::now();
+        let mut updated_fields = Vec::new();
+
+        // Build dynamic update query based on provided fields
+        let mut set_clauses = vec!["updated_at = $3".to_string()];
+        let mut param_idx = 4;
+
+        if display_name.is_some() {
+            set_clauses.push(format!("display_name = ${}", param_idx));
+            param_idx += 1;
+            updated_fields.push("display_name".to_string());
+        }
+
+        if group_id.is_some() {
+            set_clauses.push(format!("group_id = ${}", param_idx));
+            param_idx += 1;
+            updated_fields.push("group_id".to_string());
+        }
+
+        if policy_id.is_some() {
+            set_clauses.push(format!("policy_id = ${}", param_idx));
+            param_idx += 1;
+            updated_fields.push("policy_id".to_string());
+        }
+
+        if clear_assigned_user {
+            set_clauses.push("assigned_user_id = NULL".to_string());
+            updated_fields.push("assigned_user_id".to_string());
+        } else if assigned_user_id.is_some() {
+            set_clauses.push(format!("assigned_user_id = ${}", param_idx));
+            updated_fields.push("assigned_user_id".to_string());
+        }
+
+        let query = format!(
+            r#"
+            UPDATE devices
+            SET {}
+            WHERE id = $1 AND organization_id = $2 AND is_managed = true
+            RETURNING id, device_id, display_name, group_id, platform, fcm_token,
+                      active, created_at, updated_at, last_seen_at,
+                      owner_user_id, organization_id, is_primary, linked_at
+            "#,
+            set_clauses.join(", ")
+        );
+
+        let mut q = sqlx::query_as::<_, DeviceEntity>(&query)
+            .bind(device_id)
+            .bind(organization_id)
+            .bind(now);
+
+        if let Some(name) = display_name {
+            q = q.bind(name);
+        }
+
+        if let Some(gid) = group_id {
+            q = q.bind(gid);
+        }
+
+        if let Some(pid) = policy_id {
+            q = q.bind(pid);
+        }
+
+        if !clear_assigned_user {
+            if let Some(uid) = assigned_user_id {
+                q = q.bind(uid);
+            }
+        }
+
+        let result = q.fetch_one(&self.pool).await?;
+        Ok((result, updated_fields))
+    }
+
+    /// Check if a device exists and belongs to the organization.
+    pub async fn device_exists_in_org(
+        &self,
+        device_id: i64,
+        organization_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let result: Option<(i64,)> = sqlx::query_as(
+            r#"
+            SELECT id
+            FROM devices
+            WHERE id = $1 AND organization_id = $2 AND is_managed = true
+            "#,
+        )
+        .bind(device_id)
+        .bind(organization_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(result.is_some())
+    }
 }
 
 /// Admin statistics about the system.

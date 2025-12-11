@@ -88,11 +88,14 @@ pub use enrollment_token::{
     ListEnrollmentTokensResponse, QrCodeResponse,
 };
 pub use fleet::{
-    AssignDeviceRequest, AssignDeviceResponse, AssignedUserInfo, DeviceCommand,
-    DeviceCommandStatus, DeviceCommandType, DeviceStatusChangeResponse, FleetDeviceItem,
-    FleetDeviceListResponse, FleetDeviceQuery, FleetGroupInfo, FleetLastLocation, FleetPagination,
-    FleetPolicyInfo, FleetSortField, FleetSummary, IssueCommandRequest, IssueCommandResponse,
-    SortOrder, UnassignDeviceResponse,
+    AssignDeviceRequest, AssignDeviceResponse, AssignedUserInfo, BulkDeviceUpdate,
+    BulkDeviceUpdateResult, BulkUpdateDevicesRequest, BulkUpdateDevicesResponse, DeviceCommand,
+    DeviceCommandHistoryItem, DeviceCommandHistoryPagination, DeviceCommandHistoryQuery,
+    DeviceCommandHistoryResponse, DeviceCommandStatus, DeviceCommandType,
+    DeviceStatusChangeResponse, FleetDeviceItem, FleetDeviceListResponse, FleetDeviceQuery,
+    FleetGroupInfo, FleetLastLocation, FleetPagination, FleetPolicyInfo, FleetSortField,
+    FleetSummary, IssueCommandRequest, IssueCommandResponse, SortOrder, UnassignDeviceResponse,
+    MAX_BULK_UPDATE_DEVICES,
 };
 pub use geofence::Geofence;
 pub use geofence_event::{

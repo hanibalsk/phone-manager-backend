@@ -333,6 +333,120 @@ pub struct IssueCommandResponse {
     pub expires_at: DateTime<Utc>,
 }
 
+/// Maximum number of devices in a bulk update request.
+pub const MAX_BULK_UPDATE_DEVICES: usize = 100;
+
+/// Request to bulk update multiple devices.
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "snake_case")]
+pub struct BulkUpdateDevicesRequest {
+    /// List of device updates (max 100).
+    #[validate(length(min = 1, max = 100))]
+    pub devices: Vec<BulkDeviceUpdate>,
+}
+
+/// Individual device update in bulk request.
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "snake_case")]
+pub struct BulkDeviceUpdate {
+    /// Device ID (internal sequential ID).
+    pub device_id: i64,
+    /// New display name (optional).
+    #[validate(length(min = 1, max = 255))]
+    pub display_name: Option<String>,
+    /// New group ID (optional).
+    #[validate(length(max = 255))]
+    pub group_id: Option<String>,
+    /// New policy ID (optional).
+    pub policy_id: Option<Uuid>,
+    /// New assigned user ID (optional). Use null to unassign.
+    pub assigned_user_id: Option<Uuid>,
+    /// Clear assigned user (set to true to explicitly unassign).
+    #[serde(default)]
+    pub clear_assigned_user: bool,
+}
+
+/// Result of a single device update in bulk operation.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct BulkDeviceUpdateResult {
+    pub device_id: i64,
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_fields: Option<Vec<String>>,
+}
+
+/// Response for bulk device update.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct BulkUpdateDevicesResponse {
+    pub total: usize,
+    pub successful: usize,
+    pub failed: usize,
+    pub results: Vec<BulkDeviceUpdateResult>,
+}
+
+/// Device command history query parameters.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "snake_case")]
+pub struct DeviceCommandHistoryQuery {
+    /// Page number (1-indexed).
+    #[validate(range(min = 1))]
+    pub page: Option<u32>,
+    /// Items per page.
+    #[validate(range(min = 1, max = 100))]
+    pub per_page: Option<u32>,
+    /// Filter by command status.
+    pub status: Option<DeviceCommandStatus>,
+    /// Filter by command type.
+    pub command_type: Option<DeviceCommandType>,
+}
+
+/// Device command item in history response.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DeviceCommandHistoryItem {
+    pub id: Uuid,
+    pub device_id: i64,
+    pub command_type: DeviceCommandType,
+    pub status: DeviceCommandStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<serde_json::Value>,
+    pub issued_by: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issued_by_email: Option<String>,
+    pub issued_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub acknowledged_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failed_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure_reason: Option<String>,
+    pub expires_at: DateTime<Utc>,
+}
+
+/// Pagination for device command history.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DeviceCommandHistoryPagination {
+    pub page: u32,
+    pub per_page: u32,
+    pub total: i64,
+    pub total_pages: u32,
+}
+
+/// Response for device command history.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DeviceCommandHistoryResponse {
+    pub data: Vec<DeviceCommandHistoryItem>,
+    pub pagination: DeviceCommandHistoryPagination,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
