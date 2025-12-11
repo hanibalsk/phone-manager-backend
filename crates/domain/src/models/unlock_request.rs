@@ -146,6 +146,135 @@ fn default_per_page() -> i64 {
     20
 }
 
+// Admin unlock request models (AP-8)
+
+/// Query parameters for listing admin unlock requests.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct AdminListUnlockRequestsQuery {
+    /// Filter by status (pending, approved, denied, expired).
+    pub status: Option<String>,
+    /// Filter by device ID.
+    pub device_id: Option<Uuid>,
+    /// Page number (1-based).
+    #[serde(default = "default_admin_page")]
+    pub page: u32,
+    /// Items per page.
+    #[serde(default = "default_admin_per_page")]
+    pub per_page: u32,
+}
+
+fn default_admin_page() -> u32 {
+    1
+}
+
+fn default_admin_per_page() -> u32 {
+    20
+}
+
+/// Admin unlock request item for listing.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct AdminUnlockRequestItem {
+    pub id: Uuid,
+    pub device_id: Uuid,
+    pub device_name: String,
+    pub setting_key: String,
+    pub setting_name: String,
+    pub status: UnlockRequestStatus,
+    pub requested_by: AdminUserBrief,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub responded_by: Option<AdminUserBrief>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_note: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub responded_at: Option<DateTime<Utc>>,
+}
+
+/// Brief user info for admin unlock request listing.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct AdminUserBrief {
+    pub id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+}
+
+/// Admin pagination info.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct AdminUnlockPagination {
+    pub page: u32,
+    pub per_page: u32,
+    pub total: i64,
+    pub total_pages: u32,
+}
+
+/// Response for listing admin unlock requests.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct AdminListUnlockRequestsResponse {
+    pub requests: Vec<AdminUnlockRequestItem>,
+    pub pagination: AdminUnlockPagination,
+}
+
+/// Request to approve an unlock request.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ApproveUnlockRequestRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// Request to deny an unlock request.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DenyUnlockRequestRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// Response for approve/deny unlock request.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct AdminUnlockRequestActionResponse {
+    pub id: Uuid,
+    pub status: UnlockRequestStatus,
+    pub responded_by: Uuid,
+    pub responded_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// Request for bulk processing unlock requests.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct BulkProcessUnlockRequestsRequest {
+    /// List of request IDs to process.
+    pub request_ids: Vec<Uuid>,
+    /// Action to take: "approve" or "deny".
+    pub action: String,
+    /// Optional note for all requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// Response for bulk processing unlock requests.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct BulkProcessUnlockRequestsResponse {
+    /// Number of requests processed.
+    pub processed: i64,
+    /// Number of requests requested.
+    pub requested: usize,
+    /// Action taken.
+    pub action: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

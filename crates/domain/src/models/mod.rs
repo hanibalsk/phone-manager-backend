@@ -176,9 +176,12 @@ pub use system_role::{
 pub use trip::Trip;
 pub use trip_path_correction::TripPathCorrection;
 pub use unlock_request::{
-    CreateUnlockRequestRequest, CreateUnlockRequestResponse, ListUnlockRequestsQuery,
-    ListUnlockRequestsResponse, RespondToUnlockRequestRequest, RespondToUnlockRequestResponse,
-    UnlockRequestStatus,
+    AdminListUnlockRequestsQuery, AdminListUnlockRequestsResponse, AdminUnlockPagination,
+    AdminUnlockRequestActionResponse, AdminUnlockRequestItem, AdminUserBrief,
+    ApproveUnlockRequestRequest, BulkProcessUnlockRequestsRequest,
+    BulkProcessUnlockRequestsResponse, CreateUnlockRequestRequest, CreateUnlockRequestResponse,
+    DenyUnlockRequestRequest, ListUnlockRequestsQuery, ListUnlockRequestsResponse,
+    RespondToUnlockRequestRequest, RespondToUnlockRequestResponse, UnlockRequestStatus,
 };
 pub use usage_warning::{check_usage_warning, ResponseWithWarnings, UsageWarning};
 pub use user::{OAuthAccount, OAuthProvider, User, UserSession};

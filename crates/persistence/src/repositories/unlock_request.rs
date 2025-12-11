@@ -244,6 +244,141 @@ impl UnlockRequestRepository {
         timer.record();
         result
     }
+
+    /// List unlock requests for an organization (devices in the organization).
+    pub async fn list_for_organization(
+        &self,
+        org_id: Uuid,
+        status_filter: Option<UnlockRequestStatusDb>,
+        device_id_filter: Option<Uuid>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<UnlockRequestWithDetailsEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("list_unlock_requests_for_org");
+
+        let result = sqlx::query_as::<_, UnlockRequestWithDetailsEntity>(
+            r#"
+            SELECT ur.id, ur.device_id, d.display_name as device_display_name,
+                   ur.setting_key, COALESCE(sd.display_name, ur.setting_key) as setting_display_name,
+                   ur.requested_by, u1.display_name as requester_display_name,
+                   ur.status, ur.reason, ur.responded_by,
+                   u2.display_name as responder_display_name,
+                   ur.response_note, ur.created_at, ur.updated_at,
+                   ur.expires_at, ur.responded_at
+            FROM unlock_requests ur
+            JOIN devices d ON ur.device_id = d.device_id
+            LEFT JOIN setting_definitions sd ON ur.setting_key = sd.key
+            JOIN users u1 ON ur.requested_by = u1.id
+            LEFT JOIN users u2 ON ur.responded_by = u2.id
+            WHERE d.organization_id = $1
+              AND ($2::unlock_request_status IS NULL OR ur.status = $2)
+              AND ($3::UUID IS NULL OR ur.device_id = $3)
+            ORDER BY ur.created_at DESC
+            LIMIT $4 OFFSET $5
+            "#,
+        )
+        .bind(org_id)
+        .bind(status_filter)
+        .bind(device_id_filter)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
+    /// Count unlock requests for an organization.
+    pub async fn count_for_organization(
+        &self,
+        org_id: Uuid,
+        status_filter: Option<UnlockRequestStatusDb>,
+        device_id_filter: Option<Uuid>,
+    ) -> Result<i64, sqlx::Error> {
+        let timer = QueryTimer::new("count_unlock_requests_for_org");
+        let result = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*)
+            FROM unlock_requests ur
+            JOIN devices d ON ur.device_id = d.device_id
+            WHERE d.organization_id = $1
+              AND ($2::unlock_request_status IS NULL OR ur.status = $2)
+              AND ($3::UUID IS NULL OR ur.device_id = $3)
+            "#,
+        )
+        .bind(org_id)
+        .bind(status_filter)
+        .bind(device_id_filter)
+        .fetch_one(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
+    /// Find an unlock request by ID with organization scope.
+    pub async fn find_by_id_for_organization(
+        &self,
+        id: Uuid,
+        org_id: Uuid,
+    ) -> Result<Option<UnlockRequestWithDetailsEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("find_unlock_request_by_id_for_org");
+        let result = sqlx::query_as::<_, UnlockRequestWithDetailsEntity>(
+            r#"
+            SELECT ur.id, ur.device_id, d.display_name as device_display_name,
+                   ur.setting_key, COALESCE(sd.display_name, ur.setting_key) as setting_display_name,
+                   ur.requested_by, u1.display_name as requester_display_name,
+                   ur.status, ur.reason, ur.responded_by,
+                   u2.display_name as responder_display_name,
+                   ur.response_note, ur.created_at, ur.updated_at,
+                   ur.expires_at, ur.responded_at
+            FROM unlock_requests ur
+            JOIN devices d ON ur.device_id = d.device_id
+            LEFT JOIN setting_definitions sd ON ur.setting_key = sd.key
+            JOIN users u1 ON ur.requested_by = u1.id
+            LEFT JOIN users u2 ON ur.responded_by = u2.id
+            WHERE ur.id = $1 AND d.organization_id = $2
+            "#,
+        )
+        .bind(id)
+        .bind(org_id)
+        .fetch_optional(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
+    /// Bulk respond to unlock requests with organization scope.
+    pub async fn bulk_respond(
+        &self,
+        request_ids: &[Uuid],
+        org_id: Uuid,
+        status: UnlockRequestStatusDb,
+        responded_by: Uuid,
+        response_note: Option<&str>,
+    ) -> Result<i64, sqlx::Error> {
+        let timer = QueryTimer::new("bulk_respond_unlock_requests");
+        let result = sqlx::query(
+            r#"
+            UPDATE unlock_requests ur
+            SET status = $3, responded_by = $4, response_note = $5, responded_at = NOW(), updated_at = NOW()
+            FROM devices d
+            WHERE ur.device_id = d.device_id
+              AND ur.id = ANY($1)
+              AND d.organization_id = $2
+              AND ur.status = 'pending'
+            "#,
+        )
+        .bind(request_ids)
+        .bind(org_id)
+        .bind(status)
+        .bind(responded_by)
+        .bind(response_note)
+        .execute(&self.pool)
+        .await
+        .map(|r| r.rows_affected() as i64);
+        timer.record();
+        result
+    }
 }
 
 #[cfg(test)]

@@ -22,12 +22,12 @@ use crate::middleware::{
     ExportRateLimiterState, RateLimiterState,
 };
 use crate::routes::{
-    admin, admin_geofences, admin_groups, admin_locations, admin_users, api_keys, audit_logs, auth,
-    bulk_import, dashboard, device_policies, device_settings, devices, enrollment,
-    enrollment_tokens, fleet, frontend, geofence_events, geofences, groups, health, invites,
-    locations, movement_events, openapi, org_invitations, org_webhooks, organization_settings,
-    organizations, permissions, privacy, proximity_alerts, public_config, roles, system_roles,
-    trips, users, versioning, webhooks,
+    admin, admin_geofences, admin_groups, admin_locations, admin_unlock_requests, admin_users,
+    api_keys, audit_logs, auth, bulk_import, dashboard, device_policies, device_settings, devices,
+    enrollment, enrollment_tokens, fleet, frontend, geofence_events, geofences, groups, health,
+    invites, locations, movement_events, openapi, org_invitations, org_webhooks,
+    organization_settings, organizations, permissions, privacy, proximity_alerts, public_config,
+    roles, system_roles, trips, users, versioning, webhooks,
 };
 use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
@@ -526,6 +526,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .nest(
             "/api/admin/v1/organizations/:org_id/location-analytics",
             admin_geofences::location_analytics_router(),
+        )
+        // Admin unlock request management routes (Story AP-8)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/unlock-requests",
+            admin_unlock_requests::router(),
         )
         .route_layer(middleware::from_fn_with_state(state.clone(), require_b2b));
 
