@@ -10,7 +10,7 @@ use axum::{
     Json, Router,
 };
 use chrono::Utc;
-use persistence::repositories::{AdminUserRepository, OrgUserRepository};
+use persistence::repositories::{AdminUserRepository, OrgUserRepository, UserRepository};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -21,9 +21,10 @@ use crate::services::auth::{AuthError, AuthService};
 
 use domain::models::{
     validate_permissions, AdminUserDetailResponse, AdminUserListResponse, AdminUserPagination,
-    AdminUserQuery, OrgUserRole, ReactivateOrgUserResponse, RemoveUserResponse,
-    SuspendOrgUserRequest, SuspendOrgUserResponse, TriggerPasswordResetResponse,
-    UpdateAdminUserRequest, UpdateAdminUserResponse,
+    AdminUserQuery, ForceMfaResponse, MfaMethod, MfaStatusResponse, OrgUserRole,
+    ReactivateOrgUserResponse, RemoveUserResponse, ResetMfaResponse, SuspendOrgUserRequest,
+    SuspendOrgUserResponse, TriggerPasswordResetResponse, UpdateAdminUserRequest,
+    UpdateAdminUserResponse,
 };
 
 /// Create admin user management routes.
@@ -36,6 +37,9 @@ pub fn router() -> Router<AppState> {
         .route("/{user_id}/suspend", post(suspend_user))
         .route("/{user_id}/reactivate", post(reactivate_user))
         .route("/{user_id}/reset-password", post(trigger_password_reset))
+        .route("/{user_id}/mfa", get(get_mfa_status))
+        .route("/{user_id}/mfa/force", post(force_mfa))
+        .route("/{user_id}/mfa", delete(reset_mfa))
 }
 
 /// Helper to create AuthService with OAuth config from AppState.
@@ -659,6 +663,231 @@ async fn trigger_password_reset(
         reset_token_sent: true, // Would be true after email integration
         expires_at,
         message: "Password reset email has been sent to the user".to_string(),
+    };
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// Get MFA status for a user in organization.
+///
+/// GET /api/admin/v1/organizations/{org_id}/users/{user_id}/mfa
+///
+/// Story AP-3.8: View User MFA Status
+#[axum::debug_handler]
+async fn get_mfa_status(
+    State(state): State<AppState>,
+    Path((org_id, target_user_id)): Path<(Uuid, Uuid)>,
+    user: UserAuth,
+) -> Result<impl IntoResponse, ApiError> {
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+    let user_repo = UserRepository::new(state.pool.clone());
+
+    // Verify user has access to organization
+    let org_user = org_user_repo
+        .find_by_org_and_user(org_id, user.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
+
+    // Check permission (admin or owner can view MFA status)
+    if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
+    }
+
+    // Verify target user is in the organization
+    let _target_org_user = org_user_repo
+        .find_by_org_and_user(org_id, target_user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found in organization".to_string()))?;
+
+    // Get MFA status
+    let mfa_status = user_repo
+        .get_mfa_status(target_user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+
+    // Convert mfa_method string to MfaMethod enum
+    let mfa_method = mfa_status
+        .mfa_method
+        .as_ref()
+        .and_then(|m| match m.as_str() {
+            "totp" => Some(MfaMethod::Totp),
+            "sms" => Some(MfaMethod::Sms),
+            "email" => Some(MfaMethod::Email),
+            _ => None,
+        });
+
+    let response = MfaStatusResponse {
+        user_id: mfa_status.id,
+        mfa_enabled: mfa_status.mfa_enabled,
+        mfa_method,
+        enrolled_at: mfa_status.mfa_enrolled_at,
+        mfa_required: mfa_status.mfa_forced,
+        required_at: mfa_status.mfa_forced_at,
+        required_by: mfa_status.mfa_forced_by,
+    };
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// Force MFA enrollment for a user in organization.
+///
+/// POST /api/admin/v1/organizations/{org_id}/users/{user_id}/mfa/force
+///
+/// Story AP-3.9: Force MFA Enrollment
+#[axum::debug_handler]
+async fn force_mfa(
+    State(state): State<AppState>,
+    Path((org_id, target_user_id)): Path<(Uuid, Uuid)>,
+    user: UserAuth,
+) -> Result<impl IntoResponse, ApiError> {
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+    let user_repo = UserRepository::new(state.pool.clone());
+
+    // Verify user has access to organization
+    let org_user = org_user_repo
+        .find_by_org_and_user(org_id, user.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
+
+    // Check permission (admin or owner can force MFA)
+    if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
+    }
+
+    // Verify target user is in the organization
+    let target_org_user = org_user_repo
+        .find_by_org_and_user(org_id, target_user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found in organization".to_string()))?;
+
+    // Admins cannot force MFA for owners or other admins
+    if org_user.role == OrgUserRole::Admin {
+        if target_org_user.role == OrgUserRole::Owner {
+            return Err(ApiError::Forbidden(
+                "Admins cannot force MFA for owners".to_string(),
+            ));
+        }
+        if target_org_user.role == OrgUserRole::Admin && target_user_id != user.user_id {
+            return Err(ApiError::Forbidden(
+                "Admins cannot force MFA for other admins".to_string(),
+            ));
+        }
+    }
+
+    // Check if user is suspended
+    if target_org_user.is_suspended() {
+        return Err(ApiError::Conflict(
+            "Cannot force MFA for suspended user".to_string(),
+        ));
+    }
+
+    // Force MFA enrollment
+    let mfa_status = user_repo
+        .force_mfa(target_user_id, user.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+
+    // Log the action
+    tracing::info!(
+        org_id = %org_id,
+        target_user_id = %target_user_id,
+        forced_by = %user.user_id,
+        "Admin forced MFA enrollment for user"
+    );
+
+    let response = ForceMfaResponse {
+        user_id: mfa_status.id,
+        mfa_required: mfa_status.mfa_forced,
+        required_at: mfa_status
+            .mfa_forced_at
+            .expect("MFA forced_at should be set"),
+        required_by: mfa_status
+            .mfa_forced_by
+            .expect("MFA forced_by should be set"),
+        message: "MFA enrollment requirement has been set for the user".to_string(),
+    };
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// Reset MFA for a user in organization.
+///
+/// DELETE /api/admin/v1/organizations/{org_id}/users/{user_id}/mfa
+///
+/// Story AP-3.10: Reset User MFA
+#[axum::debug_handler]
+async fn reset_mfa(
+    State(state): State<AppState>,
+    Path((org_id, target_user_id)): Path<(Uuid, Uuid)>,
+    user: UserAuth,
+) -> Result<impl IntoResponse, ApiError> {
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+    let user_repo = UserRepository::new(state.pool.clone());
+
+    // Verify user has access to organization
+    let org_user = org_user_repo
+        .find_by_org_and_user(org_id, user.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
+
+    // Check permission (admin or owner can reset MFA)
+    if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
+    }
+
+    // Verify target user is in the organization
+    let target_org_user = org_user_repo
+        .find_by_org_and_user(org_id, target_user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found in organization".to_string()))?;
+
+    // Admins cannot reset MFA for owners or other admins
+    if org_user.role == OrgUserRole::Admin {
+        if target_org_user.role == OrgUserRole::Owner {
+            return Err(ApiError::Forbidden(
+                "Admins cannot reset MFA for owners".to_string(),
+            ));
+        }
+        if target_org_user.role == OrgUserRole::Admin && target_user_id != user.user_id {
+            return Err(ApiError::Forbidden(
+                "Admins cannot reset MFA for other admins".to_string(),
+            ));
+        }
+    }
+
+    // Check if user is suspended
+    if target_org_user.is_suspended() {
+        return Err(ApiError::Conflict(
+            "Cannot reset MFA for suspended user".to_string(),
+        ));
+    }
+
+    // Reset MFA
+    let reset = user_repo.reset_mfa(target_user_id).await?;
+
+    if !reset {
+        return Err(ApiError::NotFound("User not found".to_string()));
+    }
+
+    // Log the action
+    tracing::info!(
+        org_id = %org_id,
+        target_user_id = %target_user_id,
+        reset_by = %user.user_id,
+        "Admin reset MFA for user"
+    );
+
+    let response = ResetMfaResponse {
+        user_id: target_user_id,
+        mfa_reset: true,
+        reset_at: Utc::now(),
+        message: "MFA has been reset for the user".to_string(),
     };
 
     Ok((StatusCode::OK, Json(response)))

@@ -269,6 +269,76 @@ pub struct TriggerPasswordResetResponse {
     pub message: String,
 }
 
+/// MFA method types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MfaMethod {
+    Totp,
+    Sms,
+    Email,
+}
+
+impl std::fmt::Display for MfaMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MfaMethod::Totp => write!(f, "totp"),
+            MfaMethod::Sms => write!(f, "sms"),
+            MfaMethod::Email => write!(f, "email"),
+        }
+    }
+}
+
+impl std::str::FromStr for MfaMethod {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "totp" => Ok(MfaMethod::Totp),
+            "sms" => Ok(MfaMethod::Sms),
+            "email" => Ok(MfaMethod::Email),
+            _ => Err(format!("Unknown MFA method: {}", s)),
+        }
+    }
+}
+
+/// Response for getting user MFA status.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct MfaStatusResponse {
+    pub user_id: Uuid,
+    pub mfa_enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mfa_method: Option<MfaMethod>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrolled_at: Option<DateTime<Utc>>,
+    pub mfa_required: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required_by: Option<Uuid>,
+}
+
+/// Response for forcing MFA enrollment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ForceMfaResponse {
+    pub user_id: Uuid,
+    pub mfa_required: bool,
+    pub required_at: DateTime<Utc>,
+    pub required_by: Uuid,
+    pub message: String,
+}
+
+/// Response for resetting user MFA.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ResetMfaResponse {
+    pub user_id: Uuid,
+    pub mfa_reset: bool,
+    pub reset_at: DateTime<Utc>,
+    pub message: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

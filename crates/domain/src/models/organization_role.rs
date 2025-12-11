@@ -9,7 +9,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// Organization role domain model.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 #[serde(rename_all = "snake_case")]
 pub struct OrganizationRole {
     pub id: Uuid,

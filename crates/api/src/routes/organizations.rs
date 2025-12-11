@@ -270,10 +270,9 @@ pub async fn suspend_organization(
 ) -> Result<impl IntoResponse, ApiError> {
     let repo = OrganizationRepository::new(state.pool.clone());
 
-    // Get admin user ID from auth context
-    let suspended_by = auth.user_id.ok_or_else(|| {
-        ApiError::Unauthorized("Admin user ID required for suspension".to_string())
-    })?;
+    // For system admin API key operations, we use a nil UUID to indicate system action
+    // In future iterations, admin API keys could be linked to admin user accounts
+    let suspended_by = Uuid::nil();
 
     let result = repo
         .suspend(org_id, suspended_by, request.reason.as_deref())

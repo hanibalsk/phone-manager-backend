@@ -111,10 +111,11 @@ pub use org_member_invite::{
     MIN_EXPIRATION_DAYS,
 };
 pub use org_user::{
-    validate_permissions, AddOrgUserRequest, ListOrgUsersQuery, ListOrgUsersResponse, OrgUser,
-    OrgUserInfo, OrgUserPagination, OrgUserResponse, OrgUserRole, OrgUserWithDetails,
-    ReactivateOrgUserResponse, SuspendOrgUserRequest, SuspendOrgUserResponse,
-    TriggerPasswordResetResponse, UpdateOrgUserRequest, PERMISSIONS,
+    validate_permissions, AddOrgUserRequest, ForceMfaResponse, ListOrgUsersQuery,
+    ListOrgUsersResponse, MfaMethod, MfaStatusResponse, OrgUser, OrgUserInfo, OrgUserPagination,
+    OrgUserResponse, OrgUserRole, OrgUserWithDetails, ReactivateOrgUserResponse, ResetMfaResponse,
+    SuspendOrgUserRequest, SuspendOrgUserResponse, TriggerPasswordResetResponse,
+    UpdateOrgUserRequest, PERMISSIONS,
 };
 pub use org_webhook::{
     CreateOrgWebhookRequest, ListOrgWebhooksResponse, OrgWebhookResponse, UpdateOrgWebhookRequest,

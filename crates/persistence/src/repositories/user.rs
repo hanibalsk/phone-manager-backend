@@ -238,6 +238,84 @@ impl UserRepository {
         timer.record();
         Ok(())
     }
+
+    /// Get MFA status for a user.
+    pub async fn get_mfa_status(&self, user_id: Uuid) -> Result<Option<MfaStatusRow>, sqlx::Error> {
+        let timer = QueryTimer::new("get_mfa_status");
+        let result = sqlx::query_as::<_, MfaStatusRow>(
+            r#"
+            SELECT id, mfa_enabled, mfa_method, mfa_enrolled_at, mfa_forced, mfa_forced_at, mfa_forced_by
+            FROM users
+            WHERE id = $1
+            "#,
+        )
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
+    /// Set MFA forced requirement for a user.
+    pub async fn force_mfa(
+        &self,
+        user_id: Uuid,
+        forced_by: Uuid,
+    ) -> Result<Option<MfaStatusRow>, sqlx::Error> {
+        let timer = QueryTimer::new("force_mfa");
+        let now = Utc::now();
+        let result = sqlx::query_as::<_, MfaStatusRow>(
+            r#"
+            UPDATE users
+            SET mfa_forced = true, mfa_forced_at = $2, mfa_forced_by = $3, updated_at = NOW()
+            WHERE id = $1
+            RETURNING id, mfa_enabled, mfa_method, mfa_enrolled_at, mfa_forced, mfa_forced_at, mfa_forced_by
+            "#,
+        )
+        .bind(user_id)
+        .bind(now)
+        .bind(forced_by)
+        .fetch_optional(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
+    /// Reset MFA for a user (remove all MFA configuration).
+    pub async fn reset_mfa(&self, user_id: Uuid) -> Result<bool, sqlx::Error> {
+        let timer = QueryTimer::new("reset_mfa");
+        let result = sqlx::query(
+            r#"
+            UPDATE users
+            SET mfa_enabled = false,
+                mfa_method = NULL,
+                mfa_secret = NULL,
+                mfa_enrolled_at = NULL,
+                mfa_forced = false,
+                mfa_forced_at = NULL,
+                mfa_forced_by = NULL,
+                updated_at = NOW()
+            WHERE id = $1
+            "#,
+        )
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        timer.record();
+        Ok(result.rows_affected() > 0)
+    }
+}
+
+/// Row for MFA status queries.
+#[derive(Debug, sqlx::FromRow)]
+pub struct MfaStatusRow {
+    pub id: Uuid,
+    pub mfa_enabled: bool,
+    pub mfa_method: Option<String>,
+    pub mfa_enrolled_at: Option<DateTime<Utc>>,
+    pub mfa_forced: bool,
+    pub mfa_forced_at: Option<DateTime<Utc>>,
+    pub mfa_forced_by: Option<Uuid>,
 }
 
 #[cfg(test)]

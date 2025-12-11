@@ -32,8 +32,7 @@ impl OrganizationRoleRepository {
 
     /// List all roles for an organization.
     pub async fn list(&self, org_id: Uuid) -> Result<Vec<OrganizationRole>> {
-        let rows = sqlx::query_as!(
-            OrganizationRole,
+        let rows = sqlx::query_as::<_, OrganizationRole>(
             r#"
             SELECT
                 id,
@@ -51,8 +50,8 @@ impl OrganizationRoleRepository {
             WHERE organization_id = $1
             ORDER BY priority DESC, name ASC
             "#,
-            org_id
         )
+        .bind(org_id)
         .fetch_all(&self.pool)
         .await?;
 
@@ -61,8 +60,7 @@ impl OrganizationRoleRepository {
 
     /// List system roles for an organization.
     pub async fn list_system_roles(&self, org_id: Uuid) -> Result<Vec<OrganizationRole>> {
-        let rows = sqlx::query_as!(
-            OrganizationRole,
+        let rows = sqlx::query_as::<_, OrganizationRole>(
             r#"
             SELECT
                 id,
@@ -80,8 +78,8 @@ impl OrganizationRoleRepository {
             WHERE organization_id = $1 AND is_system_role = TRUE
             ORDER BY priority DESC
             "#,
-            org_id
         )
+        .bind(org_id)
         .fetch_all(&self.pool)
         .await?;
 
@@ -90,8 +88,7 @@ impl OrganizationRoleRepository {
 
     /// List custom (non-system) roles for an organization.
     pub async fn list_custom_roles(&self, org_id: Uuid) -> Result<Vec<OrganizationRole>> {
-        let rows = sqlx::query_as!(
-            OrganizationRole,
+        let rows = sqlx::query_as::<_, OrganizationRole>(
             r#"
             SELECT
                 id,
@@ -109,8 +106,8 @@ impl OrganizationRoleRepository {
             WHERE organization_id = $1 AND is_system_role = FALSE
             ORDER BY priority DESC, name ASC
             "#,
-            org_id
         )
+        .bind(org_id)
         .fetch_all(&self.pool)
         .await?;
 
@@ -119,8 +116,7 @@ impl OrganizationRoleRepository {
 
     /// Get a role by ID.
     pub async fn find_by_id(&self, role_id: Uuid) -> Result<Option<OrganizationRole>> {
-        let row = sqlx::query_as!(
-            OrganizationRole,
+        let row = sqlx::query_as::<_, OrganizationRole>(
             r#"
             SELECT
                 id,
@@ -137,8 +133,8 @@ impl OrganizationRoleRepository {
             FROM organization_roles
             WHERE id = $1
             "#,
-            role_id
         )
+        .bind(role_id)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -147,8 +143,7 @@ impl OrganizationRoleRepository {
 
     /// Get a role by name within an organization.
     pub async fn find_by_name(&self, org_id: Uuid, name: &str) -> Result<Option<OrganizationRole>> {
-        let row = sqlx::query_as!(
-            OrganizationRole,
+        let row = sqlx::query_as::<_, OrganizationRole>(
             r#"
             SELECT
                 id,
@@ -165,9 +160,9 @@ impl OrganizationRoleRepository {
             FROM organization_roles
             WHERE organization_id = $1 AND name = $2
             "#,
-            org_id,
-            name.to_lowercase()
         )
+        .bind(org_id)
+        .bind(name.to_lowercase())
         .fetch_optional(&self.pool)
         .await?;
 
@@ -186,8 +181,7 @@ impl OrganizationRoleRepository {
         priority: i32,
         created_by: Option<Uuid>,
     ) -> Result<OrganizationRole> {
-        let row = sqlx::query_as!(
-            OrganizationRole,
+        let row = sqlx::query_as::<_, OrganizationRole>(
             r#"
             INSERT INTO organization_roles (
                 organization_id, name, display_name, description, permissions, priority, created_by
@@ -206,14 +200,14 @@ impl OrganizationRoleRepository {
                 updated_at,
                 created_by
             "#,
-            org_id,
-            name.to_lowercase(),
-            display_name,
-            description,
-            permissions,
-            priority,
-            created_by
         )
+        .bind(org_id)
+        .bind(name.to_lowercase())
+        .bind(display_name)
+        .bind(description)
+        .bind(permissions)
+        .bind(priority)
+        .bind(created_by)
         .fetch_one(&self.pool)
         .await?;
 
@@ -224,13 +218,13 @@ impl OrganizationRoleRepository {
     /// Returns true if deleted, false if not found.
     /// Will fail if the role is a system role or has assigned users.
     pub async fn delete(&self, role_id: Uuid) -> Result<bool> {
-        let result = sqlx::query!(
+        let result = sqlx::query(
             r#"
             DELETE FROM organization_roles
             WHERE id = $1 AND is_system_role = FALSE
             "#,
-            role_id
         )
+        .bind(role_id)
         .execute(&self.pool)
         .await?;
 
@@ -239,44 +233,42 @@ impl OrganizationRoleRepository {
 
     /// Count users assigned to a specific role (by role name) in an organization.
     pub async fn count_users_with_role(&self, org_id: Uuid, role_name: &str) -> Result<i64> {
-        let count = sqlx::query_scalar!(
+        let count: (i64,) = sqlx::query_as(
             r#"
-            SELECT COUNT(*) as "count!"
+            SELECT COUNT(*) as count
             FROM org_users
             WHERE organization_id = $1 AND role::text = $2
             "#,
-            org_id,
-            role_name.to_lowercase()
         )
+        .bind(org_id)
+        .bind(role_name.to_lowercase())
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(count)
+        Ok(count.0)
     }
 
     /// Check if a role exists in an organization.
     pub async fn exists(&self, org_id: Uuid, role_id: Uuid) -> Result<bool> {
-        let exists = sqlx::query_scalar!(
+        let exists: (bool,) = sqlx::query_as(
             r#"
             SELECT EXISTS(
                 SELECT 1 FROM organization_roles
                 WHERE id = $1 AND organization_id = $2
-            ) as "exists!"
+            ) as exists
             "#,
-            role_id,
-            org_id
         )
+        .bind(role_id)
+        .bind(org_id)
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(exists)
+        Ok(exists.0)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_repository_new() {
         // Just verify the struct can be created
