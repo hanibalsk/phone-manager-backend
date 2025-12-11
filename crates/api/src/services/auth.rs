@@ -886,6 +886,66 @@ impl AuthService {
         Ok(Some(reset_token))
     }
 
+    /// Admin-triggered password reset for a specific user.
+    ///
+    /// Generates a password reset token with 24-hour expiry (longer than user-initiated).
+    /// Returns the token, email, and expiry time for logging/emailing.
+    ///
+    /// Unlike `forgot_password`, this takes user_id directly and returns error if user not found.
+    pub async fn admin_trigger_password_reset(
+        &self,
+        user_id: Uuid,
+    ) -> Result<(String, String, chrono::DateTime<Utc>), AuthError> {
+        // Check if user exists and is active
+        let user: Option<(String, bool)> =
+            sqlx::query_as("SELECT email, is_active FROM users WHERE id = $1")
+                .bind(user_id)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        let (email, is_active) = match user {
+            Some((e, a)) => (e, a),
+            None => return Err(AuthError::UserNotFound),
+        };
+
+        if !is_active {
+            return Err(AuthError::UserDisabled);
+        }
+
+        // Generate secure reset token (32 bytes = 64 hex chars)
+        let reset_token = generate_secure_token();
+
+        // Hash the token for storage
+        let token_hash = sha256_hex(&reset_token);
+
+        // Set expiry to 24 hours from now (longer for admin-triggered)
+        let expires_at = Utc::now() + chrono::Duration::hours(24);
+
+        // Store hashed token in database
+        sqlx::query(
+            r#"
+            UPDATE users
+            SET password_reset_token = $1, password_reset_expires_at = $2
+            WHERE id = $3
+            "#,
+        )
+        .bind(&token_hash)
+        .bind(expires_at)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+
+        // Log token generation (never log the actual token)
+        tracing::info!(
+            user_id = %user_id,
+            email = %email,
+            expires_at = %expires_at,
+            "Admin-triggered password reset token generated"
+        );
+
+        Ok((reset_token, email, expires_at))
+    }
+
     /// Reset password using a valid reset token.
     ///
     /// Validates the token, updates the password, invalidates the token,

@@ -113,8 +113,8 @@ pub use org_member_invite::{
 pub use org_user::{
     validate_permissions, AddOrgUserRequest, ListOrgUsersQuery, ListOrgUsersResponse, OrgUser,
     OrgUserInfo, OrgUserPagination, OrgUserResponse, OrgUserRole, OrgUserWithDetails,
-    ReactivateOrgUserResponse, SuspendOrgUserRequest, SuspendOrgUserResponse, UpdateOrgUserRequest,
-    PERMISSIONS,
+    ReactivateOrgUserResponse, SuspendOrgUserRequest, SuspendOrgUserResponse,
+    TriggerPasswordResetResponse, UpdateOrgUserRequest, PERMISSIONS,
 };
 pub use org_webhook::{
     CreateOrgWebhookRequest, ListOrgWebhooksResponse, OrgWebhookResponse, UpdateOrgWebhookRequest,

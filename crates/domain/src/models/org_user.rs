@@ -258,6 +258,17 @@ pub struct ReactivateOrgUserResponse {
     pub message: String,
 }
 
+/// Response for admin-triggered password reset.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct TriggerPasswordResetResponse {
+    pub user_id: Uuid,
+    pub email: String,
+    pub reset_token_sent: bool,
+    pub expires_at: DateTime<Utc>,
+    pub message: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

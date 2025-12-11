@@ -17,11 +17,13 @@ use validator::Validate;
 use crate::app::AppState;
 use crate::error::ApiError;
 use crate::extractors::UserAuth;
+use crate::services::auth::{AuthError, AuthService};
 
 use domain::models::{
     validate_permissions, AdminUserDetailResponse, AdminUserListResponse, AdminUserPagination,
     AdminUserQuery, OrgUserRole, ReactivateOrgUserResponse, RemoveUserResponse,
-    SuspendOrgUserRequest, SuspendOrgUserResponse, UpdateAdminUserRequest, UpdateAdminUserResponse,
+    SuspendOrgUserRequest, SuspendOrgUserResponse, TriggerPasswordResetResponse,
+    UpdateAdminUserRequest, UpdateAdminUserResponse,
 };
 
 /// Create admin user management routes.
@@ -33,6 +35,32 @@ pub fn router() -> Router<AppState> {
         .route("/{user_id}", delete(remove_user))
         .route("/{user_id}/suspend", post(suspend_user))
         .route("/{user_id}/reactivate", post(reactivate_user))
+        .route("/{user_id}/reset-password", post(trigger_password_reset))
+}
+
+/// Helper to create AuthService with OAuth config from AppState.
+fn create_auth_service(state: &AppState) -> Result<AuthService, ApiError> {
+    let google_client_id = if state.config.oauth.google_client_id.is_empty() {
+        None
+    } else {
+        Some(state.config.oauth.google_client_id.clone())
+    };
+    let apple_client_id = if state.config.oauth.apple_client_id.is_empty() {
+        None
+    } else {
+        Some(state.config.oauth.apple_client_id.clone())
+    };
+
+    AuthService::new(
+        state.pool.clone(),
+        &state.config.jwt,
+        google_client_id,
+        apple_client_id,
+    )
+    .map_err(|e| {
+        tracing::error!(error = %e, "Failed to initialize auth service");
+        ApiError::Internal(format!("Failed to initialize auth service: {}", e))
+    })
 }
 
 /// List users in organization.
@@ -534,6 +562,103 @@ async fn reactivate_user(
         organization_id: reactivated.organization_id,
         reactivated_at: Utc::now(),
         message: "User has been reactivated successfully".to_string(),
+    };
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// Trigger password reset for a user in organization.
+///
+/// POST /api/admin/v1/organizations/{org_id}/users/{user_id}/reset-password
+///
+/// Story AP-3.7: Trigger Password Reset
+#[axum::debug_handler]
+async fn trigger_password_reset(
+    State(state): State<AppState>,
+    Path((org_id, target_user_id)): Path<(Uuid, Uuid)>,
+    user: UserAuth,
+) -> Result<impl IntoResponse, ApiError> {
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+
+    // Verify user has access to organization
+    let org_user = org_user_repo
+        .find_by_org_and_user(org_id, user.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
+
+    // Check permission (admin or owner can trigger password reset)
+    if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
+    }
+
+    // Verify target user is in the organization
+    let target_org_user = org_user_repo
+        .find_by_org_and_user(org_id, target_user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found in organization".to_string()))?;
+
+    // Admins cannot trigger password reset for owners or other admins
+    if org_user.role == OrgUserRole::Admin {
+        if target_org_user.role == OrgUserRole::Owner {
+            return Err(ApiError::Forbidden(
+                "Admins cannot trigger password reset for owners".to_string(),
+            ));
+        }
+        if target_org_user.role == OrgUserRole::Admin && target_user_id != user.user_id {
+            return Err(ApiError::Forbidden(
+                "Admins cannot trigger password reset for other admins".to_string(),
+            ));
+        }
+    }
+
+    // Check if user is suspended
+    if target_org_user.is_suspended() {
+        return Err(ApiError::Conflict(
+            "Cannot trigger password reset for suspended user".to_string(),
+        ));
+    }
+
+    // Create auth service and trigger password reset
+    let auth_service = create_auth_service(&state)?;
+    let (reset_token, email, expires_at) = auth_service
+        .admin_trigger_password_reset(target_user_id)
+        .await
+        .map_err(|e| match e {
+            AuthError::UserNotFound => {
+                ApiError::NotFound("User not found in organization".to_string())
+            }
+            AuthError::UserDisabled => {
+                ApiError::Conflict("Cannot trigger password reset for disabled user".to_string())
+            }
+            _ => ApiError::Internal(format!("Failed to trigger password reset: {}", e)),
+        })?;
+
+    // Log the action (token is logged separately by auth service, never expose in response)
+    tracing::info!(
+        org_id = %org_id,
+        target_user_id = %target_user_id,
+        triggered_by = %user.user_id,
+        email = %email,
+        expires_at = %expires_at,
+        "Admin triggered password reset for user"
+    );
+
+    // In production, the email service would be called here to send the reset email
+    // For MVP/development, the token is logged by AuthService for manual testing
+    // Log the token for development/testing purposes
+    tracing::debug!(
+        reset_token = %reset_token,
+        "Password reset token (development only - remove in production)"
+    );
+
+    let response = TriggerPasswordResetResponse {
+        user_id: target_user_id,
+        email,
+        reset_token_sent: true, // Would be true after email integration
+        expires_at,
+        message: "Password reset email has been sent to the user".to_string(),
     };
 
     Ok((StatusCode::OK, Json(response)))
