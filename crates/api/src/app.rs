@@ -478,6 +478,23 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
                 .put(org_webhooks::update_webhook)
                 .delete(org_webhooks::delete_webhook),
         )
+        // Organization webhook test, deliveries, and stats routes (AP-7.5-7.8)
+        .route(
+            "/api/admin/v1/organizations/:org_id/webhooks/:webhook_id/test",
+            post(org_webhooks::test_webhook),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/webhooks/:webhook_id/deliveries",
+            get(org_webhooks::list_deliveries),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/webhooks/:webhook_id/deliveries/:delivery_id/retry",
+            post(org_webhooks::retry_delivery),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/webhooks/:webhook_id/stats",
+            get(org_webhooks::get_webhook_stats),
+        )
         // Organization permissions routes (Story AP-1.1)
         .nest(
             "/api/admin/v1/organizations/:org_id/permissions",

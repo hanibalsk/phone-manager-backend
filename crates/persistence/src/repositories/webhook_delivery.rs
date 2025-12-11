@@ -251,11 +251,121 @@ impl WebhookDeliveryRepository {
 
         Ok(stats)
     }
+
+    /// List deliveries for a webhook with pagination and optional status filter.
+    pub async fn list_by_webhook_id(
+        &self,
+        webhook_id: Uuid,
+        status_filter: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<WebhookDeliveryEntity>, sqlx::Error> {
+        let entities = sqlx::query_as::<_, WebhookDeliveryEntity>(
+            r#"
+            SELECT id, delivery_id, webhook_id, event_id, event_type, payload, status, attempts,
+                   last_attempt_at, next_retry_at, response_code, error_message, created_at
+            FROM webhook_deliveries
+            WHERE webhook_id = $1
+              AND ($2::TEXT IS NULL OR status = $2)
+            ORDER BY created_at DESC
+            LIMIT $3 OFFSET $4
+            "#,
+        )
+        .bind(webhook_id)
+        .bind(status_filter)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(entities)
+    }
+
+    /// Count deliveries for a webhook with optional status filter.
+    pub async fn count_by_webhook_id(
+        &self,
+        webhook_id: Uuid,
+        status_filter: Option<&str>,
+    ) -> Result<i64, sqlx::Error> {
+        let count: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*)
+            FROM webhook_deliveries
+            WHERE webhook_id = $1
+              AND ($2::TEXT IS NULL OR status = $2)
+            "#,
+        )
+        .bind(webhook_id)
+        .bind(status_filter)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count.0)
+    }
+
+    /// Get delivery statistics for a specific webhook.
+    pub async fn get_webhook_stats(
+        &self,
+        webhook_id: Uuid,
+        hours: i32,
+    ) -> Result<WebhookDeliveryStats, sqlx::Error> {
+        let stats: WebhookDeliveryStats = sqlx::query_as(
+            r#"
+            SELECT
+                COUNT(*) as total_count,
+                COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
+                COUNT(*) FILTER (WHERE status = 'success') as success_count,
+                COUNT(*) FILTER (WHERE status = 'failed') as failed_count
+            FROM webhook_deliveries
+            WHERE webhook_id = $1
+              AND created_at > NOW() - make_interval(hours => $2)
+            "#,
+        )
+        .bind(webhook_id)
+        .bind(hours)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(stats)
+    }
+
+    /// Reset a delivery for retry by setting status to pending and clearing next_retry_at.
+    pub async fn reset_for_retry(
+        &self,
+        delivery_id: Uuid,
+    ) -> Result<Option<WebhookDeliveryEntity>, sqlx::Error> {
+        let entity = sqlx::query_as::<_, WebhookDeliveryEntity>(
+            r#"
+            UPDATE webhook_deliveries
+            SET status = 'pending',
+                next_retry_at = NULL,
+                error_message = NULL
+            WHERE delivery_id = $1
+              AND status = 'failed'
+            RETURNING id, delivery_id, webhook_id, event_id, event_type, payload, status, attempts,
+                      last_attempt_at, next_retry_at, response_code, error_message, created_at
+            "#,
+        )
+        .bind(delivery_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(entity)
+    }
 }
 
 /// Delivery statistics.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct DeliveryStats {
+    pub pending_count: Option<i64>,
+    pub success_count: Option<i64>,
+    pub failed_count: Option<i64>,
+}
+
+/// Webhook-specific delivery statistics.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct WebhookDeliveryStats {
+    pub total_count: Option<i64>,
     pub pending_count: Option<i64>,
     pub success_count: Option<i64>,
     pub failed_count: Option<i64>,

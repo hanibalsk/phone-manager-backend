@@ -165,6 +165,183 @@ pub struct ListOrgWebhooksResponse {
     pub webhooks: Vec<OrgWebhookResponse>,
 }
 
+/// Request to test an organization webhook.
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct TestOrgWebhookRequest {
+    /// Optional custom event type to test (defaults to "device.enrolled").
+    pub event_type: Option<String>,
+}
+
+impl TestOrgWebhookRequest {
+    /// Validates that the event type is supported (if provided).
+    pub fn validate_event_type(&self) -> Result<(), String> {
+        if let Some(ref event_type) = self.event_type {
+            if !SUPPORTED_EVENT_TYPES.contains(&event_type.as_str()) {
+                return Err(format!("Unsupported event type: {}", event_type));
+            }
+        }
+        Ok(())
+    }
+
+    /// Get the event type to use for testing.
+    pub fn get_event_type(&self) -> &str {
+        self.event_type.as_deref().unwrap_or("device.enrolled")
+    }
+}
+
+/// Response for a test webhook delivery.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TestOrgWebhookResponse {
+    /// Whether the test was successful.
+    pub success: bool,
+
+    /// Delivery UUID.
+    pub delivery_id: Uuid,
+
+    /// HTTP response status code (if delivery was attempted).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_code: Option<i32>,
+
+    /// Error message (if delivery failed).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+
+    /// Delivery duration in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<i64>,
+}
+
+/// Query parameters for listing webhook deliveries.
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct ListWebhookDeliveriesQuery {
+    /// Filter by status (pending, success, failed).
+    pub status: Option<String>,
+
+    /// Page number (1-based).
+    #[validate(range(min = 1))]
+    pub page: Option<u32>,
+
+    /// Items per page.
+    #[validate(range(min = 1, max = 100))]
+    pub per_page: Option<u32>,
+}
+
+/// Webhook delivery log entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookDeliveryResponse {
+    /// Delivery UUID.
+    pub id: Uuid,
+
+    /// Event ID this delivery is for (if applicable).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_id: Option<Uuid>,
+
+    /// Event type.
+    pub event_type: String,
+
+    /// Delivery status (pending, success, failed).
+    pub status: String,
+
+    /// Number of delivery attempts.
+    pub attempts: i32,
+
+    /// Last attempt timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_attempt_at: Option<DateTime<Utc>>,
+
+    /// Next retry timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_retry_at: Option<DateTime<Utc>>,
+
+    /// HTTP response code from last attempt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_code: Option<i32>,
+
+    /// Error message from last attempt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+
+    /// When the delivery was created.
+    pub created_at: DateTime<Utc>,
+}
+
+/// Response for listing webhook deliveries.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListWebhookDeliveriesResponse {
+    /// List of deliveries.
+    pub deliveries: Vec<WebhookDeliveryResponse>,
+
+    /// Pagination info.
+    pub pagination: WebhookPagination,
+}
+
+/// Pagination info for webhook responses.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookPagination {
+    /// Current page number.
+    pub page: u32,
+
+    /// Items per page.
+    pub per_page: u32,
+
+    /// Total number of items.
+    pub total: i64,
+
+    /// Total number of pages.
+    pub total_pages: u32,
+}
+
+/// Response for retrying a webhook delivery.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetryDeliveryResponse {
+    /// Whether the retry was queued successfully.
+    pub success: bool,
+
+    /// Delivery UUID.
+    pub delivery_id: Uuid,
+
+    /// New status of the delivery.
+    pub status: String,
+
+    /// Message about the retry.
+    pub message: String,
+}
+
+/// Webhook delivery statistics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookStatsResponse {
+    /// Webhook UUID.
+    pub webhook_id: Uuid,
+
+    /// Total deliveries in the time period.
+    pub total_deliveries: i64,
+
+    /// Successful deliveries.
+    pub successful_deliveries: i64,
+
+    /// Failed deliveries.
+    pub failed_deliveries: i64,
+
+    /// Pending deliveries.
+    pub pending_deliveries: i64,
+
+    /// Success rate as a percentage (0-100).
+    pub success_rate: f64,
+
+    /// Average response time in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avg_response_time_ms: Option<f64>,
+
+    /// Circuit breaker status.
+    pub circuit_breaker_open: bool,
+
+    /// Consecutive failures count.
+    pub consecutive_failures: i32,
+
+    /// Time period for these stats (e.g., "24h", "7d").
+    pub time_period: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

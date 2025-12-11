@@ -77,4 +77,4 @@ pub use trip_path_correction::{
 pub use unlock_request::UnlockRequestRepository;
 pub use user::{MfaStatusRow, UserRepository, UserSessionRow};
 pub use webhook::WebhookRepository;
-pub use webhook_delivery::{DeliveryStats, WebhookDeliveryRepository};
+pub use webhook_delivery::{DeliveryStats, WebhookDeliveryRepository, WebhookDeliveryStats};
