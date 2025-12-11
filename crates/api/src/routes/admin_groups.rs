@@ -39,7 +39,10 @@ pub fn router() -> Router<AppState> {
         .route("/{group_id}", delete(deactivate_group))
         .route("/{group_id}/members", get(list_group_members))
         .route("/{group_id}/members", post(add_group_member))
-        .route("/{group_id}/members/{member_id}", delete(remove_group_member))
+        .route(
+            "/{group_id}/members/{member_id}",
+            delete(remove_group_member),
+        )
         .route("/{group_id}/invitations", get(list_group_invitations))
         .route("/{group_id}/invitations", post(create_group_invitation))
 }
@@ -421,7 +424,10 @@ async fn add_group_member(
     }
 
     // Verify target user is in the same organization
-    if !admin_group_repo.user_in_org(org_id, request.user_id).await? {
+    if !admin_group_repo
+        .user_in_org(org_id, request.user_id)
+        .await?
+    {
         return Err(ApiError::Validation(
             "User must be a member of the organization".to_string(),
         ));
@@ -489,7 +495,10 @@ async fn remove_group_member(
     }
 
     // Check if member exists
-    if !admin_group_repo.is_group_member(group_id, member_id).await? {
+    if !admin_group_repo
+        .is_group_member(group_id, member_id)
+        .await?
+    {
         return Err(ApiError::NotFound("Member not found in group".to_string()));
     }
 
@@ -663,7 +672,14 @@ async fn create_group_invitation(
     let max_uses = request.max_uses.unwrap_or(1);
 
     let invite = invite_repo
-        .create_invite(group_id, &code, preset_role_db, max_uses, expires_at, user.user_id)
+        .create_invite(
+            group_id,
+            &code,
+            preset_role_db,
+            max_uses,
+            expires_at,
+            user.user_id,
+        )
         .await?;
 
     info!(

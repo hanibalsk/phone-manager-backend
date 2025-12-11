@@ -1,5 +1,6 @@
 //! Repository implementations for database operations.
 
+pub mod admin_geofence;
 pub mod admin_group;
 pub mod admin_user;
 pub mod api_key;
@@ -35,6 +36,7 @@ pub mod user;
 pub mod webhook;
 pub mod webhook_delivery;
 
+pub use admin_geofence::AdminGeofenceRepository;
 pub use admin_group::AdminGroupRepository;
 pub use admin_user::AdminUserRepository;
 pub use api_key::ApiKeyRepository;

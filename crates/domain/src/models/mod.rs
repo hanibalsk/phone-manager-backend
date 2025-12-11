@@ -1,5 +1,6 @@
 //! Domain models for Phone Manager.
 
+pub mod admin_geofence;
 pub mod admin_group;
 pub mod admin_user;
 pub mod api_key;
@@ -35,14 +36,23 @@ pub mod usage_warning;
 pub mod user;
 pub mod webhook;
 
+pub use admin_geofence::{
+    AdminAllDeviceLocationsResponse, AdminDeviceLocation, AdminDeviceLocationResponse,
+    AdminGeofenceEventInfo, AdminGeofenceEventsQuery, AdminGeofenceEventsResponse,
+    AdminGeofenceInfo, AdminGeofenceListResponse, AdminGeofencePagination, AdminGeofenceQuery,
+    AdminLocationAnalyticsResponse, AdminLocationHistoryQuery, AdminLocationHistoryResponse,
+    CreateAdminGeofenceRequest, CreateAdminGeofenceResponse, DeleteAdminGeofenceResponse,
+    GeofenceVisitCount, LocationAnalyticsSummary, UpdateAdminGeofenceRequest,
+    UpdateAdminGeofenceResponse,
+};
 pub use admin_group::{
     AddGroupMemberRequest, AddGroupMemberResponse, AdminGroupDetailResponse, AdminGroupItem,
     AdminGroupListResponse, AdminGroupPagination, AdminGroupProfile, AdminGroupQuery,
     AdminGroupSortField, AdminGroupSummary, CreateGroupInvitationRequest,
-    CreateGroupInvitationResponse, DeactivateGroupResponse, GroupDeviceInfo,
-    GroupInvitationInfo, GroupMemberInfo, GroupMembersPagination, GroupOwnerInfo,
-    ListGroupInvitationsResponse, ListGroupMembersQuery, ListGroupMembersResponse,
-    RemoveGroupMemberResponse, UpdateAdminGroupRequest, UpdateAdminGroupResponse,
+    CreateGroupInvitationResponse, DeactivateGroupResponse, GroupDeviceInfo, GroupInvitationInfo,
+    GroupMemberInfo, GroupMembersPagination, GroupOwnerInfo, ListGroupInvitationsResponse,
+    ListGroupMembersQuery, ListGroupMembersResponse, RemoveGroupMemberResponse,
+    UpdateAdminGroupRequest, UpdateAdminGroupResponse,
 };
 pub use admin_user::{
     AdminUserDetailResponse, AdminUserItem, AdminUserListResponse, AdminUserPagination,

@@ -2,6 +2,7 @@
 //!
 //! Entities are direct mappings to database rows.
 
+pub mod admin_geofence;
 pub mod admin_group;
 pub mod admin_user;
 pub mod api_key;
@@ -35,6 +36,10 @@ pub mod user;
 pub mod webhook;
 pub mod webhook_delivery;
 
+pub use admin_geofence::{
+    AdminGeofenceEntity, AdminGeofenceEventEntity, AdminGeofenceWithCreatorEntity,
+    GeofenceVisitCountEntity, LocationAnalyticsEntity,
+};
 pub use admin_group::{
     AdminGroupEntity, AdminGroupProfileEntity, AdminGroupSummaryEntity, GroupDeviceEntity,
     GroupMemberEntity,

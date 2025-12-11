@@ -1135,6 +1135,33 @@ impl DeviceRepository {
 
         Ok(result.is_some())
     }
+
+    /// List all managed devices in an organization (simple query for admin operations).
+    ///
+    /// Returns basic device info for all managed devices in the organization.
+    pub async fn list_org_managed_devices(
+        &self,
+        organization_id: Uuid,
+    ) -> Result<Vec<DeviceEntity>, sqlx::Error> {
+        let timer = QueryTimer::new("list_org_managed_devices");
+
+        let result = sqlx::query_as::<_, DeviceEntity>(
+            r#"
+            SELECT id, device_id, display_name, group_id, platform, fcm_token,
+                   active, created_at, updated_at, last_seen_at,
+                   owner_user_id, organization_id, is_primary, linked_at
+            FROM devices
+            WHERE organization_id = $1 AND is_managed = true
+            ORDER BY display_name ASC
+            "#,
+        )
+        .bind(organization_id)
+        .fetch_all(&self.pool)
+        .await;
+
+        timer.record();
+        result
+    }
 }
 
 /// Admin statistics about the system.

@@ -264,7 +264,11 @@ pub struct CreateGroupInvitationRequest {
     #[validate(range(min = 1, max = 100, message = "Max uses must be between 1 and 100"))]
     pub max_uses: Option<i32>,
     /// Hours until expiry (1-168, default: 24)
-    #[validate(range(min = 1, max = 168, message = "Expiration must be between 1 and 168 hours"))]
+    #[validate(range(
+        min = 1,
+        max = 168,
+        message = "Expiration must be between 1 and 168 hours"
+    ))]
     pub expires_in_hours: Option<i32>,
 }
 

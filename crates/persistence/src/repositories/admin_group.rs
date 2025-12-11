@@ -633,7 +633,11 @@ impl AdminGroupRepository {
     }
 
     /// Check if a user is already a member of a group.
-    pub async fn is_group_member(&self, group_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
+    pub async fn is_group_member(
+        &self,
+        group_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
         let exists: bool = sqlx::query_scalar(
             r#"
             SELECT EXISTS (

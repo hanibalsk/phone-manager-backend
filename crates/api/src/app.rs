@@ -22,11 +22,12 @@ use crate::middleware::{
     ExportRateLimiterState, RateLimiterState,
 };
 use crate::routes::{
-    admin, admin_groups, admin_users, api_keys, audit_logs, auth, bulk_import, dashboard,
-    device_policies, device_settings, devices, enrollment, enrollment_tokens, fleet, frontend,
-    geofence_events, geofences, groups, health, invites, locations, movement_events, openapi,
-    org_invitations, org_webhooks, organization_settings, organizations, permissions, privacy,
-    proximity_alerts, public_config, roles, system_roles, trips, users, versioning, webhooks,
+    admin, admin_geofences, admin_groups, admin_locations, admin_users, api_keys, audit_logs, auth,
+    bulk_import, dashboard, device_policies, device_settings, devices, enrollment,
+    enrollment_tokens, fleet, frontend, geofence_events, geofences, groups, health, invites,
+    locations, movement_events, openapi, org_invitations, org_webhooks, organization_settings,
+    organizations, permissions, privacy, proximity_alerts, public_config, roles, system_roles,
+    trips, users, versioning, webhooks,
 };
 use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
@@ -484,6 +485,31 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         )
         // Organization role management routes (Story AP-1.2, AP-1.3)
         .nest("/api/admin/v1/organizations/:org_id/roles", roles::router())
+        // Admin geofence management routes (Story AP-6)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/geofences",
+            admin_geofences::router(),
+        )
+        // Admin location management routes (Story AP-6)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/locations",
+            admin_locations::router(),
+        )
+        // Admin device location routes (Story AP-6)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/devices",
+            admin_locations::device_location_router(),
+        )
+        // Admin geofence events routes (Story AP-6)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/geofence-events",
+            admin_geofences::geofence_events_router(),
+        )
+        // Admin location analytics routes (Story AP-6)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/location-analytics",
+            admin_geofences::location_analytics_router(),
+        )
         .route_layer(middleware::from_fn_with_state(state.clone(), require_b2b));
 
     // Admin routes (require admin API key)

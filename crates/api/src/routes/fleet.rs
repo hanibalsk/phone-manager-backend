@@ -570,19 +570,14 @@ async fn get_device_command_history(
     let mut data = Vec::with_capacity(commands.len());
     for cmd in commands {
         // Get issuer email
-        let issued_by_email = user_repo
-            .find_by_id(cmd.issued_by)
-            .await?
-            .map(|u| u.email);
+        let issued_by_email = user_repo.find_by_id(cmd.issued_by).await?.map(|u| u.email);
 
         let command_type: DeviceCommandType = cmd
             .command_type
             .parse()
             .unwrap_or(DeviceCommandType::SyncSettings);
-        let status: DeviceCommandStatus = cmd
-            .status
-            .parse()
-            .unwrap_or(DeviceCommandStatus::Pending);
+        let status: DeviceCommandStatus =
+            cmd.status.parse().unwrap_or(DeviceCommandStatus::Pending);
 
         // Apply filters if provided
         if let Some(filter_status) = &query.status {

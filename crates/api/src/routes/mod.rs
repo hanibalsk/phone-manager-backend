@@ -1,7 +1,9 @@
 //! HTTP route handlers.
 
 pub mod admin;
+pub mod admin_geofences;
 pub mod admin_groups;
+pub mod admin_locations;
 pub mod admin_users;
 pub mod api_keys;
 pub mod audit_logs;
