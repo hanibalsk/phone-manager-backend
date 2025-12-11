@@ -36,9 +36,13 @@ pub mod user;
 pub mod webhook;
 
 pub use admin_group::{
-    AdminGroupDetailResponse, AdminGroupItem, AdminGroupListResponse, AdminGroupPagination,
-    AdminGroupProfile, AdminGroupQuery, AdminGroupSortField, AdminGroupSummary,
-    DeactivateGroupResponse, GroupDeviceInfo, GroupMemberInfo, GroupOwnerInfo,
+    AddGroupMemberRequest, AddGroupMemberResponse, AdminGroupDetailResponse, AdminGroupItem,
+    AdminGroupListResponse, AdminGroupPagination, AdminGroupProfile, AdminGroupQuery,
+    AdminGroupSortField, AdminGroupSummary, CreateGroupInvitationRequest,
+    CreateGroupInvitationResponse, DeactivateGroupResponse, GroupDeviceInfo,
+    GroupInvitationInfo, GroupInvitationsPagination, GroupMemberInfo, GroupMembersPagination,
+    GroupOwnerInfo, ListGroupInvitationsQuery, ListGroupInvitationsResponse,
+    ListGroupMembersQuery, ListGroupMembersResponse, RemoveGroupMemberResponse,
     UpdateAdminGroupRequest, UpdateAdminGroupResponse,
 };
 pub use admin_user::{

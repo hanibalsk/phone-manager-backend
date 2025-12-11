@@ -181,6 +181,143 @@ pub struct DeactivateGroupResponse {
     pub deactivated_at: DateTime<Utc>,
 }
 
+/// Query parameters for listing group members.
+#[derive(Debug, Clone, Deserialize, Validate, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct ListGroupMembersQuery {
+    #[validate(range(min = 1, message = "Page must be at least 1"))]
+    pub page: Option<u32>,
+    #[validate(range(min = 1, max = 100, message = "Per page must be between 1 and 100"))]
+    pub per_page: Option<u32>,
+    pub search: Option<String>,
+    pub role: Option<String>,
+}
+
+/// Pagination for group members list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct GroupMembersPagination {
+    pub page: u32,
+    pub per_page: u32,
+    pub total: i64,
+    pub total_pages: u32,
+}
+
+/// Response for listing group members.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListGroupMembersResponse {
+    pub data: Vec<GroupMemberInfo>,
+    pub pagination: GroupMembersPagination,
+}
+
+/// Request for adding a member to a group.
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "snake_case")]
+pub struct AddGroupMemberRequest {
+    pub user_id: Uuid,
+    #[validate(custom(function = "validate_group_role"))]
+    pub role: String,
+}
+
+fn validate_group_role(role: &str) -> Result<(), validator::ValidationError> {
+    match role {
+        "owner" | "admin" | "member" => Ok(()),
+        _ => {
+            let mut err = validator::ValidationError::new("invalid_role");
+            err.message = Some("Role must be owner, admin, or member".into());
+            Err(err)
+        }
+    }
+}
+
+/// Response for adding a member to a group.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct AddGroupMemberResponse {
+    pub group_id: Uuid,
+    pub user_id: Uuid,
+    pub role: String,
+    pub joined_at: DateTime<Utc>,
+    pub message: String,
+}
+
+/// Response for removing a member from a group.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct RemoveGroupMemberResponse {
+    pub group_id: Uuid,
+    pub user_id: Uuid,
+    pub removed: bool,
+    pub removed_at: DateTime<Utc>,
+    pub message: String,
+}
+
+/// Request for creating a group invitation.
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "snake_case")]
+pub struct CreateGroupInvitationRequest {
+    #[validate(email(message = "Invalid email address"))]
+    pub email: String,
+    #[validate(custom(function = "validate_group_role"))]
+    pub role: String,
+    #[validate(range(min = 1, max = 30, message = "Expiration must be between 1 and 30 days"))]
+    pub expires_in_days: Option<u32>,
+}
+
+/// Group invitation info.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct GroupInvitationInfo {
+    pub id: Uuid,
+    pub group_id: Uuid,
+    pub email: String,
+    pub role: String,
+    pub status: String,
+    pub invited_by: Uuid,
+    pub invited_by_email: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub accepted_at: Option<DateTime<Utc>>,
+}
+
+/// Response for creating a group invitation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct CreateGroupInvitationResponse {
+    pub invitation: GroupInvitationInfo,
+    pub message: String,
+}
+
+/// Query parameters for listing group invitations.
+#[derive(Debug, Clone, Deserialize, Validate, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct ListGroupInvitationsQuery {
+    #[validate(range(min = 1, message = "Page must be at least 1"))]
+    pub page: Option<u32>,
+    #[validate(range(min = 1, max = 100, message = "Per page must be between 1 and 100"))]
+    pub per_page: Option<u32>,
+    pub status: Option<String>,
+}
+
+/// Pagination for group invitations list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct GroupInvitationsPagination {
+    pub page: u32,
+    pub per_page: u32,
+    pub total: i64,
+    pub total_pages: u32,
+}
+
+/// Response for listing group invitations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListGroupInvitationsResponse {
+    pub data: Vec<GroupInvitationInfo>,
+    pub pagination: GroupInvitationsPagination,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

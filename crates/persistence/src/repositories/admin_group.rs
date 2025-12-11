@@ -473,6 +473,238 @@ impl AdminGroupRepository {
 
         Ok(exists)
     }
+
+    /// Count group members matching filters.
+    pub async fn count_group_members(
+        &self,
+        group_id: Uuid,
+        search_filter: Option<&str>,
+        role_filter: Option<&str>,
+    ) -> Result<i64, sqlx::Error> {
+        let mut query = r#"
+            SELECT COUNT(*)
+            FROM group_memberships gm
+            JOIN users u ON u.id = gm.user_id
+            WHERE gm.group_id = $1
+            "#
+        .to_string();
+
+        let mut param_idx = 2;
+        let mut conditions = Vec::new();
+
+        if search_filter.is_some() {
+            conditions.push(format!(
+                "(u.email ILIKE ${} OR u.display_name ILIKE ${})",
+                param_idx,
+                param_idx + 1
+            ));
+            param_idx += 2;
+        }
+
+        if role_filter.is_some() {
+            conditions.push(format!("gm.role = ${}", param_idx));
+        }
+
+        if !conditions.is_empty() {
+            query.push_str(" AND ");
+            query.push_str(&conditions.join(" AND "));
+        }
+
+        let mut q = sqlx::query_scalar::<_, i64>(&query).bind(group_id);
+
+        if let Some(search) = search_filter {
+            let pattern = format!("%{}%", search);
+            q = q.bind(pattern.clone()).bind(pattern);
+        }
+
+        if let Some(role) = role_filter {
+            q = q.bind(role);
+        }
+
+        q.fetch_one(&self.pool).await
+    }
+
+    /// List group members with pagination.
+    pub async fn list_group_members_paginated(
+        &self,
+        group_id: Uuid,
+        search_filter: Option<&str>,
+        role_filter: Option<&str>,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<GroupMemberInfo>, sqlx::Error> {
+        let mut query = r#"
+            SELECT
+                gm.user_id,
+                u.email,
+                u.display_name,
+                gm.role,
+                gm.joined_at
+            FROM group_memberships gm
+            JOIN users u ON u.id = gm.user_id
+            WHERE gm.group_id = $1
+            "#
+        .to_string();
+
+        let mut param_idx = 2;
+        let mut conditions = Vec::new();
+
+        if search_filter.is_some() {
+            conditions.push(format!(
+                "(u.email ILIKE ${} OR u.display_name ILIKE ${})",
+                param_idx,
+                param_idx + 1
+            ));
+            param_idx += 2;
+        }
+
+        if role_filter.is_some() {
+            conditions.push(format!("gm.role = ${}", param_idx));
+            param_idx += 1;
+        }
+
+        if !conditions.is_empty() {
+            query.push_str(" AND ");
+            query.push_str(&conditions.join(" AND "));
+        }
+
+        query.push_str(&format!(
+            " ORDER BY gm.role ASC, u.display_name ASC LIMIT ${} OFFSET ${}",
+            param_idx,
+            param_idx + 1
+        ));
+
+        let mut q = sqlx::query_as::<_, GroupMemberEntity>(&query).bind(group_id);
+
+        if let Some(search) = search_filter {
+            let pattern = format!("%{}%", search);
+            q = q.bind(pattern.clone()).bind(pattern);
+        }
+
+        if let Some(role) = role_filter {
+            q = q.bind(role);
+        }
+
+        q = q.bind(limit as i64).bind(offset as i64);
+
+        let entities = q.fetch_all(&self.pool).await?;
+
+        Ok(entities
+            .into_iter()
+            .map(|e| GroupMemberInfo {
+                user_id: e.user_id,
+                email: e.email,
+                display_name: e.display_name,
+                role: e.role,
+                joined_at: e.joined_at,
+            })
+            .collect())
+    }
+
+    /// Add a member to a group.
+    pub async fn add_group_member(
+        &self,
+        group_id: Uuid,
+        user_id: Uuid,
+        role: &str,
+    ) -> Result<GroupMemberInfo, sqlx::Error> {
+        let entity = sqlx::query_as::<_, GroupMemberEntity>(
+            r#"
+            INSERT INTO group_memberships (group_id, user_id, role)
+            VALUES ($1, $2, $3)
+            RETURNING user_id, role, joined_at,
+                (SELECT email FROM users WHERE id = $2) as email,
+                (SELECT display_name FROM users WHERE id = $2) as display_name
+            "#,
+        )
+        .bind(group_id)
+        .bind(user_id)
+        .bind(role)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(GroupMemberInfo {
+            user_id: entity.user_id,
+            email: entity.email,
+            display_name: entity.display_name,
+            role: entity.role,
+            joined_at: entity.joined_at,
+        })
+    }
+
+    /// Check if a user is already a member of a group.
+    pub async fn is_group_member(&self, group_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
+        let exists: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS (
+                SELECT 1 FROM group_memberships
+                WHERE group_id = $1 AND user_id = $2
+            )
+            "#,
+        )
+        .bind(group_id)
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(exists)
+    }
+
+    /// Remove a member from a group.
+    pub async fn remove_group_member(
+        &self,
+        group_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            DELETE FROM group_memberships
+            WHERE group_id = $1 AND user_id = $2
+            "#,
+        )
+        .bind(group_id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Check if user is the group owner.
+    pub async fn is_group_owner(&self, group_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
+        let is_owner: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS (
+                SELECT 1 FROM group_memberships
+                WHERE group_id = $1 AND user_id = $2 AND role = 'owner'
+            )
+            "#,
+        )
+        .bind(group_id)
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(is_owner)
+    }
+
+    /// Check if user is in the same organization.
+    pub async fn user_in_org(&self, org_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
+        let exists: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS (
+                SELECT 1 FROM org_users
+                WHERE organization_id = $1 AND user_id = $2
+            )
+            "#,
+        )
+        .bind(org_id)
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(exists)
+    }
 }
 
 #[cfg(test)]
