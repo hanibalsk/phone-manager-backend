@@ -35,7 +35,11 @@ pub struct CreateInviteRequest {
     pub max_uses: Option<i32>,
 
     /// Hours until expiry (1-168, default: 24)
-    #[validate(range(min = 1, max = 168, message = "expires_in_hours must be between 1 and 168"))]
+    #[validate(range(
+        min = 1,
+        max = 168,
+        message = "expires_in_hours must be between 1 and 168"
+    ))]
     pub expires_in_hours: Option<i32>,
 }
 

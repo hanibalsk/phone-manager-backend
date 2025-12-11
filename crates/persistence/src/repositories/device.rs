@@ -5,11 +5,11 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::entities::{DeviceEntity, DeviceWithLastLocationEntity, FleetDeviceEntity};
+use crate::metrics::QueryTimer;
 use domain::models::{
     AssignedUserInfo, FleetDeviceItem, FleetGroupInfo, FleetLastLocation, FleetPolicyInfo,
     FleetSortField, SortOrder,
 };
-use crate::metrics::QueryTimer;
 
 /// Repository for device-related database operations.
 #[derive(Clone)]
@@ -594,7 +594,10 @@ impl DeviceRepository {
     }
 
     /// Get device enrollment status.
-    pub async fn get_enrollment_status(&self, device_id: i64) -> Result<Option<String>, sqlx::Error> {
+    pub async fn get_enrollment_status(
+        &self,
+        device_id: i64,
+    ) -> Result<Option<String>, sqlx::Error> {
         let result: Option<(Option<String>,)> = sqlx::query_as(
             r#"
             SELECT enrollment_status::TEXT
@@ -610,7 +613,10 @@ impl DeviceRepository {
     }
 
     /// Get fleet summary counts for an organization.
-    pub async fn get_fleet_summary(&self, organization_id: Uuid) -> Result<FleetSummaryCounts, sqlx::Error> {
+    pub async fn get_fleet_summary(
+        &self,
+        organization_id: Uuid,
+    ) -> Result<FleetSummaryCounts, sqlx::Error> {
         let result: FleetSummaryCounts = sqlx::query_as(
             r#"
             SELECT
@@ -652,7 +658,10 @@ impl DeviceRepository {
         let mut param_idx = 2;
 
         if status_filter.is_some() {
-            query.push_str(&format!(" AND enrollment_status = ${}::enrollment_status", param_idx));
+            query.push_str(&format!(
+                " AND enrollment_status = ${}::enrollment_status",
+                param_idx
+            ));
             param_idx += 1;
         }
         if group_id_filter.is_some() {
@@ -673,8 +682,7 @@ impl DeviceRepository {
         if search_filter.is_some() {
             query.push_str(&format!(
                 " AND (display_name ILIKE ${} OR device_id::TEXT ILIKE ${})",
-                param_idx,
-                param_idx
+                param_idx, param_idx
             ));
         }
 
@@ -843,23 +851,19 @@ impl DeviceRepository {
                     name: e.policy_name.unwrap_or_default(),
                 });
 
-                let last_location =
-                    if let (Some(lat), Some(lon), Some(ts)) =
-                        (e.last_latitude, e.last_longitude, e.last_location_time)
-                    {
-                        Some(FleetLastLocation {
-                            latitude: lat,
-                            longitude: lon,
-                            timestamp: ts,
-                        })
-                    } else {
-                        None
-                    };
+                let last_location = if let (Some(lat), Some(lon), Some(ts)) =
+                    (e.last_latitude, e.last_longitude, e.last_location_time)
+                {
+                    Some(FleetLastLocation {
+                        latitude: lat,
+                        longitude: lon,
+                        timestamp: ts,
+                    })
+                } else {
+                    None
+                };
 
-                let enrollment_status = e
-                    .enrollment_status
-                    .as_deref()
-                    .and_then(|s| s.parse().ok());
+                let enrollment_status = e.enrollment_status.as_deref().and_then(|s| s.parse().ok());
 
                 FleetDeviceItem {
                     id: e.id,

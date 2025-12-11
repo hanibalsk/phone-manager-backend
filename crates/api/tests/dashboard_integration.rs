@@ -138,10 +138,7 @@ async fn test_get_dashboard_metrics_no_api_key_rejected() {
 
     // Try to get dashboard without API key
     let app = create_test_app(config, pool.clone());
-    let request = get_request_no_auth(&format!(
-        "/api/admin/v1/organizations/{}/dashboard",
-        org_id
-    ));
+    let request = get_request_no_auth(&format!("/api/admin/v1/organizations/{}/dashboard", org_id));
 
     let response = app.oneshot(request).await.unwrap();
     // Should be 401 Unauthorized for missing API key

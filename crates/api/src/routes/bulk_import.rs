@@ -149,8 +149,7 @@ async fn bulk_import_devices(
             match user_result {
                 Ok(Some(u)) => {
                     // Verify user is in organization
-                    let org_user_check =
-                        org_user_repo.find_by_org_and_user(org_id, u.id).await;
+                    let org_user_check = org_user_repo.find_by_org_and_user(org_id, u.id).await;
                     match org_user_check {
                         Ok(Some(_)) => Some(u.id),
                         Ok(None) => {

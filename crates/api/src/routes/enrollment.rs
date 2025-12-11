@@ -58,7 +58,9 @@ pub async fn enroll_device(
                 "Enrollment token has been revoked".to_string(),
             ));
         }
-        return Err(ApiError::Gone("Enrollment token is no longer valid".to_string()));
+        return Err(ApiError::Gone(
+            "Enrollment token is no longer valid".to_string(),
+        ));
     }
 
     // Check if device already exists

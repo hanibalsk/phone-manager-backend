@@ -32,15 +32,17 @@ pub async fn create_webhook(
     Json(request): Json<CreateOrgWebhookRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Validation error: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
 
     // Validate HTTPS
     request.validate_https().map_err(ApiError::Validation)?;
 
     // Validate event types
-    request.validate_event_types().map_err(ApiError::Validation)?;
+    request
+        .validate_event_types()
+        .map_err(ApiError::Validation)?;
 
     // Verify organization exists
     let org_repo = OrganizationRepository::new(state.pool.clone());
@@ -165,15 +167,17 @@ pub async fn update_webhook(
     }
 
     // Validate request fields
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Validation error: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
 
     // Validate HTTPS if provided
     request.validate_https().map_err(ApiError::Validation)?;
 
     // Validate event types if provided
-    request.validate_event_types().map_err(ApiError::Validation)?;
+    request
+        .validate_event_types()
+        .map_err(ApiError::Validation)?;
 
     // Verify organization exists
     let org_repo = OrganizationRepository::new(state.pool.clone());

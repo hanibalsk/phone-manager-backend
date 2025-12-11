@@ -37,7 +37,11 @@ pub struct CreateInvitationRequest {
     pub note: Option<String>,
 
     /// Days until expiration (1-30, default: 7).
-    #[validate(range(min = 1, max = 30, message = "Expiration must be between 1 and 30 days"))]
+    #[validate(range(
+        min = 1,
+        max = 30,
+        message = "Expiration must be between 1 and 30 days"
+    ))]
     pub expires_in_days: Option<i32>,
 }
 
@@ -123,10 +127,7 @@ impl ListInvitationsQuery {
 
     /// Check if we should include accepted invitations.
     pub fn include_accepted(&self) -> bool {
-        matches!(
-            self.status.as_deref(),
-            Some("accepted") | Some("all")
-        )
+        matches!(self.status.as_deref(), Some("accepted") | Some("all"))
     }
 }
 

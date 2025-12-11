@@ -10,10 +10,10 @@ use axum::{
     Json,
 };
 use domain::models::{
-    AddOrgUserRequest, CreateOrganizationRequest, CreateOrganizationResponse, ListOrganizationsQuery,
-    ListOrganizationsResponse, ListOrgUsersQuery, ListOrgUsersResponse, OrgUserPagination,
-    OrgUserResponse, OrgUserRole, OrganizationPagination, PlanType, UpdateOrganizationRequest,
-    UpdateOrgUserRequest, validate_permissions,
+    validate_permissions, AddOrgUserRequest, CreateOrganizationRequest, CreateOrganizationResponse,
+    ListOrgUsersQuery, ListOrgUsersResponse, ListOrganizationsQuery, ListOrganizationsResponse,
+    OrgUserPagination, OrgUserResponse, OrgUserRole, OrganizationPagination, PlanType,
+    UpdateOrgUserRequest, UpdateOrganizationRequest,
 };
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -33,9 +33,9 @@ pub async fn create_organization(
     Json(request): Json<CreateOrganizationRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Validation error: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
 
     let repo = OrganizationRepository::new(state.pool.clone());
 
@@ -157,9 +157,9 @@ pub async fn update_organization(
     Json(request): Json<UpdateOrganizationRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Validation error: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
 
     let repo = OrganizationRepository::new(state.pool.clone());
 
@@ -221,7 +221,9 @@ pub async fn delete_organization(
             organization_id = %org_id,
             "Organization not found or already deleted"
         );
-        Err(ApiError::NotFound("Organization not found or already inactive".to_string()))
+        Err(ApiError::NotFound(
+            "Organization not found or already inactive".to_string(),
+        ))
     }
 }
 
@@ -271,9 +273,9 @@ pub async fn add_org_user(
     Json(request): Json<AddOrgUserRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Validation error: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
 
     // Validate permissions if provided
     if let Some(ref perms) = request.permissions {
@@ -310,9 +312,9 @@ pub async fn add_org_user(
     }
 
     // Use provided permissions or default for role
-    let permissions = request.permissions.unwrap_or_else(|| {
-        request.role.default_permissions()
-    });
+    let permissions = request
+        .permissions
+        .unwrap_or_else(|| request.role.default_permissions());
 
     // Create org user
     let org_user = org_user_repo
@@ -383,9 +385,9 @@ pub async fn update_org_user(
     Json(request): Json<UpdateOrgUserRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Validation error: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
 
     // Validate permissions if provided
     if let Some(ref perms) = request.permissions {
@@ -427,7 +429,12 @@ pub async fn update_org_user(
 
     // Update org user
     let org_user = org_user_repo
-        .update(org_id, user_id, request.role, request.permissions.as_deref())
+        .update(
+            org_id,
+            user_id,
+            request.role,
+            request.permissions.as_deref(),
+        )
         .await?;
 
     match org_user {

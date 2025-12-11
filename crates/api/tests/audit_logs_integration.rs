@@ -476,18 +476,14 @@ async fn test_list_audit_logs_unauthorized() {
     // Try without authentication
     let request = axum::http::Request::builder()
         .method(Method::GET)
-        .uri(format!(
-            "/api/admin/v1/organizations/{}/audit-logs",
-            org_id
-        ))
+        .uri(format!("/api/admin/v1/organizations/{}/audit-logs", org_id))
         .body(axum::body::Body::empty())
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
     // Should be 401 or 403 without auth
     assert!(
-        response.status() == StatusCode::UNAUTHORIZED
-            || response.status() == StatusCode::FORBIDDEN
+        response.status() == StatusCode::UNAUTHORIZED || response.status() == StatusCode::FORBIDDEN
     );
 
     cleanup_all_test_data(&pool).await;

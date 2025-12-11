@@ -276,11 +276,15 @@ async fn test_get_group_devices_success() {
     let group_id = format!("test-group-{}", uuid::Uuid::new_v4().simple());
 
     // Register two devices in the same group
-    let device1 = TestDevice::new().with_group(&group_id).with_name("Device 1");
+    let device1 = TestDevice::new()
+        .with_group(&group_id)
+        .with_name("Device 1");
     let app = create_test_app(config.clone(), pool.clone());
     let _response1 = register_test_device(&app, &pool, &auth, &device1).await;
 
-    let device2 = TestDevice::new().with_group(&group_id).with_name("Device 2");
+    let device2 = TestDevice::new()
+        .with_group(&group_id)
+        .with_name("Device 2");
     let app = create_test_app(config.clone(), pool.clone());
     let _response2 = register_test_device(&app, &pool, &auth, &device2).await;
 

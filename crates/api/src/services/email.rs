@@ -343,7 +343,10 @@ The Phone Manager Team"#,
 
         let response = client
             .post("https://api.sendgrid.com/v3/mail/send")
-            .header("Authorization", format!("Bearer {}", self.config.sendgrid_api_key))
+            .header(
+                "Authorization",
+                format!("Bearer {}", self.config.sendgrid_api_key),
+            )
             .header("Content-Type", "application/json")
             .json(&body)
             .send()

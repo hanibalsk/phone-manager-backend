@@ -13,8 +13,8 @@ pub use notification::{
 };
 
 pub use policy_resolution::{
-    resolve_effective_settings, needs_resolution, PolicyResolutionInput, PolicySettings,
+    needs_resolution, resolve_effective_settings, PolicyResolutionInput, PolicySettings,
     ResolvedSettings, SettingSource,
 };
 
-pub use audit::{AuditLogBuilder, audit_helpers};
+pub use audit::{audit_helpers, AuditLogBuilder};

@@ -188,9 +188,18 @@ mod tests {
     #[test]
     fn test_admin_group_sort_field_sql() {
         assert_eq!(AdminGroupSortField::Name.as_sql_column(), "g.name");
-        assert_eq!(AdminGroupSortField::CreatedAt.as_sql_column(), "g.created_at");
-        assert_eq!(AdminGroupSortField::MemberCount.as_sql_column(), "member_count");
-        assert_eq!(AdminGroupSortField::DeviceCount.as_sql_column(), "device_count");
+        assert_eq!(
+            AdminGroupSortField::CreatedAt.as_sql_column(),
+            "g.created_at"
+        );
+        assert_eq!(
+            AdminGroupSortField::MemberCount.as_sql_column(),
+            "member_count"
+        );
+        assert_eq!(
+            AdminGroupSortField::DeviceCount.as_sql_column(),
+            "device_count"
+        );
     }
 
     #[test]

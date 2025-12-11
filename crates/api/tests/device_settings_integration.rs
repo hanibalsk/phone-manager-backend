@@ -347,7 +347,10 @@ async fn test_lock_setting_success() {
     let api_key = create_test_api_key(&pool, "test_lock_setting").await;
     let request = json_request_with_api_key_and_jwt(
         Method::POST,
-        &format!("/api/v1/devices/{}/settings/tracking_enabled/lock", device_id),
+        &format!(
+            "/api/v1/devices/{}/settings/tracking_enabled/lock",
+            device_id
+        ),
         json!({
             "reason": "Parental control",
             "value": true
@@ -390,7 +393,10 @@ async fn test_unlock_setting_success() {
     let api_key = create_test_api_key(&pool, "test_lock_for_unlock").await;
     let request = json_request_with_api_key_and_jwt(
         Method::POST,
-        &format!("/api/v1/devices/{}/settings/tracking_enabled/lock", device_id),
+        &format!(
+            "/api/v1/devices/{}/settings/tracking_enabled/lock",
+            device_id
+        ),
         json!({
             "reason": "Test lock"
         }),
@@ -493,7 +499,10 @@ async fn test_get_setting_locks() {
     let api_key = create_test_api_key(&pool, "test_lock_for_list").await;
     let request = json_request_with_api_key_and_jwt(
         Method::POST,
-        &format!("/api/v1/devices/{}/settings/tracking_enabled/lock", device_id),
+        &format!(
+            "/api/v1/devices/{}/settings/tracking_enabled/lock",
+            device_id
+        ),
         json!({
             "reason": "Test lock"
         }),
@@ -599,7 +608,10 @@ async fn test_update_locked_setting_fails() {
     let api_key = create_test_api_key(&pool, "test_lock_first").await;
     let request = json_request_with_api_key_and_jwt(
         Method::POST,
-        &format!("/api/v1/devices/{}/settings/tracking_enabled/lock", device_id),
+        &format!(
+            "/api/v1/devices/{}/settings/tracking_enabled/lock",
+            device_id
+        ),
         json!({
             "reason": "Locked for test",
             "value": true
@@ -714,7 +726,10 @@ async fn test_create_unlock_request_success() {
     let api_key = create_test_api_key(&pool, "test_lock_for_request").await;
     let request = json_request_with_api_key_and_jwt(
         Method::POST,
-        &format!("/api/v1/devices/{}/settings/tracking_enabled/lock", device_id),
+        &format!(
+            "/api/v1/devices/{}/settings/tracking_enabled/lock",
+            device_id
+        ),
         json!({
             "reason": "Parental control"
         }),
@@ -775,7 +790,10 @@ async fn test_respond_to_unlock_request_approve() {
     let api_key = create_test_api_key(&pool, "test_lock_approve").await;
     let request = json_request_with_api_key_and_jwt(
         Method::POST,
-        &format!("/api/v1/devices/{}/settings/tracking_enabled/lock", device_id),
+        &format!(
+            "/api/v1/devices/{}/settings/tracking_enabled/lock",
+            device_id
+        ),
         json!({}),
         &api_key,
         &auth.access_token,
@@ -849,7 +867,10 @@ async fn test_respond_to_unlock_request_deny() {
     let api_key = create_test_api_key(&pool, "test_lock_deny").await;
     let request = json_request_with_api_key_and_jwt(
         Method::POST,
-        &format!("/api/v1/devices/{}/settings/tracking_enabled/lock", device_id),
+        &format!(
+            "/api/v1/devices/{}/settings/tracking_enabled/lock",
+            device_id
+        ),
         json!({}),
         &api_key,
         &auth.access_token,
@@ -937,8 +958,7 @@ async fn test_create_unlock_request_setting_not_locked() {
     let response = app.oneshot(request).await.unwrap();
     // Should fail because setting is not locked
     assert!(
-        response.status() == StatusCode::BAD_REQUEST
-            || response.status() == StatusCode::CONFLICT
+        response.status() == StatusCode::BAD_REQUEST || response.status() == StatusCode::CONFLICT
     );
 
     cleanup_all_test_data(&pool).await;

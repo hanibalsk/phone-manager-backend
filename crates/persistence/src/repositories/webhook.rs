@@ -106,7 +106,10 @@ impl WebhookRepository {
     }
 
     /// Count webhooks for a device.
-    pub async fn count_by_owner_device_id(&self, owner_device_id: Uuid) -> Result<i64, sqlx::Error> {
+    pub async fn count_by_owner_device_id(
+        &self,
+        owner_device_id: Uuid,
+    ) -> Result<i64, sqlx::Error> {
         let timer = QueryTimer::new("count_webhooks_by_device");
         let count: (i64,) = sqlx::query_as(
             r#"
@@ -237,10 +240,7 @@ impl WebhookRepository {
     }
 
     /// Reset consecutive failures counter after a successful delivery.
-    pub async fn reset_consecutive_failures(
-        &self,
-        webhook_id: Uuid,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn reset_consecutive_failures(&self, webhook_id: Uuid) -> Result<(), sqlx::Error> {
         let timer = QueryTimer::new("reset_webhook_failures");
         sqlx::query(
             r#"
@@ -286,10 +286,7 @@ impl WebhookRepository {
     }
 
     /// Close the circuit breaker for a webhook (reset circuit_open_until to NULL).
-    pub async fn close_circuit(
-        &self,
-        webhook_id: Uuid,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn close_circuit(&self, webhook_id: Uuid) -> Result<(), sqlx::Error> {
         let timer = QueryTimer::new("close_webhook_circuit");
         sqlx::query(
             r#"

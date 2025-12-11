@@ -130,11 +130,7 @@ pub struct DeviceStatusCounts {
 pub struct CreateOrganizationRequest {
     #[validate(length(min = 2, max = 255, message = "Name must be 2-255 characters"))]
     pub name: String,
-    #[validate(length(
-        min = 3,
-        max = 50,
-        message = "Slug must be 3-50 characters"
-    ))]
+    #[validate(length(min = 3, max = 50, message = "Slug must be 3-50 characters"))]
     #[validate(custom(function = "validate_slug"))]
     pub slug: String,
     #[validate(email(message = "Invalid billing email format"))]
@@ -149,8 +145,11 @@ fn validate_slug(slug: &str) -> Result<(), validator::ValidationError> {
     if SLUG_REGEX.is_match(slug) {
         Ok(())
     } else {
-        Err(validator::ValidationError::new("slug_format")
-            .with_message(std::borrow::Cow::Borrowed("Slug must be lowercase alphanumeric with hyphens, no leading/trailing hyphens")))
+        Err(validator::ValidationError::new("slug_format").with_message(
+            std::borrow::Cow::Borrowed(
+                "Slug must be lowercase alphanumeric with hyphens, no leading/trailing hyphens",
+            ),
+        ))
     }
 }
 

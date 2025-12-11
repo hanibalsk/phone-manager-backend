@@ -10,7 +10,9 @@ use axum::{
     Json, Router,
 };
 use chrono::Utc;
-use persistence::repositories::{DeviceCommandRepository, DeviceRepository, OrgUserRepository, UserRepository};
+use persistence::repositories::{
+    DeviceCommandRepository, DeviceRepository, OrgUserRepository, UserRepository,
+};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -47,7 +49,9 @@ async fn list_fleet_devices(
     user: UserAuth,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate query
-    query.validate().map_err(|e| ApiError::Validation(e.to_string()))?;
+    query
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     let org_user_repo = OrgUserRepository::new(state.pool.clone());
     let device_repo = DeviceRepository::new(state.pool.clone());
@@ -60,7 +64,9 @@ async fn list_fleet_devices(
 
     // Check permission (admin or owner can view fleet)
     if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
-        return Err(ApiError::Forbidden("Admin or owner access required".to_string()));
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
     }
 
     // Get pagination params
@@ -141,7 +147,9 @@ async fn assign_device(
     Json(request): Json<AssignDeviceRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| ApiError::Validation(e.to_string()))?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     let org_user_repo = OrgUserRepository::new(state.pool.clone());
     let device_repo = DeviceRepository::new(state.pool.clone());
@@ -154,7 +162,9 @@ async fn assign_device(
         .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
 
     if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
-        return Err(ApiError::Forbidden("Admin or owner access required".to_string()));
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
     }
 
     // Verify target user is in the organization
@@ -164,9 +174,7 @@ async fn assign_device(
         .ok_or_else(|| ApiError::NotFound("User not found in organization".to_string()))?;
 
     // Assign user to device
-    let _updated_device = device_repo
-        .assign_user(device_id, request.user_id)
-        .await?;
+    let _updated_device = device_repo.assign_user(device_id, request.user_id).await?;
 
     // Get user details
     let user_entity = user_repo
@@ -207,7 +215,9 @@ async fn unassign_device(
         .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
 
     if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
-        return Err(ApiError::Forbidden("Admin or owner access required".to_string()));
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
     }
 
     // Unassign user
@@ -240,7 +250,9 @@ async fn suspend_device(
         .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
 
     if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
-        return Err(ApiError::Forbidden("Admin or owner access required".to_string()));
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
     }
 
     // Get current status
@@ -249,7 +261,9 @@ async fn suspend_device(
 
     // Check if device can be suspended (not retired)
     if current_status.as_deref() == Some("retired") {
-        return Err(ApiError::Conflict("Cannot suspend a retired device".to_string()));
+        return Err(ApiError::Conflict(
+            "Cannot suspend a retired device".to_string(),
+        ));
     }
 
     // Update status to suspended
@@ -286,7 +300,9 @@ async fn retire_device(
         .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
 
     if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
-        return Err(ApiError::Forbidden("Admin or owner access required".to_string()));
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
     }
 
     // Get current status
@@ -333,7 +349,9 @@ async fn wipe_device(
         .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
 
     if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
-        return Err(ApiError::Forbidden("Admin or owner access required".to_string()));
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
     }
 
     let req = request.unwrap_or(IssueCommandRequest {

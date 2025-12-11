@@ -3,8 +3,8 @@
 //! Story 13.9: Audit Logging System
 
 use domain::models::{
-    ActorType, AuditActor, AuditLog, AuditMetadata, AuditResource,
-    CreateAuditLogInput, FieldChange, ListAuditLogsQuery,
+    ActorType, AuditActor, AuditLog, AuditMetadata, AuditResource, CreateAuditLogInput,
+    FieldChange, ListAuditLogsQuery,
 };
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
@@ -57,7 +57,10 @@ impl AuditLogFilterBuilder {
             conditions.push(format!("timestamp <= ${}", param_count));
         }
 
-        Self { conditions, param_count }
+        Self {
+            conditions,
+            param_count,
+        }
     }
 
     /// Get the WHERE clause as a string.
@@ -112,11 +115,15 @@ impl AuditLogRepository {
 
     /// Insert a new audit log entry.
     pub async fn insert(&self, input: CreateAuditLogInput) -> Result<AuditLog, sqlx::Error> {
-        let changes_json = input.changes.as_ref().map(|changes| {
-            serde_json::to_value(changes).unwrap_or(JsonValue::Null)
-        });
+        let changes_json = input
+            .changes
+            .as_ref()
+            .map(|changes| serde_json::to_value(changes).unwrap_or(JsonValue::Null));
 
-        let metadata_json = if input.ip_address.is_some() || input.user_agent.is_some() || input.request_id.is_some() {
+        let metadata_json = if input.ip_address.is_some()
+            || input.user_agent.is_some()
+            || input.request_id.is_some()
+        {
             Some(serde_json::json!({
                 "ip_address": input.ip_address.map(|ip| ip.to_string()),
                 "user_agent": input.user_agent,
@@ -208,10 +215,7 @@ impl AuditLogRepository {
         let param_count = filter.param_count();
 
         // Get total count
-        let count_query = format!(
-            "SELECT COUNT(*) FROM audit_logs WHERE {}",
-            where_clause
-        );
+        let count_query = format!("SELECT COUNT(*) FROM audit_logs WHERE {}", where_clause);
 
         let count_builder = sqlx::query_scalar::<_, i64>(&count_query).bind(org_id);
         let count_builder = bind_query_filters!(count_builder, query);
@@ -248,12 +252,11 @@ impl AuditLogRepository {
 
     /// Count audit logs for an organization.
     pub async fn count(&self, org_id: Uuid) -> Result<i64, sqlx::Error> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM audit_logs WHERE organization_id = $1",
-        )
-        .bind(org_id)
-        .fetch_one(&self.pool)
-        .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM audit_logs WHERE organization_id = $1")
+                .bind(org_id)
+                .fetch_one(&self.pool)
+                .await?;
 
         Ok(count)
     }
@@ -286,10 +289,7 @@ impl AuditLogRepository {
 
         let list_builder = sqlx::query_as::<_, AuditLogEntity>(&list_query).bind(org_id);
         let list_builder = bind_query_filters!(list_builder, query);
-        let entities = list_builder
-            .bind(max_records)
-            .fetch_all(&self.pool)
-            .await?;
+        let entities = list_builder.bind(max_records).fetch_all(&self.pool).await?;
 
         let logs = entities.into_iter().map(entity_to_domain).collect();
 
@@ -299,18 +299,25 @@ impl AuditLogRepository {
 
 /// Convert entity to domain model.
 fn entity_to_domain(entity: AuditLogEntity) -> AuditLog {
-    let actor_type = entity.actor_type.parse::<ActorType>().unwrap_or(ActorType::System);
+    let actor_type = entity
+        .actor_type
+        .parse::<ActorType>()
+        .unwrap_or(ActorType::System);
 
-    let changes: Option<HashMap<String, FieldChange>> = entity.changes.and_then(|json| {
-        serde_json::from_value(json).ok()
-    });
+    let changes: Option<HashMap<String, FieldChange>> = entity
+        .changes
+        .and_then(|json| serde_json::from_value(json).ok());
 
-    let metadata = if entity.ip_address.is_some() || entity.user_agent.is_some() || entity.metadata.is_some() {
+    let metadata = if entity.ip_address.is_some()
+        || entity.user_agent.is_some()
+        || entity.metadata.is_some()
+    {
         Some(AuditMetadata {
             ip_address: entity.ip_address,
             user_agent: entity.user_agent,
             request_id: entity.metadata.as_ref().and_then(|m| {
-                m.get("request_id").and_then(|v| v.as_str().map(String::from))
+                m.get("request_id")
+                    .and_then(|v| v.as_str().map(String::from))
             }),
             extra: entity.metadata,
         })

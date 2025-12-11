@@ -127,11 +127,10 @@ impl SystemRoleRepository {
 
     /// Count the number of super admins in the system.
     pub async fn count_super_admins(&self) -> Result<i64, sqlx::Error> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM user_system_roles WHERE role = 'super_admin'",
-        )
-        .fetch_one(&self.pool)
-        .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM user_system_roles WHERE role = 'super_admin'")
+                .fetch_one(&self.pool)
+                .await?;
 
         Ok(count)
     }

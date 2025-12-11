@@ -412,10 +412,7 @@ impl AdminGroupRepository {
 
         updates.push("updated_at = NOW()".to_string());
 
-        let query = format!(
-            "UPDATE groups SET {} WHERE id = $1",
-            updates.join(", ")
-        );
+        let query = format!("UPDATE groups SET {} WHERE id = $1", updates.join(", "));
 
         let mut q = sqlx::query(&query).bind(group_id);
 
@@ -485,8 +482,17 @@ mod tests {
     #[test]
     fn test_sort_field_sql_column() {
         assert_eq!(AdminGroupSortField::Name.as_sql_column(), "g.name");
-        assert_eq!(AdminGroupSortField::CreatedAt.as_sql_column(), "g.created_at");
-        assert_eq!(AdminGroupSortField::MemberCount.as_sql_column(), "member_count");
-        assert_eq!(AdminGroupSortField::DeviceCount.as_sql_column(), "device_count");
+        assert_eq!(
+            AdminGroupSortField::CreatedAt.as_sql_column(),
+            "g.created_at"
+        );
+        assert_eq!(
+            AdminGroupSortField::MemberCount.as_sql_column(),
+            "member_count"
+        );
+        assert_eq!(
+            AdminGroupSortField::DeviceCount.as_sql_column(),
+            "device_count"
+        );
     }
 }

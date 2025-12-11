@@ -252,8 +252,10 @@ async fn test_get_organization_not_found() {
 
     let app = create_test_app(config, pool.clone());
     let fake_id = uuid::Uuid::new_v4();
-    let request =
-        get_request_with_api_key(&format!("/api/admin/v1/organizations/{}", fake_id), &api_key);
+    let request = get_request_with_api_key(
+        &format!("/api/admin/v1/organizations/{}", fake_id),
+        &api_key,
+    );
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);

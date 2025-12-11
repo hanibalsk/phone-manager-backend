@@ -7,8 +7,8 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json, Router,
     routing::get,
+    Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Serialize;
@@ -117,15 +117,13 @@ pub async fn export_audit_logs(
 
     if total <= MAX_SYNC_EXPORT_RECORDS {
         // Sync export: fetch all and return directly
-        let logs = log_repo.list_for_export(org_id, &list_query, MAX_SYNC_EXPORT_RECORDS).await?;
+        let logs = log_repo
+            .list_for_export(org_id, &list_query, MAX_SYNC_EXPORT_RECORDS)
+            .await?;
         let (data, content_type) = generate_export_data(&logs, format)?;
 
         // Create data URL
-        let download_url = format!(
-            "data:{};base64,{}",
-            content_type,
-            STANDARD.encode(&data)
-        );
+        let download_url = format!("data:{};base64,{}", content_type, STANDARD.encode(&data));
 
         let response = SyncExportResponse {
             format,
@@ -204,18 +202,21 @@ async fn process_export_job(
     }
 
     // Fetch the data
-    match log_repo.list_for_export(org_id, &query, MAX_EXPORT_RECORDS).await {
+    match log_repo
+        .list_for_export(org_id, &query, MAX_EXPORT_RECORDS)
+        .await
+    {
         Ok(logs) => {
             match generate_export_data(&logs, format) {
                 Ok((data, content_type)) => {
                     // Create data URL
-                    let download_url = format!(
-                        "data:{};base64,{}",
-                        content_type,
-                        STANDARD.encode(&data)
-                    );
+                    let download_url =
+                        format!("data:{};base64,{}", content_type, STANDARD.encode(&data));
 
-                    if let Err(e) = job_repo.mark_completed(&job_id, logs.len() as i64, &download_url).await {
+                    if let Err(e) = job_repo
+                        .mark_completed(&job_id, logs.len() as i64, &download_url)
+                        .await
+                    {
                         tracing::error!("Failed to mark job as completed: {}", e);
                     }
                 }
@@ -235,11 +236,14 @@ async fn process_export_job(
 }
 
 /// Generate export data in the specified format.
-fn generate_export_data(logs: &[AuditLog], format: ExportFormat) -> Result<(Vec<u8>, &'static str), ApiError> {
+fn generate_export_data(
+    logs: &[AuditLog],
+    format: ExportFormat,
+) -> Result<(Vec<u8>, &'static str), ApiError> {
     match format {
         ExportFormat::Json => {
-            let json = serde_json::to_vec_pretty(logs)
-                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            let json =
+                serde_json::to_vec_pretty(logs).map_err(|e| ApiError::Internal(e.to_string()))?;
             Ok((json, "application/json"))
         }
         ExportFormat::Csv => {
@@ -272,8 +276,16 @@ fn generate_csv(logs: &[AuditLog]) -> Result<String, ApiError> {
             escape_csv(&log.resource.resource_type),
             escape_csv(log.resource.id.as_deref().unwrap_or("")),
             escape_csv(log.resource.name.as_deref().unwrap_or("")),
-            log.metadata.as_ref().and_then(|m| m.ip_address.as_deref()).unwrap_or(""),
-            escape_csv(log.metadata.as_ref().and_then(|m| m.user_agent.as_deref()).unwrap_or(""))
+            log.metadata
+                .as_ref()
+                .and_then(|m| m.ip_address.as_deref())
+                .unwrap_or(""),
+            escape_csv(
+                log.metadata
+                    .as_ref()
+                    .and_then(|m| m.user_agent.as_deref())
+                    .unwrap_or("")
+            )
         ));
     }
 

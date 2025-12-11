@@ -11,10 +11,10 @@ pub struct LocationEntity {
     pub device_id: Uuid,
     pub latitude: f64,
     pub longitude: f64,
-    pub accuracy: f32,           // REAL (FLOAT4) in PostgreSQL
+    pub accuracy: f32, // REAL (FLOAT4) in PostgreSQL
     pub altitude: Option<f64>,
-    pub bearing: Option<f32>,    // REAL (FLOAT4) in PostgreSQL
-    pub speed: Option<f32>,      // REAL (FLOAT4) in PostgreSQL
+    pub bearing: Option<f32>, // REAL (FLOAT4) in PostgreSQL
+    pub speed: Option<f32>,   // REAL (FLOAT4) in PostgreSQL
     pub provider: Option<String>,
     pub battery_level: Option<i16>, // SMALLINT in PostgreSQL
     pub network_type: Option<String>,
@@ -33,7 +33,7 @@ impl From<LocationEntity> for domain::models::Location {
             device_id: entity.device_id,
             latitude: entity.latitude,
             longitude: entity.longitude,
-            accuracy: entity.accuracy as f64,       // f32 → f64
+            accuracy: entity.accuracy as f64, // f32 → f64
             altitude: entity.altitude,
             bearing: entity.bearing.map(|b| b as f64), // f32 → f64
             speed: entity.speed.map(|s| s as f64),     // f32 → f64
@@ -88,7 +88,10 @@ mod tests {
         assert_eq!(location.bearing, entity.bearing.map(|b| b as f64)); // f32 → f64
         assert_eq!(location.speed, entity.speed.map(|s| s as f64)); // f32 → f64
         assert_eq!(location.provider, entity.provider);
-        assert_eq!(location.battery_level, entity.battery_level.map(|b| b as i32)); // i16 → i32
+        assert_eq!(
+            location.battery_level,
+            entity.battery_level.map(|b| b as i32)
+        ); // i16 → i32
         assert_eq!(location.network_type, entity.network_type);
     }
 

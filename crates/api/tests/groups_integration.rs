@@ -600,7 +600,10 @@ async fn test_remove_member_as_owner() {
     // Owner removes member
     let app = create_test_app(config, pool.clone());
     let request = delete_request_with_auth(
-        &format!("/api/v1/groups/{}/members/{}", created.id, member_auth.user_id),
+        &format!(
+            "/api/v1/groups/{}/members/{}",
+            created.id, member_auth.user_id
+        ),
         &owner_auth.access_token,
     );
 
@@ -697,8 +700,7 @@ async fn test_transfer_ownership_non_member() {
     let response = app.oneshot(request).await.unwrap();
     // Should fail - can't transfer to non-member
     assert!(
-        response.status() == StatusCode::BAD_REQUEST
-            || response.status() == StatusCode::NOT_FOUND
+        response.status() == StatusCode::BAD_REQUEST || response.status() == StatusCode::NOT_FOUND
     );
 
     cleanup_all_test_data(&pool).await;

@@ -9,7 +9,9 @@
 use chrono::{Duration as ChronoDuration, Utc};
 use hmac::{Hmac, Mac};
 use persistence::entities::WebhookDeliveryEntity;
-use persistence::repositories::{GeofenceEventRepository, WebhookDeliveryRepository, WebhookRepository};
+use persistence::repositories::{
+    GeofenceEventRepository, WebhookDeliveryRepository, WebhookRepository,
+};
 use reqwest::Client;
 use serde::Serialize;
 use sha2::Sha256;
@@ -107,7 +109,9 @@ impl WebhookDeliveryService {
     ) -> Result<(), WebhookDeliveryError> {
         // Find all enabled webhooks for this device
         let webhook_repo = WebhookRepository::new(self.pool.clone());
-        let webhooks = webhook_repo.find_enabled_by_owner_device_id(device_id).await?;
+        let webhooks = webhook_repo
+            .find_enabled_by_owner_device_id(device_id)
+            .await?;
 
         if webhooks.is_empty() {
             info!(device_id = %device_id, "No enabled webhooks found for device");
@@ -121,7 +125,10 @@ impl WebhookDeliveryService {
             geofence_id,
             geofence_name: geofence_name.to_string(),
             timestamp,
-            location: WebhookLocation { latitude, longitude },
+            location: WebhookLocation {
+                latitude,
+                longitude,
+            },
         };
 
         let payload_json = serde_json::to_string(&payload)?;
@@ -177,7 +184,10 @@ impl WebhookDeliveryService {
                         last_response_code = Some(status_code as i32);
 
                         // Reset circuit breaker on success
-                        if let Err(e) = webhook_repo.reset_consecutive_failures(webhook.webhook_id).await {
+                        if let Err(e) = webhook_repo
+                            .reset_consecutive_failures(webhook.webhook_id)
+                            .await
+                        {
                             warn!(
                                 webhook_id = %webhook.webhook_id,
                                 error = %e,
@@ -194,18 +204,14 @@ impl WebhookDeliveryService {
                         );
 
                         // Handle circuit breaker on non-2xx response
-                        self.handle_delivery_failure(&webhook_repo, webhook.webhook_id).await;
+                        self.handle_delivery_failure(&webhook_repo, webhook.webhook_id)
+                            .await;
                     }
                 }
                 Err(e) => {
                     // Update delivery record with error
                     delivery_repo
-                        .update_attempt(
-                            delivery.delivery_id,
-                            false,
-                            None,
-                            Some(&e.to_string()),
-                        )
+                        .update_attempt(delivery.delivery_id, false, None, Some(&e.to_string()))
                         .await?;
 
                     warn!(
@@ -217,7 +223,8 @@ impl WebhookDeliveryService {
                     );
 
                     // Handle circuit breaker on error
-                    self.handle_delivery_failure(&webhook_repo, webhook.webhook_id).await;
+                    self.handle_delivery_failure(&webhook_repo, webhook.webhook_id)
+                        .await;
                     // Continue trying other webhooks
                 }
             }
@@ -239,7 +246,10 @@ impl WebhookDeliveryService {
     /// 2. Looks up the webhook configuration
     /// 3. Attempts delivery
     /// 4. Updates delivery status
-    pub async fn process_pending_retries(&self, batch_size: i64) -> Result<u32, WebhookDeliveryError> {
+    pub async fn process_pending_retries(
+        &self,
+        batch_size: i64,
+    ) -> Result<u32, WebhookDeliveryError> {
         let delivery_repo = WebhookDeliveryRepository::new(self.pool.clone());
         let webhook_repo = WebhookRepository::new(self.pool.clone());
 
@@ -247,7 +257,10 @@ impl WebhookDeliveryService {
         let mut processed = 0u32;
 
         for delivery in pending {
-            match self.retry_delivery(&delivery, &webhook_repo, &delivery_repo).await {
+            match self
+                .retry_delivery(&delivery, &webhook_repo, &delivery_repo)
+                .await
+            {
                 Ok(_) => {
                     processed += 1;
                 }
@@ -324,7 +337,12 @@ impl WebhookDeliveryService {
             Ok(status_code) => {
                 let success = (200..300).contains(&(status_code as i32));
                 delivery_repo
-                    .update_attempt(delivery.delivery_id, success, Some(status_code as i32), None)
+                    .update_attempt(
+                        delivery.delivery_id,
+                        success,
+                        Some(status_code as i32),
+                        None,
+                    )
                     .await?;
 
                 if success {
@@ -336,7 +354,10 @@ impl WebhookDeliveryService {
                     );
 
                     // Reset circuit breaker on success
-                    if let Err(e) = webhook_repo.reset_consecutive_failures(webhook.webhook_id).await {
+                    if let Err(e) = webhook_repo
+                        .reset_consecutive_failures(webhook.webhook_id)
+                        .await
+                    {
                         warn!(
                             webhook_id = %webhook.webhook_id,
                             error = %e,
@@ -347,7 +368,10 @@ impl WebhookDeliveryService {
                     // Update geofence event webhook status if this delivery is associated with an event
                     if let Some(event_id) = delivery.event_id {
                         let event_repo = GeofenceEventRepository::new(self.pool.clone());
-                        if let Err(e) = event_repo.update_webhook_status(event_id, true, Some(status_code as i32)).await {
+                        if let Err(e) = event_repo
+                            .update_webhook_status(event_id, true, Some(status_code as i32))
+                            .await
+                        {
                             warn!(
                                 event_id = %event_id,
                                 error = %e,
@@ -364,7 +388,8 @@ impl WebhookDeliveryService {
                     );
 
                     // Handle circuit breaker on non-2xx response
-                    self.handle_delivery_failure(webhook_repo, webhook.webhook_id).await;
+                    self.handle_delivery_failure(webhook_repo, webhook.webhook_id)
+                        .await;
                 }
             }
             Err(e) => {
@@ -380,7 +405,8 @@ impl WebhookDeliveryService {
                 );
 
                 // Handle circuit breaker on error
-                self.handle_delivery_failure(webhook_repo, webhook.webhook_id).await;
+                self.handle_delivery_failure(webhook_repo, webhook.webhook_id)
+                    .await;
             }
         }
 
@@ -388,12 +414,19 @@ impl WebhookDeliveryService {
     }
 
     /// Clean up old delivery records.
-    pub async fn cleanup_old_deliveries(&self, retention_days: i32) -> Result<u64, WebhookDeliveryError> {
+    pub async fn cleanup_old_deliveries(
+        &self,
+        retention_days: i32,
+    ) -> Result<u64, WebhookDeliveryError> {
         let delivery_repo = WebhookDeliveryRepository::new(self.pool.clone());
         let deleted = delivery_repo.delete_old_deliveries(retention_days).await?;
 
         if deleted > 0 {
-            info!(deleted = deleted, retention_days = retention_days, "Cleaned up old webhook deliveries");
+            info!(
+                deleted = deleted,
+                retention_days = retention_days,
+                "Cleaned up old webhook deliveries"
+            );
         }
 
         Ok(deleted)
@@ -405,11 +438,15 @@ impl WebhookDeliveryService {
     /// 1. Increments the consecutive failure counter
     /// 2. If threshold is reached, opens the circuit breaker
     async fn handle_delivery_failure(&self, webhook_repo: &WebhookRepository, webhook_id: Uuid) {
-        match webhook_repo.increment_consecutive_failures(webhook_id).await {
+        match webhook_repo
+            .increment_consecutive_failures(webhook_id)
+            .await
+        {
             Ok(failure_count) => {
                 if failure_count >= CIRCUIT_BREAKER_THRESHOLD {
                     // Open the circuit breaker
-                    let open_until = Utc::now() + ChronoDuration::seconds(CIRCUIT_BREAKER_COOLDOWN_SECS);
+                    let open_until =
+                        Utc::now() + ChronoDuration::seconds(CIRCUIT_BREAKER_COOLDOWN_SECS);
                     if let Err(e) = webhook_repo.open_circuit(webhook_id, open_until).await {
                         error!(
                             webhook_id = %webhook_id,
@@ -478,7 +515,8 @@ mod tests {
     #[test]
     fn test_sign_payload() {
         // Create a mock service (we just need to test the signing logic)
-        let payload = r#"{"event_type":"geofence_enter","device_id":"550e8400-e29b-41d4-a716-446655440000"}"#;
+        let payload =
+            r#"{"event_type":"geofence_enter","device_id":"550e8400-e29b-41d4-a716-446655440000"}"#;
         let secret = "my-secret-key";
 
         type HmacSha256 = Hmac<Sha256>;

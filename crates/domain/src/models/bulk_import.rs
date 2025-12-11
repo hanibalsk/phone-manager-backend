@@ -35,11 +35,7 @@ pub struct BulkDeviceItem {
     pub external_id: Option<String>,
 
     /// Display name for the device.
-    #[validate(length(
-        min = 2,
-        max = 100,
-        message = "display_name must be 2-100 characters"
-    ))]
+    #[validate(length(min = 2, max = 100, message = "display_name must be 2-100 characters"))]
     pub display_name: String,
 
     /// Group to assign the device to.
@@ -207,7 +203,10 @@ mod tests {
 
         let request: BulkDeviceImportRequest = serde_json::from_value(json).unwrap();
         assert_eq!(request.devices.len(), 1);
-        assert_eq!(request.devices[0].external_id, Some("ASSET-001".to_string()));
+        assert_eq!(
+            request.devices[0].external_id,
+            Some("ASSET-001".to_string())
+        );
         assert!(request.options.update_existing);
         assert!(!request.options.create_missing_users);
     }

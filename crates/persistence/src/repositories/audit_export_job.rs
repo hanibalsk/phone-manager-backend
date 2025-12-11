@@ -217,7 +217,10 @@ impl AuditExportJobRepository {
 }
 
 fn entity_to_domain(entity: AuditExportJobEntity) -> ExportJob {
-    let status = entity.status.parse::<ExportJobStatus>().unwrap_or(ExportJobStatus::Pending);
+    let status = entity
+        .status
+        .parse::<ExportJobStatus>()
+        .unwrap_or(ExportJobStatus::Pending);
     let format = match entity.format.as_str() {
         "csv" => ExportFormat::Csv,
         _ => ExportFormat::Json,

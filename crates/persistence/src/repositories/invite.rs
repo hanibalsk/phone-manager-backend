@@ -4,7 +4,9 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::entities::{GroupInviteEntity, GroupRoleDb, InviteWithCreatorEntity, InviteWithGroupEntity};
+use crate::entities::{
+    GroupInviteEntity, GroupRoleDb, InviteWithCreatorEntity, InviteWithGroupEntity,
+};
 use crate::metrics::QueryTimer;
 
 /// Repository for invite-related database operations.

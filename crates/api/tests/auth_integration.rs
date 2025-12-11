@@ -438,9 +438,7 @@ async fn test_logout_success() {
     );
 
     let response = app.oneshot(request).await.unwrap();
-    assert!(
-        response.status() == StatusCode::OK || response.status() == StatusCode::NO_CONTENT
-    );
+    assert!(response.status() == StatusCode::OK || response.status() == StatusCode::NO_CONTENT);
 
     cleanup_all_test_data(&pool).await;
 }

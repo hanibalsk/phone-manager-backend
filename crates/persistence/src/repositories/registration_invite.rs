@@ -91,11 +91,7 @@ impl RegistrationInviteRepository {
     ///
     /// This should be called after user creation succeeds to record
     /// which user consumed the invite for auditing purposes.
-    pub async fn set_used_by(
-        &self,
-        invite_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn set_used_by(&self, invite_id: Uuid, user_id: Uuid) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
             UPDATE registration_invites
@@ -117,11 +113,7 @@ impl RegistrationInviteRepository {
     ///
     /// Returns `true` if the invite was successfully marked as used,
     /// `false` if it was already used (race condition detected).
-    pub async fn mark_used(
-        &self,
-        invite_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<bool, sqlx::Error> {
+    pub async fn mark_used(&self, invite_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
         let result = sqlx::query(
             r#"
             UPDATE registration_invites

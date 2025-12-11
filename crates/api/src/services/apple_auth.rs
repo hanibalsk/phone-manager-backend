@@ -114,8 +114,7 @@ impl AppleAuthClient {
     /// Verifies an Apple ID token and returns the claims.
     pub async fn verify_token(&self, id_token: &str) -> Result<AppleIdTokenClaims, AppleAuthError> {
         // Decode the header to get the kid
-        let header = decode_header(id_token)
-            .map_err(|_| AppleAuthError::InvalidTokenFormat)?;
+        let header = decode_header(id_token).map_err(|_| AppleAuthError::InvalidTokenFormat)?;
 
         let kid = header.kid.ok_or(AppleAuthError::InvalidTokenFormat)?;
 
@@ -142,14 +141,14 @@ impl AppleAuthClient {
 
         // Decode and validate the token
         let token_data = decode::<AppleIdTokenClaims>(id_token, &decoding_key, &validation)
-            .map_err(|e| {
-                match e.kind() {
-                    jsonwebtoken::errors::ErrorKind::ExpiredSignature => AppleAuthError::TokenExpired,
-                    jsonwebtoken::errors::ErrorKind::InvalidSignature => AppleAuthError::InvalidSignature,
-                    jsonwebtoken::errors::ErrorKind::InvalidIssuer => AppleAuthError::InvalidIssuer,
-                    jsonwebtoken::errors::ErrorKind::InvalidAudience => AppleAuthError::InvalidAudience,
-                    _ => AppleAuthError::ValidationError(e.to_string()),
+            .map_err(|e| match e.kind() {
+                jsonwebtoken::errors::ErrorKind::ExpiredSignature => AppleAuthError::TokenExpired,
+                jsonwebtoken::errors::ErrorKind::InvalidSignature => {
+                    AppleAuthError::InvalidSignature
                 }
+                jsonwebtoken::errors::ErrorKind::InvalidIssuer => AppleAuthError::InvalidIssuer,
+                jsonwebtoken::errors::ErrorKind::InvalidAudience => AppleAuthError::InvalidAudience,
+                _ => AppleAuthError::ValidationError(e.to_string()),
             })?;
 
         Ok(token_data.claims)
@@ -174,7 +173,9 @@ impl AppleAuthClient {
         let jwks = self.fetch_jwks().await?;
 
         // Find the key
-        let jwk = jwks.keys.iter()
+        let jwk = jwks
+            .keys
+            .iter()
             .find(|k| k.kid == kid)
             .cloned()
             .ok_or_else(|| AppleAuthError::KeyNotFound(kid.to_string()))?;
@@ -193,16 +194,18 @@ impl AppleAuthClient {
 
     /// Fetches Apple's JWKS from their endpoint.
     async fn fetch_jwks(&self) -> Result<AppleJwks, AppleAuthError> {
-        let response = self.http_client
+        let response = self
+            .http_client
             .get(APPLE_JWKS_URL)
             .send()
             .await
             .map_err(|e| AppleAuthError::KeyFetchError(e.to_string()))?;
 
         if !response.status().is_success() {
-            return Err(AppleAuthError::KeyFetchError(
-                format!("HTTP {}", response.status())
-            ));
+            return Err(AppleAuthError::KeyFetchError(format!(
+                "HTTP {}",
+                response.status()
+            )));
         }
 
         let jwks: AppleJwks = response

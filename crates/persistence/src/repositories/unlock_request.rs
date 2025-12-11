@@ -51,10 +51,7 @@ impl UnlockRequestRepository {
     }
 
     /// Find an unlock request by ID.
-    pub async fn find_by_id(
-        &self,
-        id: Uuid,
-    ) -> Result<Option<UnlockRequestEntity>, sqlx::Error> {
+    pub async fn find_by_id(&self, id: Uuid) -> Result<Option<UnlockRequestEntity>, sqlx::Error> {
         let timer = QueryTimer::new("find_unlock_request_by_id");
         let result = sqlx::query_as::<_, UnlockRequestEntity>(
             r#"

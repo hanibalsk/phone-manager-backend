@@ -12,8 +12,8 @@ use axum::{
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{Duration, Utc};
 use domain::models::{
-    ApiKeyPagination, ApiKeyResponse, CreateApiKeyRequest, CreateApiKeyResponse,
-    ListApiKeysQuery, ListApiKeysResponse, UpdateApiKeyRequest, MAX_API_KEYS_PER_ORG,
+    ApiKeyPagination, ApiKeyResponse, CreateApiKeyRequest, CreateApiKeyResponse, ListApiKeysQuery,
+    ListApiKeysResponse, UpdateApiKeyRequest, MAX_API_KEYS_PER_ORG,
 };
 use rand::Rng;
 use tracing::{info, warn};
@@ -56,9 +56,9 @@ pub async fn create_api_key(
     Json(request): Json<CreateApiKeyRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Validation error: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
 
     // Verify organization exists
     let org_repo = OrganizationRepository::new(state.pool.clone());
@@ -240,9 +240,9 @@ pub async fn update_api_key(
     Json(request): Json<UpdateApiKeyRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Validation error: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
 
     // Verify organization exists
     let org_repo = OrganizationRepository::new(state.pool.clone());

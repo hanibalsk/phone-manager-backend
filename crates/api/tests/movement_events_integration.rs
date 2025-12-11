@@ -387,7 +387,8 @@ async fn test_get_device_movement_events_with_pagination() {
     let app = create_test_app(config.clone(), pool.clone());
 
     // Create API key and authenticated user and register device
-    let api_key = create_test_api_key(&pool, "test_get_device_movement_events_with_pagination").await;
+    let api_key =
+        create_test_api_key(&pool, "test_get_device_movement_events_with_pagination").await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
     let device = TestDevice::new();

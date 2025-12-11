@@ -74,9 +74,9 @@ pub async fn update_organization_settings(
     Json(request): Json<UpdateOrganizationSettingsRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Validation error: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
 
     // Verify organization exists
     let org_repo = OrganizationRepository::new(state.pool.clone());
@@ -159,9 +159,9 @@ pub async fn verify_unlock_pin(
     Json(request): Json<VerifyPinRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Validation error: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
 
     // Verify organization exists
     let org_repo = OrganizationRepository::new(state.pool.clone());
@@ -179,8 +179,7 @@ pub async fn verify_unlock_pin(
             match settings.unlock_pin_hash {
                 Some(ref hash) => {
                     // Verify PIN against stored hash
-                    shared::password::verify_password(&request.pin, hash)
-                        .unwrap_or(false)
+                    shared::password::verify_password(&request.pin, hash).unwrap_or(false)
                 }
                 None => {
                     // No PIN set - verification fails

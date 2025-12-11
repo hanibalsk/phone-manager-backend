@@ -34,10 +34,7 @@ mod tests {
             target_url: "https://api.example.com/webhooks".to_string(),
             secret: "whsec_test-secret-key-12345678".to_string(),
             enabled: true,
-            event_types: vec![
-                "device.enrolled".to_string(),
-                "member.joined".to_string(),
-            ],
+            event_types: vec!["device.enrolled".to_string(), "member.joined".to_string()],
             consecutive_failures: 0,
             circuit_open_until: None,
             created_at: Utc::now(),

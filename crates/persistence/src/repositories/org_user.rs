@@ -271,7 +271,10 @@ mod tests {
 
     #[test]
     fn test_org_user_role_db_conversion() {
-        assert_eq!(OrgUserRoleDb::from(OrgUserRole::Owner), OrgUserRoleDb::Owner);
+        assert_eq!(
+            OrgUserRoleDb::from(OrgUserRole::Owner),
+            OrgUserRoleDb::Owner
+        );
         assert_eq!(OrgUserRole::from(OrgUserRoleDb::Admin), OrgUserRole::Admin);
     }
 }

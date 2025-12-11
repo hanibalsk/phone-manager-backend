@@ -50,10 +50,7 @@ impl OrgUserRole {
                 "user:manage".to_string(),
                 "policy:read".to_string(),
             ],
-            OrgUserRole::Member => vec![
-                "device:read".to_string(),
-                "user:read".to_string(),
-            ],
+            OrgUserRole::Member => vec!["device:read".to_string(), "user:read".to_string()],
         }
     }
 }

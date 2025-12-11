@@ -41,23 +41,24 @@ pub async fn run_migrations(pool: &PgPool) {
     let mut entries: Vec<_> = std::fs::read_dir(&migration_dir)
         .expect("Failed to read migrations directory")
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map(|ext| ext == "sql").unwrap_or(false))
+        .filter(|e| {
+            e.path()
+                .extension()
+                .map(|ext| ext == "sql")
+                .unwrap_or(false)
+        })
         .collect();
 
     entries.sort_by_key(|e| e.file_name());
 
     for entry in entries {
-        let sql = std::fs::read_to_string(entry.path())
-            .expect("Failed to read migration file");
+        let sql = std::fs::read_to_string(entry.path()).expect("Failed to read migration file");
 
         // Execute migration
-        sqlx::raw_sql(&sql)
-            .execute(pool)
-            .await
-            .unwrap_or_else(|_| {
-                // Migration might already be applied, ignore errors
-                sqlx::postgres::PgQueryResult::default()
-            });
+        sqlx::raw_sql(&sql).execute(pool).await.unwrap_or_else(|_| {
+            // Migration might already be applied, ignore errors
+            sqlx::postgres::PgQueryResult::default()
+        });
     }
 }
 
@@ -113,7 +114,8 @@ YQIDAQAB
         },
         database: phone_manager_api::config::DatabaseConfig {
             url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
-                "postgres://phone_manager:phone_manager_dev@localhost:5432/phone_manager_test".to_string()
+                "postgres://phone_manager:phone_manager_dev@localhost:5432/phone_manager_test"
+                    .to_string()
             }),
             max_connections: 5,
             min_connections: 1,
@@ -126,7 +128,7 @@ YQIDAQAB
         },
         security: phone_manager_api::config::SecurityConfig {
             cors_origins: vec![],
-            rate_limit_per_minute: 0, // Disable rate limiting for tests
+            rate_limit_per_minute: 0,      // Disable rate limiting for tests
             export_rate_limit_per_hour: 0, // Disable export rate limiting for tests
             forgot_password_rate_limit_per_hour: 0, // Disable auth rate limiting for tests
             request_verification_rate_limit_per_hour: 0, // Disable auth rate limiting for tests
@@ -351,18 +353,24 @@ pub struct AuthenticatedUser {
 ///
 /// Creates a new user via the API and returns their credentials.
 pub async fn create_authenticated_user(app: &Router, user: &TestUser) -> AuthenticatedUser {
-    use axum::{body::Body, http::{header, Method, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
     use tower::ServiceExt;
 
     let request = Request::builder()
         .method(Method::POST)
         .uri("/api/v1/auth/register")
         .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(serde_json::to_string(&serde_json::json!({
-            "email": user.email,
-            "password": user.password,
-            "display_name": user.display_name
-        })).unwrap()))
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({
+                "email": user.email,
+                "password": user.password,
+                "display_name": user.display_name
+            }))
+            .unwrap(),
+        ))
         .unwrap();
 
     let response = app.clone().oneshot(request).await.unwrap();
@@ -371,26 +379,51 @@ pub async fn create_authenticated_user(app: &Router, user: &TestUser) -> Authent
         .await
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_else(|_| {
-        panic!("Failed to parse response body. Status: {}, Body: {:?}", status, String::from_utf8_lossy(&body));
+        panic!(
+            "Failed to parse response body. Status: {}, Body: {:?}",
+            status,
+            String::from_utf8_lossy(&body)
+        );
     });
 
     if !status.is_success() {
-        panic!("Registration failed with status: {}, body: {}", status, json);
+        panic!(
+            "Registration failed with status: {}, body: {}",
+            status, json
+        );
     }
 
     AuthenticatedUser {
-        user_id: json["user"]["id"].as_str().unwrap_or_else(|| {
-            panic!("Missing user.id in response. Full response: {}", json);
-        }).to_string(),
-        email: json["user"]["email"].as_str().unwrap_or_else(|| {
-            panic!("Missing user.email in response. Full response: {}", json);
-        }).to_string(),
-        access_token: json["tokens"]["access_token"].as_str().unwrap_or_else(|| {
-            panic!("Missing tokens.access_token in response. Full response: {}", json);
-        }).to_string(),
-        refresh_token: json["tokens"]["refresh_token"].as_str().unwrap_or_else(|| {
-            panic!("Missing tokens.refresh_token in response. Full response: {}", json);
-        }).to_string(),
+        user_id: json["user"]["id"]
+            .as_str()
+            .unwrap_or_else(|| {
+                panic!("Missing user.id in response. Full response: {}", json);
+            })
+            .to_string(),
+        email: json["user"]["email"]
+            .as_str()
+            .unwrap_or_else(|| {
+                panic!("Missing user.email in response. Full response: {}", json);
+            })
+            .to_string(),
+        access_token: json["tokens"]["access_token"]
+            .as_str()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Missing tokens.access_token in response. Full response: {}",
+                    json
+                );
+            })
+            .to_string(),
+        refresh_token: json["tokens"]["refresh_token"]
+            .as_str()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Missing tokens.refresh_token in response. Full response: {}",
+                    json
+                );
+            })
+            .to_string(),
     }
 }
 
@@ -438,7 +471,10 @@ pub async fn create_test_group(
     auth: &AuthenticatedUser,
     group: &TestGroup,
 ) -> CreatedGroup {
-    use axum::{body::Body, http::{header, Method, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
     use tower::ServiceExt;
 
     // Step 1: Create the group
@@ -446,11 +482,17 @@ pub async fn create_test_group(
         .method(Method::POST)
         .uri("/api/v1/groups")
         .header(header::CONTENT_TYPE, "application/json")
-        .header(header::AUTHORIZATION, format!("Bearer {}", auth.access_token))
-        .body(Body::from(serde_json::to_string(&serde_json::json!({
-            "name": group.name,
-            "description": group.description
-        })).unwrap()))
+        .header(
+            header::AUTHORIZATION,
+            format!("Bearer {}", auth.access_token),
+        )
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({
+                "name": group.name,
+                "description": group.description
+            }))
+            .unwrap(),
+        ))
         .unwrap();
 
     let response = app.clone().oneshot(request).await.unwrap();
@@ -468,11 +510,17 @@ pub async fn create_test_group(
         .method(Method::POST)
         .uri(&format!("/api/v1/groups/{}/invites", group_id))
         .header(header::CONTENT_TYPE, "application/json")
-        .header(header::AUTHORIZATION, format!("Bearer {}", auth.access_token))
-        .body(Body::from(serde_json::to_string(&serde_json::json!({
-            "max_uses": 100,
-            "expires_in_hours": 24
-        })).unwrap()))
+        .header(
+            header::AUTHORIZATION,
+            format!("Bearer {}", auth.access_token),
+        )
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({
+                "max_uses": 100,
+                "expires_in_hours": 24
+            }))
+            .unwrap(),
+        ))
         .unwrap();
 
     let invite_response = app.clone().oneshot(invite_request).await.unwrap();
@@ -497,7 +545,10 @@ pub fn json_request_with_auth(
     body: serde_json::Value,
     token: &str,
 ) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Request},
+    };
 
     Request::builder()
         .method(method)
@@ -510,7 +561,10 @@ pub fn json_request_with_auth(
 
 /// Build a GET request with authentication.
 pub fn get_request_with_auth(uri: &str, token: &str) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Method, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
 
     Request::builder()
         .method(Method::GET)
@@ -522,7 +576,10 @@ pub fn get_request_with_auth(uri: &str, token: &str) -> axum::http::Request<axum
 
 /// Build a DELETE request with authentication.
 pub fn delete_request_with_auth(uri: &str, token: &str) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Method, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
 
     Request::builder()
         .method(Method::DELETE)
@@ -646,7 +703,10 @@ pub fn json_request_with_api_key(
     body: serde_json::Value,
     api_key: &str,
 ) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Request},
+    };
 
     Request::builder()
         .method(method)
@@ -667,7 +727,10 @@ pub fn json_request_with_api_key_and_jwt(
     api_key: &str,
     jwt_token: &str,
 ) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Request},
+    };
 
     Request::builder()
         .method(method)
@@ -681,7 +744,10 @@ pub fn json_request_with_api_key_and_jwt(
 
 /// Build a GET request with API key authentication.
 pub fn get_request_with_api_key(uri: &str, api_key: &str) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{Method, Request}};
+    use axum::{
+        body::Body,
+        http::{Method, Request},
+    };
 
     Request::builder()
         .method(Method::GET)
@@ -692,8 +758,14 @@ pub fn get_request_with_api_key(uri: &str, api_key: &str) -> axum::http::Request
 }
 
 /// Build a DELETE request with API key authentication.
-pub fn delete_request_with_api_key(uri: &str, api_key: &str) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{Method, Request}};
+pub fn delete_request_with_api_key(
+    uri: &str,
+    api_key: &str,
+) -> axum::http::Request<axum::body::Body> {
+    use axum::{
+        body::Body,
+        http::{Method, Request},
+    };
 
     Request::builder()
         .method(Method::DELETE)
@@ -709,7 +781,10 @@ pub fn put_request_with_api_key(
     body: serde_json::Value,
     api_key: &str,
 ) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Method, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
 
     Request::builder()
         .method(Method::PUT)
@@ -726,7 +801,10 @@ pub fn get_request_with_api_key_and_jwt(
     api_key: &str,
     jwt_token: &str,
 ) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Method, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
 
     Request::builder()
         .method(Method::GET)
@@ -743,7 +821,10 @@ pub fn delete_request_with_api_key_and_jwt(
     api_key: &str,
     jwt_token: &str,
 ) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Method, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
 
     Request::builder()
         .method(Method::DELETE)
@@ -815,7 +896,12 @@ pub async fn create_test_organization(
     let body = parse_response_body(response).await;
 
     // Verify the request succeeded
-    assert_eq!(status, axum::http::StatusCode::CREATED, "Failed to create organization: {:?}", body);
+    assert_eq!(
+        status,
+        axum::http::StatusCode::CREATED,
+        "Failed to create organization: {:?}",
+        body
+    );
 
     // Organization is returned directly in body (not wrapped in "organization" key)
     CreatedOrganization {

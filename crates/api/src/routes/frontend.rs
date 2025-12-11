@@ -23,9 +23,7 @@ pub fn resolve_frontend_dir(config: &FrontendConfig, host: Option<&str>) -> Path
             // Strip port if present (e.g., "admin.example.com:8080" -> "admin.example.com")
             let host_without_port = h.split(':').next().unwrap_or(h);
 
-            if !config.staging_hostname.is_empty()
-                && host_without_port == config.staging_hostname
-            {
+            if !config.staging_hostname.is_empty() && host_without_port == config.staging_hostname {
                 "staging"
             } else if !config.production_hostname.is_empty()
                 && host_without_port == config.production_hostname
@@ -65,11 +63,7 @@ pub async fn serve_frontend(
     // Check if directory exists
     if !base_dir.exists() {
         warn!(dir = %base_dir.display(), "Frontend directory does not exist");
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            "Frontend not available",
-        )
-            .into_response();
+        return (StatusCode::SERVICE_UNAVAILABLE, "Frontend not available").into_response();
     }
 
     let path = uri.path().trim_start_matches('/');

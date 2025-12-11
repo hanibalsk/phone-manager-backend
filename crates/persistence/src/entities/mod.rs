@@ -54,7 +54,8 @@ pub use enrollment_token::EnrollmentTokenEntity;
 pub use geofence::GeofenceEntity;
 pub use geofence_event::{GeofenceEventEntity, GeofenceEventWithName};
 pub use group::{
-    GroupEntity, GroupMembershipEntity, GroupRoleDb, GroupWithMembershipEntity, MemberWithUserEntity,
+    GroupEntity, GroupMembershipEntity, GroupRoleDb, GroupWithMembershipEntity,
+    MemberWithUserEntity,
 };
 pub use idempotency_key::IdempotencyKeyEntity;
 pub use invite::{GroupInviteEntity, InviteWithCreatorEntity, InviteWithGroupEntity};
@@ -76,10 +77,12 @@ pub use system_role::{
 };
 pub use trip::TripEntity;
 pub use trip_path_correction::TripPathCorrectionEntity;
-pub use unlock_request::{UnlockRequestEntity, UnlockRequestStatusDb, UnlockRequestWithDetailsEntity};
+pub use unlock_request::{
+    UnlockRequestEntity, UnlockRequestStatusDb, UnlockRequestWithDetailsEntity,
+};
 pub use user::{OAuthAccountEntity, UserEntity, UserSessionEntity};
 pub use webhook::WebhookEntity;
 pub use webhook_delivery::{
-    WebhookDeliveryEntity, MAX_RETRY_ATTEMPTS, RETRY_BACKOFF_SECONDS, STATUS_FAILED, STATUS_PENDING,
-    STATUS_SUCCESS,
+    WebhookDeliveryEntity, MAX_RETRY_ATTEMPTS, RETRY_BACKOFF_SECONDS, STATUS_FAILED,
+    STATUS_PENDING, STATUS_SUCCESS,
 };

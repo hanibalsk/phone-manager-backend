@@ -87,7 +87,10 @@ impl SystemRoleAuth {
 impl FromRequestParts<AppState> for SystemRoleAuth {
     type Rejection = ApiError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         // First, get UserAuth - either from extensions or by validating JWT
         let user_auth = if let Some(auth) = parts.extensions.get::<UserAuth>() {
             auth.clone()
@@ -267,10 +270,7 @@ async fn require_system_role_impl(
     }
 
     // Load assigned organizations for org_admin/org_manager
-    let assigned_org_ids = if roles
-        .iter()
-        .any(|r| r.requires_org_assignment())
-    {
+    let assigned_org_ids = if roles.iter().any(|r| r.requires_org_assignment()) {
         match repo.get_assigned_org_ids(user_auth.user_id).await {
             Ok(ids) => ids,
             Err(e) => {

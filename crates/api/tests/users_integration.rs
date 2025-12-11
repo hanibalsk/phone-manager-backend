@@ -13,8 +13,8 @@ mod common;
 use axum::http::{Method, StatusCode};
 use common::{
     cleanup_all_test_data, create_authenticated_user, create_test_app, create_test_pool,
-    delete_request_with_auth, get_request_with_auth, json_request_with_auth,
-    parse_response_body, register_test_device, run_migrations, test_config, TestDevice, TestUser,
+    delete_request_with_auth, get_request_with_auth, json_request_with_auth, parse_response_body,
+    register_test_device, run_migrations, test_config, TestDevice, TestUser,
 };
 use serde_json::json;
 use tower::ServiceExt;

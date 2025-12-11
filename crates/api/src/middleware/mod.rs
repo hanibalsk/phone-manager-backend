@@ -15,6 +15,11 @@ pub mod version_check;
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use auth::{optional_auth, require_admin, require_auth};
 #[allow(unused_imports)] // Re-exports for downstream use
+pub use features::{
+    require_b2b, require_geofence_events, require_geofences, require_movement_tracking,
+    require_proximity_alerts, require_webhooks,
+};
+#[allow(unused_imports)] // Re-exports for downstream use
 pub use metrics::{init_metrics, metrics_handler, metrics_middleware};
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use rate_limit::{
@@ -22,24 +27,19 @@ pub use rate_limit::{
     ExportRateLimiterState, RateLimiterState,
 };
 #[allow(unused_imports)] // Re-exports for downstream use
-pub use rbac::{
-    require_group_admin, require_group_member, require_group_owner, GroupMembership,
-};
+pub use rbac::{require_group_admin, require_group_member, require_group_owner, GroupMembership};
+#[allow(unused_imports)] // Re-exports for downstream use
+pub use security_headers::security_headers_middleware;
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use system_rbac::{
     require_any_system_role, require_org_admin, require_org_manager, require_super_admin,
     require_support, require_viewer, SystemRoleAuth,
 };
 #[allow(unused_imports)] // Re-exports for downstream use
-pub use security_headers::security_headers_middleware;
-#[allow(unused_imports)] // Re-exports for downstream use
 pub use trace_id::{trace_id, RequestId, REQUEST_ID_HEADER};
 #[allow(unused_imports)] // Re-exports for downstream use
 pub use user_auth::{optional_user_auth, require_user_auth, UserAuth};
 #[allow(unused_imports)] // Re-exports for downstream use
-pub use version_check::{version_check, CLIENT_VERSION_HEADER, MIN_COMPATIBLE_VERSION, SERVER_VERSION};
-#[allow(unused_imports)] // Re-exports for downstream use
-pub use features::{
-    require_b2b, require_geofence_events, require_geofences, require_movement_tracking,
-    require_proximity_alerts, require_webhooks,
+pub use version_check::{
+    version_check, CLIENT_VERSION_HEADER, MIN_COMPATIBLE_VERSION, SERVER_VERSION,
 };

@@ -349,7 +349,9 @@ pub async fn unapply_policy(
 
     // Unapply from groups
     for group_id in &group_ids {
-        let affected = repo.unapply_from_group(policy_id, *group_id, org_id).await?;
+        let affected = repo
+            .unapply_from_group(policy_id, *group_id, org_id)
+            .await?;
         devices_affected += affected;
         groups_count += 1;
     }

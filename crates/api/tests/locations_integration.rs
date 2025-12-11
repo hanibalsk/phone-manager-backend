@@ -707,9 +707,7 @@ async fn test_get_location_history_device_not_found() {
 
     let response = app.oneshot(request).await.unwrap();
     // Should return not found or empty (depending on implementation)
-    assert!(
-        response.status() == StatusCode::NOT_FOUND || response.status() == StatusCode::OK
-    );
+    assert!(response.status() == StatusCode::NOT_FOUND || response.status() == StatusCode::OK);
 
     cleanup_all_test_data(&pool).await;
 }

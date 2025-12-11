@@ -12,7 +12,9 @@ use domain::models::group::{
     MembershipInfo, Pagination, TransferOwnershipRequest, TransferOwnershipResponse,
     UpdateGroupRequest, UpdateRoleRequest, UpdateRoleResponse, UserPublic,
 };
-use domain::models::invite::{JoinGroupInfo, JoinGroupRequest, JoinGroupResponse, JoinMembershipInfo};
+use domain::models::invite::{
+    JoinGroupInfo, JoinGroupRequest, JoinGroupResponse, JoinMembershipInfo,
+};
 use persistence::repositories::{GroupRepository, InviteRepository};
 use tracing::info;
 use uuid::Uuid;
@@ -357,9 +359,7 @@ pub async fn list_members(
     let offset = (page - 1) * per_page;
 
     // Get total count
-    let total = repo
-        .count_members(group_id, query.role.as_deref())
-        .await?;
+    let total = repo.count_members(group_id, query.role.as_deref()).await?;
 
     // Get members
     let members = repo
@@ -674,7 +674,9 @@ pub async fn join_group(
         return Err(ApiError::Gone("Invite has expired".to_string()));
     }
     if invite.current_uses >= invite.max_uses {
-        return Err(ApiError::Gone("Invite has reached maximum uses".to_string()));
+        return Err(ApiError::Gone(
+            "Invite has reached maximum uses".to_string(),
+        ));
     }
 
     // Check if user is already a member
@@ -767,9 +769,7 @@ pub async fn transfer_ownership(
         .get_membership(group_id, request.new_owner_id)
         .await?
         .ok_or_else(|| {
-            ApiError::Validation(
-                "Target user is not a member of this group".to_string(),
-            )
+            ApiError::Validation("Target user is not a member of this group".to_string())
         })?;
 
     // Transfer ownership atomically

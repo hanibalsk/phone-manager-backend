@@ -48,8 +48,8 @@ pub struct OrgUserEntity {
 
 impl From<OrgUserEntity> for domain::models::OrgUser {
     fn from(entity: OrgUserEntity) -> Self {
-        let permissions: Vec<String> = serde_json::from_value(entity.permissions.clone())
-            .unwrap_or_default();
+        let permissions: Vec<String> =
+            serde_json::from_value(entity.permissions.clone()).unwrap_or_default();
         Self {
             id: entity.id,
             organization_id: entity.organization_id,
@@ -79,8 +79,8 @@ pub struct OrgUserWithDetailsEntity {
 
 impl From<OrgUserWithDetailsEntity> for domain::models::OrgUserWithDetails {
     fn from(entity: OrgUserWithDetailsEntity) -> Self {
-        let permissions: Vec<String> = serde_json::from_value(entity.permissions.clone())
-            .unwrap_or_default();
+        let permissions: Vec<String> =
+            serde_json::from_value(entity.permissions.clone()).unwrap_or_default();
         Self {
             id: entity.id,
             organization_id: entity.organization_id,

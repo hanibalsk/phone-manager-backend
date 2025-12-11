@@ -162,7 +162,10 @@ mod tests {
     fn test_create_unlock_request_deserialize() {
         let json = r#"{"reason":"I need to change this setting"}"#;
         let req: CreateUnlockRequestRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(req.reason, Some("I need to change this setting".to_string()));
+        assert_eq!(
+            req.reason,
+            Some("I need to change this setting".to_string())
+        );
     }
 
     #[test]

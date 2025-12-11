@@ -6,10 +6,10 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::{
-    cleanup_all_test_data, create_authenticated_user, create_test_admin_api_key, create_test_api_key,
-    create_test_app, create_test_pool, delete_request_with_api_key, get_request_with_api_key,
-    json_request_with_api_key, parse_response_body, register_test_device, run_migrations,
-    test_config, TestDevice, TestUser,
+    cleanup_all_test_data, create_authenticated_user, create_test_admin_api_key,
+    create_test_api_key, create_test_app, create_test_pool, delete_request_with_api_key,
+    get_request_with_api_key, json_request_with_api_key, parse_response_body, register_test_device,
+    run_migrations, test_config, TestDevice, TestUser,
 };
 use serde_json::json;
 use tower::ServiceExt;
@@ -121,10 +121,8 @@ async fn test_delete_inactive_devices_success() {
     // Deactivate the device first (soft delete) - requires API key auth
     let device_api_key = create_test_api_key(&pool, "device-delete-key").await;
     let app = create_test_app(config.clone(), pool.clone());
-    let request = delete_request_with_api_key(
-        &format!("/api/v1/devices/{}", device_id),
-        &device_api_key,
-    );
+    let request =
+        delete_request_with_api_key(&format!("/api/v1/devices/{}", device_id), &device_api_key);
     let _ = app.oneshot(request).await.unwrap();
 
     // Delete inactive devices (should not delete anything since threshold is too high)
@@ -155,10 +153,8 @@ async fn test_delete_inactive_devices_invalid_threshold_too_low() {
     let api_key = create_test_admin_api_key(&pool, "test-admin-key").await;
 
     let app = create_test_app(config, pool.clone());
-    let request = delete_request_with_api_key(
-        "/api/v1/admin/devices/inactive?older_than_days=0",
-        &api_key,
-    );
+    let request =
+        delete_request_with_api_key("/api/v1/admin/devices/inactive?older_than_days=0", &api_key);
 
     let response = app.oneshot(request).await.unwrap();
     // Should fail validation - threshold must be at least 1
@@ -243,10 +239,8 @@ async fn test_reactivate_device_success() {
     // Deactivate the device (soft delete) - requires API key auth
     let device_api_key = create_test_api_key(&pool, "device-delete-key").await;
     let app = create_test_app(config.clone(), pool.clone());
-    let request = delete_request_with_api_key(
-        &format!("/api/v1/devices/{}", device_id),
-        &device_api_key,
-    );
+    let request =
+        delete_request_with_api_key(&format!("/api/v1/devices/{}", device_id), &device_api_key);
     let _ = app.oneshot(request).await.unwrap();
 
     // Reactivate the device via admin API
@@ -264,10 +258,7 @@ async fn test_reactivate_device_success() {
     let body = parse_response_body(response).await;
     assert!(body["success"].as_bool().unwrap());
     assert_eq!(body["device_id"].as_str().unwrap(), device_id);
-    assert!(body["message"]
-        .as_str()
-        .unwrap()
-        .contains("reactivated"));
+    assert!(body["message"].as_str().unwrap().contains("reactivated"));
 
     cleanup_all_test_data(&pool).await;
 }
@@ -306,10 +297,7 @@ async fn test_reactivate_device_already_active() {
 
     let body = parse_response_body(response).await;
     assert!(body["success"].as_bool().unwrap());
-    assert!(body["message"]
-        .as_str()
-        .unwrap()
-        .contains("already active"));
+    assert!(body["message"].as_str().unwrap().contains("already active"));
 
     cleanup_all_test_data(&pool).await;
 }

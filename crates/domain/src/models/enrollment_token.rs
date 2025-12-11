@@ -145,7 +145,11 @@ pub struct CreateEnrollmentTokenRequest {
     #[validate(range(min = 1, max = 10000, message = "max_uses must be between 1 and 10000"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_uses: Option<i32>,
-    #[validate(range(min = 1, max = 365, message = "expires_in_days must be between 1 and 365"))]
+    #[validate(range(
+        min = 1,
+        max = 365,
+        message = "expires_in_days must be between 1 and 365"
+    ))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_in_days: Option<i32>,
     #[serde(default)]

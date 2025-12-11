@@ -945,10 +945,7 @@ mod tests {
         let response = auth_rate_limited_response(5, "forgot-password", 3600);
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert!(response.headers().contains_key(header::RETRY_AFTER));
-        assert_eq!(
-            response.headers().get(header::RETRY_AFTER).unwrap(),
-            "3600"
-        );
+        assert_eq!(response.headers().get(header::RETRY_AFTER).unwrap(), "3600");
     }
 
     #[test]

@@ -223,10 +223,22 @@ mod tests {
 
     #[test]
     fn test_enrollment_status_from_str() {
-        assert_eq!(EnrollmentStatus::parse("pending"), Some(EnrollmentStatus::Pending));
-        assert_eq!(EnrollmentStatus::parse("enrolled"), Some(EnrollmentStatus::Enrolled));
-        assert_eq!(EnrollmentStatus::parse("suspended"), Some(EnrollmentStatus::Suspended));
-        assert_eq!(EnrollmentStatus::parse("retired"), Some(EnrollmentStatus::Retired));
+        assert_eq!(
+            EnrollmentStatus::parse("pending"),
+            Some(EnrollmentStatus::Pending)
+        );
+        assert_eq!(
+            EnrollmentStatus::parse("enrolled"),
+            Some(EnrollmentStatus::Enrolled)
+        );
+        assert_eq!(
+            EnrollmentStatus::parse("suspended"),
+            Some(EnrollmentStatus::Suspended)
+        );
+        assert_eq!(
+            EnrollmentStatus::parse("retired"),
+            Some(EnrollmentStatus::Retired)
+        );
         assert_eq!(EnrollmentStatus::parse("invalid"), None);
     }
 

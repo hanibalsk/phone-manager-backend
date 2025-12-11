@@ -182,12 +182,10 @@ impl DevicePolicyRepository {
             .fetch_one(&self.pool)
             .await?
         } else {
-            sqlx::query_scalar(
-                "SELECT COUNT(*) FROM device_policies WHERE organization_id = $1",
-            )
-            .bind(organization_id)
-            .fetch_one(&self.pool)
-            .await?
+            sqlx::query_scalar("SELECT COUNT(*) FROM device_policies WHERE organization_id = $1")
+                .bind(organization_id)
+                .fetch_one(&self.pool)
+                .await?
         };
 
         // Get policies
@@ -231,12 +229,10 @@ impl DevicePolicyRepository {
 
     /// Check if policy has devices assigned.
     pub async fn has_devices(&self, id: Uuid) -> Result<bool, sqlx::Error> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM devices WHERE policy_id = $1",
-        )
-        .bind(id)
-        .fetch_one(&self.pool)
-        .await?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM devices WHERE policy_id = $1")
+            .bind(id)
+            .fetch_one(&self.pool)
+            .await?;
 
         Ok(count > 0)
     }
@@ -328,12 +324,11 @@ impl DevicePolicyRepository {
 
     /// Get count of policies in organization.
     pub async fn count_by_organization(&self, organization_id: Uuid) -> Result<i64, sqlx::Error> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM device_policies WHERE organization_id = $1",
-        )
-        .bind(organization_id)
-        .fetch_one(&self.pool)
-        .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM device_policies WHERE organization_id = $1")
+                .bind(organization_id)
+                .fetch_one(&self.pool)
+                .await?;
 
         Ok(count)
     }

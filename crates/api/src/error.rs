@@ -31,10 +31,7 @@ pub enum ApiError {
     RateLimited(String),
 
     #[error("Rate limited: {message}")]
-    RateLimitedWithRetry {
-        message: String,
-        retry_after: u64,
-    },
+    RateLimitedWithRetry { message: String, retry_after: u64 },
 
     #[error("Payload too large: {0}")]
     PayloadTooLarge(String),
@@ -82,7 +79,10 @@ impl IntoResponse for ApiError {
                 msg.clone(),
                 Some((header::RETRY_AFTER, "3600".to_string())), // Retry after 1 hour
             ),
-            ApiError::RateLimitedWithRetry { message, retry_after } => (
+            ApiError::RateLimitedWithRetry {
+                message,
+                retry_after,
+            } => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "rate_limited",
                 message.clone(),

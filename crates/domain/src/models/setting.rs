@@ -302,7 +302,10 @@ mod tests {
         let json = r#"{"settings":{"tracking_enabled":true,"tracking_interval_minutes":10}}"#;
         let req: UpdateSettingsRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.settings.len(), 2);
-        assert_eq!(req.settings.get("tracking_enabled"), Some(&serde_json::json!(true)));
+        assert_eq!(
+            req.settings.get("tracking_enabled"),
+            Some(&serde_json::json!(true))
+        );
     }
 
     #[test]

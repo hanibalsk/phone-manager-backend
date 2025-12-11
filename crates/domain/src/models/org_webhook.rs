@@ -254,7 +254,10 @@ mod tests {
     #[test]
     fn test_update_request_validate_event_types() {
         let valid = UpdateOrgWebhookRequest {
-            event_types: Some(vec!["device.enrolled".to_string(), "member.joined".to_string()]),
+            event_types: Some(vec![
+                "device.enrolled".to_string(),
+                "member.joined".to_string(),
+            ]),
             ..Default::default()
         };
         assert!(valid.validate_event_types().is_ok());

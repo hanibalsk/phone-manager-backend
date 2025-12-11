@@ -15,8 +15,8 @@ use domain::models::setting::{
     UpdateSettingRequest, UpdateSettingsRequest, UpdateSettingsResponse,
 };
 use domain::models::unlock_request::{
-    CreateUnlockRequestRequest, CreateUnlockRequestResponse, DeviceInfo,
-    ListUnlockRequestsQuery, ListUnlockRequestsResponse, Pagination, RespondToUnlockRequestRequest,
+    CreateUnlockRequestRequest, CreateUnlockRequestResponse, DeviceInfo, ListUnlockRequestsQuery,
+    ListUnlockRequestsResponse, Pagination, RespondToUnlockRequestRequest,
     RespondToUnlockRequestResponse, UnlockRequestItem, UnlockRequestStatus, UserInfo,
 };
 use domain::services::{
@@ -25,7 +25,8 @@ use domain::services::{
 };
 use persistence::entities::UnlockRequestStatusDb;
 use persistence::repositories::{
-    DeviceRepository, GroupRepository, OrgUserRepository, SettingRepository, UnlockRequestRepository, UserRepository,
+    DeviceRepository, GroupRepository, OrgUserRepository, SettingRepository,
+    UnlockRequestRepository, UserRepository,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -429,7 +430,12 @@ pub async fn update_device_setting(
             .await?
     } else {
         setting_repo
-            .upsert_setting(device_id, &key, request.value.clone(), Some(user_auth.user_id))
+            .upsert_setting(
+                device_id,
+                &key,
+                request.value.clone(),
+                Some(user_auth.user_id),
+            )
             .await?
     };
 
@@ -926,7 +932,10 @@ async fn check_settings_authorization(
     if let (Some(org_id), Some(repo)) = (device.organization_id, org_user_repo) {
         if let Ok(Some(org_user)) = repo.find_by_org_and_user(org_id, user_id).await {
             // Organization owners and admins can manage device settings
-            if org_user.role.has_at_least(domain::models::OrgUserRole::Admin) {
+            if org_user
+                .role
+                .has_at_least(domain::models::OrgUserRole::Admin)
+            {
                 return Ok(true);
             }
         }
@@ -1130,7 +1139,12 @@ pub async fn create_unlock_request(
 
     // Create the unlock request
     let entity = unlock_repo
-        .create(device_id, &key, user_auth.user_id, request.reason.as_deref())
+        .create(
+            device_id,
+            &key,
+            user_auth.user_id,
+            request.reason.as_deref(),
+        )
         .await?;
 
     info!(
@@ -1171,9 +1185,7 @@ pub async fn list_unlock_requests(
     let membership = group_repo
         .get_membership(group_id, user_auth.user_id)
         .await?
-        .ok_or_else(|| {
-            ApiError::Forbidden("Not a member of this group".to_string())
-        })?;
+        .ok_or_else(|| ApiError::Forbidden("Not a member of this group".to_string()))?;
 
     // Check if user has admin/owner role
     let role: domain::models::GroupRole = membership.role.into();
@@ -1282,9 +1294,7 @@ pub async fn respond_to_unlock_request(
 
     // Check if request has expired
     if unlock_request.expires_at < Utc::now() {
-        return Err(ApiError::Conflict(
-            "Unlock request has expired".to_string(),
-        ));
+        return Err(ApiError::Conflict("Unlock request has expired".to_string()));
     }
 
     // Get the device to check authorization
@@ -1302,7 +1312,9 @@ pub async fn respond_to_unlock_request(
     }
 
     // Validate the response status
-    if request.status != UnlockRequestStatus::Approved && request.status != UnlockRequestStatus::Denied {
+    if request.status != UnlockRequestStatus::Approved
+        && request.status != UnlockRequestStatus::Denied
+    {
         return Err(ApiError::Validation(
             "Status must be 'approved' or 'denied'".to_string(),
         ));
@@ -1311,16 +1323,27 @@ pub async fn respond_to_unlock_request(
     // Update the unlock request
     let db_status = domain_status_to_db(request.status);
     let updated = unlock_repo
-        .respond(request_id, db_status, user_auth.user_id, request.note.as_deref())
+        .respond(
+            request_id,
+            db_status,
+            user_auth.user_id,
+            request.note.as_deref(),
+        )
         .await?
         .ok_or_else(|| {
-            ApiError::Conflict("Failed to update unlock request - it may have been modified".to_string())
+            ApiError::Conflict(
+                "Failed to update unlock request - it may have been modified".to_string(),
+            )
         })?;
 
     // If approved, unlock the setting
     let setting_unlocked = if request.status == UnlockRequestStatus::Approved {
         setting_repo
-            .unlock_setting(unlock_request.device_id, &unlock_request.setting_key, user_auth.user_id)
+            .unlock_setting(
+                unlock_request.device_id,
+                &unlock_request.setting_key,
+                user_auth.user_id,
+            )
             .await?
             .is_some()
     } else {

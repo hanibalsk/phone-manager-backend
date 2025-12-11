@@ -39,9 +39,9 @@ pub async fn create_invitation(
     Json(request): Json<CreateInvitationRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Validation error: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Validation error: {}", e)))?;
 
     // Verify organization exists
     let org_repo = OrganizationRepository::new(state.pool.clone());
@@ -56,7 +56,11 @@ pub async fn create_invitation(
     // Check if email is already a member
     let user_repo = UserRepository::new(state.pool.clone());
     if let Some(user) = user_repo.find_by_email(&request.email).await? {
-        if org_user_repo.find_by_org_and_user(org_id, user.id).await?.is_some() {
+        if org_user_repo
+            .find_by_org_and_user(org_id, user.id)
+            .await?
+            .is_some()
+        {
             return Err(ApiError::Conflict(
                 "User is already a member of this organization".to_string(),
             ));
@@ -64,7 +68,10 @@ pub async fn create_invitation(
     }
 
     // Check if pending invite already exists for this email
-    if invite_repo.has_pending_invite(org_id, &request.email).await? {
+    if invite_repo
+        .has_pending_invite(org_id, &request.email)
+        .await?
+    {
         return Err(ApiError::Conflict(
             "A pending invitation already exists for this email".to_string(),
         ));
@@ -118,11 +125,7 @@ pub async fn create_invitation(
     );
 
     // Build invite URL
-    let invite_url = format!(
-        "{}/invite/{}",
-        state.config.server.app_base_url,
-        token
-    );
+    let invite_url = format!("{}/invite/{}", state.config.server.app_base_url, token);
 
     let response = CreateInvitationResponse {
         id: entity.id,
@@ -349,9 +352,7 @@ fn entity_to_response(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::models::org_member_invite::{
-        CreateInvitationRequest, ListInvitationsQuery,
-    };
+    use domain::models::org_member_invite::{CreateInvitationRequest, ListInvitationsQuery};
 
     #[test]
     fn test_create_invitation_request_validation() {

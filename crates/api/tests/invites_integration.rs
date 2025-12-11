@@ -98,7 +98,11 @@ async fn create_test_group_with_member(pool: &PgPool, owner_id: Uuid, member_id:
 /// Create a test invite directly in the database.
 async fn create_test_invite(pool: &PgPool, group_id: Uuid, created_by: Uuid) -> (Uuid, String) {
     let invite_id = Uuid::new_v4();
-    let code = format!("TST-{}-{}", &Uuid::new_v4().to_string()[..3].to_uppercase(), &Uuid::new_v4().to_string()[..3].to_uppercase());
+    let code = format!(
+        "TST-{}-{}",
+        &Uuid::new_v4().to_string()[..3].to_uppercase(),
+        &Uuid::new_v4().to_string()[..3].to_uppercase()
+    );
 
     sqlx::query(
         r#"
@@ -120,7 +124,11 @@ async fn create_test_invite(pool: &PgPool, group_id: Uuid, created_by: Uuid) -> 
 /// Create an expired test invite.
 async fn create_expired_invite(pool: &PgPool, group_id: Uuid, created_by: Uuid) -> (Uuid, String) {
     let invite_id = Uuid::new_v4();
-    let code = format!("EXP-{}-{}", &Uuid::new_v4().to_string()[..3].to_uppercase(), &Uuid::new_v4().to_string()[..3].to_uppercase());
+    let code = format!(
+        "EXP-{}-{}",
+        &Uuid::new_v4().to_string()[..3].to_uppercase(),
+        &Uuid::new_v4().to_string()[..3].to_uppercase()
+    );
 
     sqlx::query(
         r#"
@@ -146,7 +154,10 @@ fn json_request_with_jwt(
     body: serde_json::Value,
     jwt: &str,
 ) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Request},
+    };
 
     Request::builder()
         .method(method)
@@ -159,7 +170,10 @@ fn json_request_with_jwt(
 
 /// Build a GET request with JWT authentication.
 fn get_request_with_jwt(uri: &str, jwt: &str) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Request},
+    };
 
     Request::builder()
         .method(Method::GET)
@@ -171,7 +185,10 @@ fn get_request_with_jwt(uri: &str, jwt: &str) -> axum::http::Request<axum::body:
 
 /// Build a DELETE request with JWT authentication.
 fn delete_request_with_jwt(uri: &str, jwt: &str) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Request},
+    };
 
     Request::builder()
         .method(Method::DELETE)

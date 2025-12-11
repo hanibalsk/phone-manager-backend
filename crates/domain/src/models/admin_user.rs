@@ -208,9 +208,15 @@ mod tests {
 
     #[test]
     fn test_admin_user_sort_field_sql() {
-        assert_eq!(AdminUserSortField::DisplayName.as_sql_column(), "u.display_name");
+        assert_eq!(
+            AdminUserSortField::DisplayName.as_sql_column(),
+            "u.display_name"
+        );
         assert_eq!(AdminUserSortField::Email.as_sql_column(), "u.email");
-        assert_eq!(AdminUserSortField::GrantedAt.as_sql_column(), "ou.granted_at");
+        assert_eq!(
+            AdminUserSortField::GrantedAt.as_sql_column(),
+            "ou.granted_at"
+        );
     }
 
     #[test]

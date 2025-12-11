@@ -163,8 +163,13 @@ impl OrgMemberInviteRepository {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<OrgMemberInviteEntity>, sqlx::Error> {
-        let status = if include_accepted { Some("all") } else { Some("pending") };
-        self.list_by_organization_with_status(org_id, status, limit, offset).await
+        let status = if include_accepted {
+            Some("all")
+        } else {
+            Some("pending")
+        };
+        self.list_by_organization_with_status(org_id, status, limit, offset)
+            .await
     }
 
     /// Counts invites for an organization with status filter.
@@ -216,7 +221,11 @@ impl OrgMemberInviteRepository {
         org_id: Uuid,
         include_accepted: bool,
     ) -> Result<i64, sqlx::Error> {
-        let status = if include_accepted { Some("all") } else { Some("pending") };
+        let status = if include_accepted {
+            Some("all")
+        } else {
+            Some("pending")
+        };
         self.count_by_organization_with_status(org_id, status).await
     }
 
@@ -236,11 +245,7 @@ impl OrgMemberInviteRepository {
     }
 
     /// Checks if a pending invite exists for this email in the organization.
-    pub async fn has_pending_invite(
-        &self,
-        org_id: Uuid,
-        email: &str,
-    ) -> Result<bool, sqlx::Error> {
+    pub async fn has_pending_invite(&self, org_id: Uuid, email: &str) -> Result<bool, sqlx::Error> {
         let result: (i64,) = sqlx::query_as(
             r#"
             SELECT COUNT(*) FROM org_member_invites
@@ -259,11 +264,7 @@ impl OrgMemberInviteRepository {
     ///
     /// Returns `true` if the invite was successfully accepted,
     /// `false` if it was already accepted (race condition).
-    pub async fn accept(
-        &self,
-        invite_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<bool, sqlx::Error> {
+    pub async fn accept(&self, invite_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
         let result = sqlx::query(
             r#"
             UPDATE org_member_invites
@@ -282,11 +283,7 @@ impl OrgMemberInviteRepository {
     /// Deletes an invite by ID and organization.
     ///
     /// Returns true if an invite was deleted.
-    pub async fn delete(
-        &self,
-        invite_id: Uuid,
-        org_id: Uuid,
-    ) -> Result<bool, sqlx::Error> {
+    pub async fn delete(&self, invite_id: Uuid, org_id: Uuid) -> Result<bool, sqlx::Error> {
         let result = sqlx::query(
             r#"
             DELETE FROM org_member_invites

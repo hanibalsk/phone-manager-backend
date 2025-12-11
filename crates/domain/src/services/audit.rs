@@ -91,7 +91,11 @@ impl AuditLogBuilder {
     }
 
     /// Set the resource being acted upon.
-    pub fn on_resource(mut self, resource_type: impl Into<String>, resource_id: impl Into<String>) -> Self {
+    pub fn on_resource(
+        mut self,
+        resource_type: impl Into<String>,
+        resource_id: impl Into<String>,
+    ) -> Self {
         self.resource_type = resource_type.into();
         self.resource_id = Some(resource_id.into());
         self
@@ -110,14 +114,16 @@ impl AuditLogBuilder {
     }
 
     /// Add a single field change with string values.
-    pub fn with_change(mut self, field: impl Into<String>, old: Option<String>, new: Option<String>) -> Self {
+    pub fn with_change(
+        mut self,
+        field: impl Into<String>,
+        old: Option<String>,
+        new: Option<String>,
+    ) -> Self {
         let changes = self.changes.get_or_insert_with(HashMap::new);
         changes.insert(
             field.into(),
-            FieldChange::new(
-                old.map(|v| json!(v)),
-                new.map(|v| json!(v)),
-            ),
+            FieldChange::new(old.map(|v| json!(v)), new.map(|v| json!(v))),
         );
         self
     }
@@ -199,7 +205,12 @@ impl CreateAuditLogInputExt for CreateAuditLogInput {
         }
     }
 
-    fn with_actor(mut self, id: Option<Uuid>, actor_type: ActorType, email: Option<String>) -> Self {
+    fn with_actor(
+        mut self,
+        id: Option<Uuid>,
+        actor_type: ActorType,
+        email: Option<String>,
+    ) -> Self {
         self.actor_id = id;
         self.actor_type = actor_type;
         self.actor_email = email;
@@ -389,7 +400,11 @@ pub mod audit_helpers {
     }
 
     /// Create audit log for user invite.
-    pub fn user_invited(org_id: Uuid, inviter_id: Uuid, invited_email: &str) -> CreateAuditLogInput {
+    pub fn user_invited(
+        org_id: Uuid,
+        inviter_id: Uuid,
+        invited_email: &str,
+    ) -> CreateAuditLogInput {
         AuditLogBuilder::user_action(org_id, inviter_id, AuditAction::UserInvite)
             .on_resource("user", invited_email)
             .with_resource_name(invited_email)
@@ -406,7 +421,11 @@ pub mod audit_helpers {
     ) -> CreateAuditLogInput {
         AuditLogBuilder::user_action(org_id, actor_id, AuditAction::UserRoleChange)
             .on_resource("org_user", target_user_id.to_string())
-            .with_change("role", Some(old_role.to_string()), Some(new_role.to_string()))
+            .with_change(
+                "role",
+                Some(old_role.to_string()),
+                Some(new_role.to_string()),
+            )
             .build()
     }
 
@@ -561,9 +580,10 @@ mod tests {
         let org_id = Uuid::new_v4();
         let api_key_id = Uuid::new_v4();
 
-        let input = AuditLogBuilder::api_key_action(org_id, api_key_id, AuditAction::DeviceRegister)
-            .on_resource("device", "device-789")
-            .build();
+        let input =
+            AuditLogBuilder::api_key_action(org_id, api_key_id, AuditAction::DeviceRegister)
+                .on_resource("device", "device-789")
+                .build();
 
         assert_eq!(input.organization_id, org_id);
         assert_eq!(input.actor_id, Some(api_key_id));
@@ -577,7 +597,11 @@ mod tests {
 
         let input = AuditLogBuilder::user_action(org_id, user_id, AuditAction::PolicyUpdate)
             .on_resource("policy", "policy-123")
-            .with_change("name", Some("Old Name".to_string()), Some("New Name".to_string()))
+            .with_change(
+                "name",
+                Some("Old Name".to_string()),
+                Some("New Name".to_string()),
+            )
             .with_change("priority", Some("1".to_string()), Some("2".to_string()))
             .build();
 
@@ -632,7 +656,8 @@ mod tests {
         let org_id = Uuid::new_v4();
         let token_id = Uuid::new_v4();
 
-        let input = audit_helpers::device_enrolled(org_id, "device-123", "Test Device", Some(token_id));
+        let input =
+            audit_helpers::device_enrolled(org_id, "device-123", "Test Device", Some(token_id));
 
         assert_eq!(input.action, AuditAction::DeviceEnroll);
         assert_eq!(input.actor_type, ActorType::System);
@@ -645,13 +670,8 @@ mod tests {
         let actor_id = Uuid::new_v4();
         let target_user_id = Uuid::new_v4();
 
-        let input = audit_helpers::user_role_changed(
-            org_id,
-            actor_id,
-            target_user_id,
-            "member",
-            "admin",
-        );
+        let input =
+            audit_helpers::user_role_changed(org_id, actor_id, target_user_id, "member", "admin");
 
         assert_eq!(input.action, AuditAction::UserRoleChange);
         assert!(input.changes.is_some());

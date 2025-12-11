@@ -254,11 +254,7 @@ impl FcmNotificationService {
     }
 
     /// Send a data message to a device via FCM.
-    async fn send_message(
-        &self,
-        fcm_token: &str,
-        data: serde_json::Value,
-    ) -> Result<(), FcmError> {
+    async fn send_message(&self, fcm_token: &str, data: serde_json::Value) -> Result<(), FcmError> {
         let access_token = self.get_access_token().await?;
 
         let url = format!(

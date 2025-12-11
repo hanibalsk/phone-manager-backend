@@ -19,9 +19,9 @@ use crate::error::ApiError;
 use crate::extractors::UserAuth;
 
 use domain::models::{
-    AdminUserDetailResponse, AdminUserListResponse, AdminUserPagination,
+    validate_permissions, AdminUserDetailResponse, AdminUserListResponse, AdminUserPagination,
     AdminUserQuery, OrgUserRole, RemoveUserResponse, UpdateAdminUserRequest,
-    UpdateAdminUserResponse, validate_permissions,
+    UpdateAdminUserResponse,
 };
 
 /// Create admin user management routes.
@@ -44,7 +44,9 @@ async fn list_users(
     user: UserAuth,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate query
-    query.validate().map_err(|e| ApiError::Validation(e.to_string()))?;
+    query
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     let org_user_repo = OrgUserRepository::new(state.pool.clone());
     let admin_user_repo = AdminUserRepository::new(state.pool.clone());
@@ -57,7 +59,9 @@ async fn list_users(
 
     // Check permission (admin or owner can view users)
     if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
-        return Err(ApiError::Forbidden("Admin or owner access required".to_string()));
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
     }
 
     // Get pagination params
@@ -138,7 +142,9 @@ async fn get_user_detail(
 
     // Check permission (admin or owner can view user details)
     if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
-        return Err(ApiError::Forbidden("Admin or owner access required".to_string()));
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
     }
 
     // Get user profile
@@ -179,7 +185,9 @@ async fn update_user(
     Json(request): Json<UpdateAdminUserRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| ApiError::Validation(e.to_string()))?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     let org_user_repo = OrgUserRepository::new(state.pool.clone());
 
@@ -191,7 +199,9 @@ async fn update_user(
 
     // Check permission (admin or owner can update users)
     if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
-        return Err(ApiError::Forbidden("Admin or owner access required".to_string()));
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
     }
 
     // Get target user to check their role
@@ -203,10 +213,14 @@ async fn update_user(
     // Admins cannot modify owners or other admins
     if org_user.role == OrgUserRole::Admin {
         if target_org_user.role == OrgUserRole::Owner {
-            return Err(ApiError::Forbidden("Admins cannot modify owners".to_string()));
+            return Err(ApiError::Forbidden(
+                "Admins cannot modify owners".to_string(),
+            ));
         }
         if target_org_user.role == OrgUserRole::Admin && target_user_id != user.user_id {
-            return Err(ApiError::Forbidden("Admins cannot modify other admins".to_string()));
+            return Err(ApiError::Forbidden(
+                "Admins cannot modify other admins".to_string(),
+            ));
         }
     }
 
@@ -271,12 +285,16 @@ async fn remove_user(
 
     // Check permission (admin or owner can remove users)
     if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
-        return Err(ApiError::Forbidden("Admin or owner access required".to_string()));
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
     }
 
     // Cannot remove yourself
     if target_user_id == user.user_id {
-        return Err(ApiError::Conflict("Cannot remove yourself from the organization".to_string()));
+        return Err(ApiError::Conflict(
+            "Cannot remove yourself from the organization".to_string(),
+        ));
     }
 
     // Get target user to check their role
@@ -288,10 +306,14 @@ async fn remove_user(
     // Admins cannot remove owners or other admins
     if org_user.role == OrgUserRole::Admin {
         if target_org_user.role == OrgUserRole::Owner {
-            return Err(ApiError::Forbidden("Admins cannot remove owners".to_string()));
+            return Err(ApiError::Forbidden(
+                "Admins cannot remove owners".to_string(),
+            ));
         }
         if target_org_user.role == OrgUserRole::Admin {
-            return Err(ApiError::Forbidden("Admins cannot remove other admins".to_string()));
+            return Err(ApiError::Forbidden(
+                "Admins cannot remove other admins".to_string(),
+            ));
         }
     }
 
@@ -309,7 +331,9 @@ async fn remove_user(
     let removed = org_user_repo.delete(org_id, target_user_id).await?;
 
     if !removed {
-        return Err(ApiError::NotFound("User not found in organization".to_string()));
+        return Err(ApiError::NotFound(
+            "User not found in organization".to_string(),
+        ));
     }
 
     let response = RemoveUserResponse {

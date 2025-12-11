@@ -70,7 +70,8 @@ async fn test_create_geofence_event_success() {
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
-    let geofence_id = create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Home").await;
+    let geofence_id =
+        create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Home").await;
 
     // Create a geofence event
     let app = create_test_app(config, pool.clone());
@@ -122,7 +123,8 @@ async fn test_create_geofence_event_exit_type() {
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
-    let geofence_id = create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Work").await;
+    let geofence_id =
+        create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Work").await;
 
     // Create an exit event
     let app = create_test_app(config, pool.clone());
@@ -170,7 +172,8 @@ async fn test_create_geofence_event_dwell_type() {
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
-    let geofence_id = create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Office").await;
+    let geofence_id =
+        create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Office").await;
 
     // Create a dwell event
     let app = create_test_app(config, pool.clone());
@@ -218,7 +221,8 @@ async fn test_create_geofence_event_invalid_latitude() {
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
-    let geofence_id = create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Test").await;
+    let geofence_id =
+        create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Test").await;
 
     // Try to create event with invalid latitude (> 90)
     let app = create_test_app(config, pool.clone());
@@ -266,7 +270,8 @@ async fn test_create_geofence_event_invalid_longitude() {
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
-    let geofence_id = create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Test").await;
+    let geofence_id =
+        create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Test").await;
 
     // Try to create event with invalid longitude (> 180)
     let app = create_test_app(config, pool.clone());
@@ -401,7 +406,8 @@ async fn test_list_geofence_events_success() {
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
-    let geofence_id = create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Home").await;
+    let geofence_id =
+        create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Home").await;
 
     // Create two events
     let timestamp1 = chrono::Utc::now().timestamp_millis();
@@ -515,7 +521,8 @@ async fn test_list_geofence_events_with_limit() {
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
-    let geofence_id = create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Home").await;
+    let geofence_id =
+        create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Home").await;
 
     // Create three events
     for i in 0..3 {
@@ -580,7 +587,8 @@ async fn test_get_geofence_event_success() {
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
-    let geofence_id = create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Home").await;
+    let geofence_id =
+        create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Home").await;
 
     // Create an event
     let app = create_test_app(config.clone(), pool.clone());
@@ -675,7 +683,8 @@ async fn test_geofence_event_includes_webhook_status() {
     let device_id = device_response["device_id"].as_str().unwrap();
 
     // Create a geofence
-    let geofence_id = create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Home").await;
+    let geofence_id =
+        create_test_geofence(&pool, &config, &api_key, &auth, device_id, "Home").await;
 
     // Create an event (no webhooks configured, so webhook_delivered should be false)
     let app = create_test_app(config, pool.clone());

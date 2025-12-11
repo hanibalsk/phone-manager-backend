@@ -158,11 +158,16 @@ impl EnrollmentTokenRepository {
 
         // Build WHERE clause based on filters
         let (where_clause, count_clause) = if include_revoked && include_expired {
-            ("WHERE organization_id = $1".to_string(), "WHERE organization_id = $1".to_string())
+            (
+                "WHERE organization_id = $1".to_string(),
+                "WHERE organization_id = $1".to_string(),
+            )
         } else if include_revoked {
             (
-                "WHERE organization_id = $1 AND (expires_at IS NULL OR expires_at > NOW())".to_string(),
-                "WHERE organization_id = $1 AND (expires_at IS NULL OR expires_at > NOW())".to_string(),
+                "WHERE organization_id = $1 AND (expires_at IS NULL OR expires_at > NOW())"
+                    .to_string(),
+                "WHERE organization_id = $1 AND (expires_at IS NULL OR expires_at > NOW())"
+                    .to_string(),
             )
         } else if include_expired {
             (

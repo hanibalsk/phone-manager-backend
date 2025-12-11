@@ -1,7 +1,7 @@
 # Project Workflow Analysis
 
-**Date:** 2025-11-30
-**Project:** phone-manager-backend (Movement Tracking Extension)
+**Date:** 2025-12-10
+**Project:** phone-manager-backend (Admin Portal Backend API)
 **Analyst:** Martin Janci
 
 ## Assessment Results
@@ -9,20 +9,20 @@
 ### Project Classification
 
 - **Project Type:** Backend service/API (Rust Axum)
-- **Project Level:** Level 3 (Full Product)
+- **Project Level:** Level 4 (Platform/Enterprise)
 - **Instruction Set:** instructions-lg.md (Large project PRD workflow)
 
 ### Scope Summary
 
-- **Brief Description:** Movement Tracking & Intelligent Path Detection feature extension for Phone Manager backend. Adds trip lifecycle management, movement event logging with sensor telemetry, enhanced location tracking with transportation mode context, and map-snapping path correction capabilities.
-- **Estimated Stories:** 25-35 stories
-- **Estimated Epics:** 4 epics (Movement Events, Trips, Enhanced Locations, Intelligent Path Detection)
-- **Timeline:** 4-6 weeks development
+- **Brief Description:** Admin Portal Backend API implementation providing comprehensive administrative capabilities for the Phone Manager platform. Includes RBAC, organization management, user administration, device fleet management, groups, location/geofence administration, webhooks, app usage tracking, system configuration, dashboard/analytics, and audit/compliance features.
+- **Estimated Stories:** 80-120 stories
+- **Estimated Epics:** 11 epics (AP-1 through AP-11)
+- **Timeline:** 12-16 weeks development
 
 ### Context
 
-- **Greenfield/Brownfield:** Brownfield - extending existing clean Rust codebase
-- **Existing Documentation:** BACKEND_API_SPEC.md (API design), ANDROID_APP_SPEC.md (client spec), CLAUDE.md (project context)
+- **Greenfield/Brownfield:** Brownfield - extending existing clean Rust codebase (31% already implemented)
+- **Existing Documentation:** Admin Portal Backend API Specification (115 endpoints), admin-api-gap-analysis.md, CLAUDE.md
 - **Team Size:** Solo developer
 - **Deployment Intent:** Production SaaS/application
 
@@ -30,61 +30,89 @@
 
 ### Primary Outputs
 
-1. **PRD.md** — Product Requirements Document for Movement Tracking features
-2. **epics.md** — Epic breakdown with user stories and acceptance criteria
-3. **Architecture handoff** — Route to 3-solutioning workflow for architecture.md
+1. **PRD-admin-portal.md** — Product Requirements Document for Admin Portal features
+2. **epics.md** — Epic breakdown with user stories and acceptance criteria (AP-1 through AP-11)
+3. **Architecture handoff** — Route to 3-solutioning workflow for architecture decisions
 
 ### Workflow Sequence
 
 1. ✅ Project Assessment (completed)
-2. ✅ PRD Creation (completed) → PRD-movement-tracking.md
-   - Product vision for movement tracking
-   - User journeys for trip detection and history
-   - Functional requirements (18 FRs)
-   - Non-functional requirements (14 NFRs)
-3. ✅ Epic Definition (completed) → epics.md (Epics 5-8)
-   - Epic 5: Movement Events API (6 stories)
-   - Epic 6: Trip Lifecycle Management (6 stories)
-   - Epic 7: Enhanced Location Context (4 stories)
-   - Epic 8: Intelligent Path Detection (6 stories)
+2. ⏳ PRD Creation (in progress) → PRD-admin-portal.md
+   - Product vision for admin portal
+   - User journeys for admin workflows
+   - Functional requirements by epic
+   - Non-functional requirements
+3. ⏳ Epic Definition (pending) → epics.md (AP-1 through AP-11)
+   - AP-1: RBAC & Access Control (3 endpoints)
+   - AP-2: Organization Management (7 endpoints)
+   - AP-3: User Administration (13 endpoints)
+   - AP-4: Device Fleet Administration (15 endpoints)
+   - AP-5: Groups Administration (10 endpoints)
+   - AP-6: Location & Geofence Administration (13 endpoints)
+   - AP-7: Webhook Administration (9 endpoints)
+   - AP-8: App Usage & Unlock Requests (13 endpoints)
+   - AP-9: System Configuration (14 endpoints)
+   - AP-10: Dashboard & Analytics (10 endpoints)
+   - AP-11: Audit & Compliance (8 endpoints)
 4. ⏳ Architecture Handoff (pending)
-   - PostGIS integration design
-   - Map-snapping service integration
-   - Background processing patterns
+   - Global vs org-scoped API path decision
+   - Session management infrastructure
+   - MFA integration design
+   - Report generation system
+   - GDPR compliance infrastructure
 
 ### Next Actions
 
-1. Route to 3-solutioning workflow for architecture.md creation
-2. Design PostGIS integration patterns for movement data
-3. Select map-matching service (OSRM vs Valhalla vs Google Roads API)
-4. Define background job architecture for path correction
+1. Generate PRD-admin-portal.md with product vision and requirements
+2. Create epics.md with AP-prefixed epic definitions
+3. Route to 3-solutioning workflow for architecture decisions
+4. Prioritize implementation based on gap analysis (high/medium/low)
 
 ## Special Considerations
 
-- **Existing Infrastructure:** Leverages existing device registration, location tracking, geofence, and proximity alert systems already implemented in the backend.
-- **PostGIS Integration:** New geospatial capabilities require PostgreSQL PostGIS extension for GEOGRAPHY types and spatial indexing.
-- **Map-Snapping Backend:** Path correction requires integration with external service (OSRM, Valhalla, or Google Roads API).
-- **Client Coordination:** Android app spec defines client-side trip detection algorithm, state machine, and UI screens.
-- **Offline Support:** Client stores trips/events locally with sync status tracking.
-- **Idempotency:** Trip creation uses client-generated localTripId for duplicate prevention on retries.
+- **Existing Implementation:** 36 endpoints already implemented (31% complete). Focus on gap closure.
+- **Architecture Mismatch:** Spec uses global admin paths (`/api/admin/*`), impl uses org-scoped (`/api/admin/v1/organizations/:org_id/*`). Decision needed.
+- **Completely Missing Domains:** AP-8 (App Usage) and AP-6 (Admin Location) are 0% implemented - require new database tables and business logic.
+- **Session Management:** Required for user administration (suspend, reactivate, session revocation).
+- **MFA Infrastructure:** Required for MFA status, force enrollment, and reset endpoints.
+- **GDPR Compliance:** Required for data subject requests and compliance status tracking.
+- **Report Generation:** Async report system needed for analytics exports.
 
 ## Technical Preferences Captured
 
 - **Language:** Rust 1.83+ (Edition 2024)
 - **Framework:** Axum 0.8 with Tokio async runtime
-- **Database:** PostgreSQL 16 with SQLx + PostGIS extension
-- **New Tables:** movement_events, trips, frequent_locations, common_routes
-- **Authentication:** Existing API key-based (SHA-256 hashed)
-- **Serialization:** Serde with camelCase JSON (matching existing patterns)
-- **Transportation Modes:** STATIONARY, WALKING, RUNNING, CYCLING, IN_VEHICLE, UNKNOWN
-- **Detection Sources:** ACTIVITY_RECOGNITION, BLUETOOTH_CAR, ANDROID_AUTO, MULTIPLE, NONE
+- **Database:** PostgreSQL 16 with SQLx
+- **Authentication:** JWT + API Key (existing), need session management extension
+- **Serialization:** Serde with snake_case JSON
+- **API Versioning:** `/api/admin/v1/` prefix (existing pattern)
+- **Feature Toggles:** b2b_enabled controls admin routes
+
+## Implementation Priority (from Gap Analysis)
+
+### High Priority (Core Functionality)
+- User Management (suspend/reactivate, password reset, session management)
+- MFA Management (status, force, reset)
+- Bulk Device Operations
+- Webhook Testing & Delivery Logs
+
+### Medium Priority (Enhanced Features)
+- Analytics (user, device, API)
+- Report Generation System
+- GDPR Compliance
+- System Configuration
+
+### Lower Priority (New Domains)
+- App Usage Tracking (entire new domain)
+- Admin Location Management
+- Group Invites
 
 ## Source Documents
 
 | Document | Purpose |
 |----------|---------|
-| BACKEND_API_SPEC.md | Complete API specification with endpoints, data models, database schema |
-| ANDROID_APP_SPEC.md | Client implementation spec with UI screens, state machine, database entities |
+| Admin Portal Backend API Specification | Complete 115-endpoint API spec |
+| admin-api-gap-analysis.md | Gap analysis comparing spec to implementation |
 | CLAUDE.md | Existing project context and conventions |
 
 ---

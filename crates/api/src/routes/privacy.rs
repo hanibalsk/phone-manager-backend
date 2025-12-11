@@ -101,10 +101,10 @@ pub async fn export_device_data(
         .map(|loc| ExportedLocation {
             latitude: loc.latitude,
             longitude: loc.longitude,
-            accuracy: loc.accuracy as f64,              // f32 → f64
+            accuracy: loc.accuracy as f64, // f32 → f64
             altitude: loc.altitude,
-            bearing: loc.bearing.map(|b| b as f64),     // f32 → f64
-            speed: loc.speed.map(|s| s as f64),         // f32 → f64
+            bearing: loc.bearing.map(|b| b as f64), // f32 → f64
+            speed: loc.speed.map(|s| s as f64),     // f32 → f64
             provider: loc.provider,
             battery_level: loc.battery_level.map(|b| b as i32), // i16 → i32
             network_type: loc.network_type,

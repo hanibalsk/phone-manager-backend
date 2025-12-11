@@ -367,9 +367,9 @@ pub async fn oauth_login(
             AuthError::InvalidOAuthToken => {
                 ApiError::Unauthorized("Invalid or expired OAuth token".to_string())
             }
-            AuthError::UnsupportedOAuthProvider => {
-                ApiError::Validation("Unsupported OAuth provider. Use 'google' or 'apple'.".to_string())
-            }
+            AuthError::UnsupportedOAuthProvider => ApiError::Validation(
+                "Unsupported OAuth provider. Use 'google' or 'apple'.".to_string(),
+            ),
             AuthError::OAuthProviderError(msg) => {
                 tracing::error!("OAuth provider error: {}", msg);
                 ApiError::Internal("OAuth provider error".to_string())

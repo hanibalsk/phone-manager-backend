@@ -105,12 +105,11 @@ pub async fn update_current_user(
         .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     // Check if user exists
-    let user_exists: Option<(bool,)> =
-        sqlx::query_as("SELECT is_active FROM users WHERE id = $1")
-            .bind(user_auth.user_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(ApiError::from)?;
+    let user_exists: Option<(bool,)> = sqlx::query_as("SELECT is_active FROM users WHERE id = $1")
+        .bind(user_auth.user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(ApiError::from)?;
 
     match user_exists {
         Some((is_active,)) if !is_active => {
@@ -150,34 +149,28 @@ pub async fn update_current_user(
 
     // Execute query with dynamic binding
     let user: UserProfileRow = match (&request.display_name, &request.avatar_url) {
-        (Some(display_name), Some(avatar_url)) => {
-            sqlx::query_as(&query)
-                .bind(now)
-                .bind(display_name)
-                .bind(avatar_url)
-                .bind(user_auth.user_id)
-                .fetch_one(&state.pool)
-                .await
-                .map_err(ApiError::from)?
-        }
-        (Some(display_name), None) => {
-            sqlx::query_as(&query)
-                .bind(now)
-                .bind(display_name)
-                .bind(user_auth.user_id)
-                .fetch_one(&state.pool)
-                .await
-                .map_err(ApiError::from)?
-        }
-        (None, Some(avatar_url)) => {
-            sqlx::query_as(&query)
-                .bind(now)
-                .bind(avatar_url)
-                .bind(user_auth.user_id)
-                .fetch_one(&state.pool)
-                .await
-                .map_err(ApiError::from)?
-        }
+        (Some(display_name), Some(avatar_url)) => sqlx::query_as(&query)
+            .bind(now)
+            .bind(display_name)
+            .bind(avatar_url)
+            .bind(user_auth.user_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(ApiError::from)?,
+        (Some(display_name), None) => sqlx::query_as(&query)
+            .bind(now)
+            .bind(display_name)
+            .bind(user_auth.user_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(ApiError::from)?,
+        (None, Some(avatar_url)) => sqlx::query_as(&query)
+            .bind(now)
+            .bind(avatar_url)
+            .bind(user_auth.user_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(ApiError::from)?,
         (None, None) => {
             // Already handled above, but satisfy the match
             unreachable!()
@@ -267,8 +260,8 @@ pub async fn link_device(
 
     // Check if device exists
     let existing_device = repo.find_by_device_id(path.device_id).await?;
-    let device = existing_device
-        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+    let device =
+        existing_device.ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
 
     // Check if device is already linked to another user
     if let Some(owner_id) = device.owner_user_id {
@@ -434,8 +427,8 @@ pub async fn unlink_device(
 
     // Check if device exists and is owned by the user
     let existing_device = repo.find_by_device_id(path.device_id).await?;
-    let device = existing_device
-        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+    let device =
+        existing_device.ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
 
     // Check if device is owned by the user
     match device.owner_user_id {
@@ -521,8 +514,8 @@ pub async fn transfer_device(
 
     // Check if device exists and is owned by the user
     let existing_device = repo.find_by_device_id(path.device_id).await?;
-    let device = existing_device
-        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+    let device =
+        existing_device.ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
 
     // Check if device is owned by the user
     match device.owner_user_id {

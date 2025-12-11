@@ -8,8 +8,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::entities::webhook_delivery::{
-    WebhookDeliveryEntity, MAX_RETRY_ATTEMPTS, RETRY_BACKOFF_SECONDS, STATUS_FAILED, STATUS_PENDING,
-    STATUS_SUCCESS,
+    WebhookDeliveryEntity, MAX_RETRY_ATTEMPTS, RETRY_BACKOFF_SECONDS, STATUS_FAILED,
+    STATUS_PENDING, STATUS_SUCCESS,
 };
 
 /// Repository for webhook delivery operations.
@@ -60,12 +60,11 @@ impl WebhookDeliveryRepository {
         let now = Utc::now();
 
         // Get current attempt count
-        let current: (i32,) = sqlx::query_as(
-            r#"SELECT attempts FROM webhook_deliveries WHERE delivery_id = $1"#,
-        )
-        .bind(delivery_id)
-        .fetch_one(&self.pool)
-        .await?;
+        let current: (i32,) =
+            sqlx::query_as(r#"SELECT attempts FROM webhook_deliveries WHERE delivery_id = $1"#)
+                .bind(delivery_id)
+                .fetch_one(&self.pool)
+                .await?;
 
         let new_attempts = current.0 + 1;
 
@@ -80,7 +79,8 @@ impl WebhookDeliveryRepository {
             // - Attempt 2 failed -> use index 1 (60s)
             // - Attempt 3 failed -> use index 2 (300s)
             // - Attempt 4 failed -> use index 3 (900s)
-            let backoff_index = ((new_attempts - 1).max(0) as usize).min(RETRY_BACKOFF_SECONDS.len() - 1);
+            let backoff_index =
+                ((new_attempts - 1).max(0) as usize).min(RETRY_BACKOFF_SECONDS.len() - 1);
             let backoff_seconds = RETRY_BACKOFF_SECONDS[backoff_index];
             let next_retry_at = now + Duration::seconds(backoff_seconds);
             (STATUS_PENDING.to_string(), Some(next_retry_at))
@@ -220,10 +220,7 @@ impl WebhookDeliveryRepository {
     }
 
     /// Count pending deliveries for a webhook.
-    pub async fn count_pending_by_webhook_id(
-        &self,
-        webhook_id: Uuid,
-    ) -> Result<i64, sqlx::Error> {
+    pub async fn count_pending_by_webhook_id(&self, webhook_id: Uuid) -> Result<i64, sqlx::Error> {
         let count: (i64,) = sqlx::query_as(
             r#"
             SELECT COUNT(*) FROM webhook_deliveries

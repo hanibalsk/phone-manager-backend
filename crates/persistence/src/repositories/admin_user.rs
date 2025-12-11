@@ -3,8 +3,8 @@
 //! Story 14.3: User Management Endpoints
 
 use domain::models::{
-    AdminUserItem, AdminUserProfile, AdminUserSortField, AdminUserSummary,
-    AdminSortOrder, OrgUserRole, RecentAction, UserActivitySummary, UserDeviceInfo, UserGroupInfo,
+    AdminSortOrder, AdminUserItem, AdminUserProfile, AdminUserSortField, AdminUserSummary,
+    OrgUserRole, RecentAction, UserActivitySummary, UserDeviceInfo, UserGroupInfo,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -188,7 +188,10 @@ impl AdminUserRepository {
 
         query.push_str(&format!(
             " ORDER BY {} {} NULLS LAST LIMIT ${} OFFSET ${}",
-            sort_col, sort_dir, param_idx, param_idx + 1
+            sort_col,
+            sort_dir,
+            param_idx,
+            param_idx + 1
         ));
 
         let mut q = sqlx::query_as::<_, AdminUserEntity>(&query).bind(org_id);
@@ -214,7 +217,8 @@ impl AdminUserRepository {
                     "admin" => OrgUserRole::Admin,
                     _ => OrgUserRole::Member,
                 };
-                let permissions: Vec<String> = serde_json::from_value(e.permissions).unwrap_or_default();
+                let permissions: Vec<String> =
+                    serde_json::from_value(e.permissions).unwrap_or_default();
 
                 AdminUserItem {
                     id: e.user_id,
@@ -271,7 +275,8 @@ impl AdminUserRepository {
                 "admin" => OrgUserRole::Admin,
                 _ => OrgUserRole::Member,
             };
-            let permissions: Vec<String> = serde_json::from_value(e.permissions).unwrap_or_default();
+            let permissions: Vec<String> =
+                serde_json::from_value(e.permissions).unwrap_or_default();
 
             AdminUserProfile {
                 id: e.user_id,
@@ -290,7 +295,10 @@ impl AdminUserRepository {
     }
 
     /// Get devices assigned to a user.
-    pub async fn get_user_devices(&self, user_id: Uuid) -> Result<Vec<UserDeviceInfo>, sqlx::Error> {
+    pub async fn get_user_devices(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<UserDeviceInfo>, sqlx::Error> {
         let entities = sqlx::query_as::<_, UserDeviceEntity>(
             r#"
             SELECT
@@ -428,7 +436,10 @@ mod tests {
             "u.display_name"
         );
         assert_eq!(AdminUserSortField::Email.as_sql_column(), "u.email");
-        assert_eq!(AdminUserSortField::GrantedAt.as_sql_column(), "ou.granted_at");
+        assert_eq!(
+            AdminUserSortField::GrantedAt.as_sql_column(),
+            "ou.granted_at"
+        );
     }
 
     #[test]

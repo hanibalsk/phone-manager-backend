@@ -10,8 +10,8 @@ mod common;
 use axum::http::{Method, StatusCode};
 use common::{
     cleanup_all_test_data, create_test_admin_api_key, create_test_app, create_test_pool,
-    json_request_with_api_key, get_request_with_api_key, delete_request_with_api_key,
-    put_request_with_api_key, parse_response_body, run_migrations, test_config,
+    delete_request_with_api_key, get_request_with_api_key, json_request_with_api_key,
+    parse_response_body, put_request_with_api_key, run_migrations, test_config,
 };
 use serde_json::json;
 use sqlx::PgPool;
@@ -132,7 +132,10 @@ async fn test_create_policy_success() {
     assert_eq!(body["description"], "A test policy for tracking");
     assert_eq!(body["is_default"], false);
     assert_eq!(body["priority"], 10);
-    assert!(body["locked_settings"].as_array().unwrap().contains(&json!("tracking_enabled")));
+    assert!(body["locked_settings"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("tracking_enabled")));
 
     cleanup_all_test_data(&pool).await;
 }
@@ -381,7 +384,10 @@ async fn test_list_policies_filter_default() {
     let app = create_test_app(config, pool.clone());
     let api_key3 = create_test_admin_api_key(&pool, "test_filter_default3").await;
     let request = get_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/policies?is_default=true", org_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies?is_default=true",
+            org_id
+        ),
         &api_key3,
     );
 
@@ -432,7 +438,10 @@ async fn test_get_policy_success() {
     let app = create_test_app(config, pool.clone());
     let api_key2 = create_test_admin_api_key(&pool, "test_get_policy2").await;
     let request = get_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/policies/{}", org_id, policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}",
+            org_id, policy_id
+        ),
         &api_key2,
     );
 
@@ -462,7 +471,10 @@ async fn test_get_policy_not_found() {
     let fake_policy_id = Uuid::new_v4();
 
     let request = get_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/policies/{}", org_id, fake_policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}",
+            org_id, fake_policy_id
+        ),
         &api_key,
     );
 
@@ -505,7 +517,10 @@ async fn test_get_policy_wrong_org() {
     let app = create_test_app(config, pool.clone());
     let api_key2 = create_test_admin_api_key(&pool, "test_wrong_org2").await;
     let request = get_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/policies/{}", org2_id, policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}",
+            org2_id, policy_id
+        ),
         &api_key2,
     );
 
@@ -551,7 +566,10 @@ async fn test_update_policy_success() {
     let app = create_test_app(config, pool.clone());
     let api_key2 = create_test_admin_api_key(&pool, "test_update_policy2").await;
     let request = put_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/policies/{}", org_id, policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}",
+            org_id, policy_id
+        ),
         json!({
             "name": "Updated Name",
             "description": "Updated description",
@@ -617,7 +635,10 @@ async fn test_update_policy_name_conflict() {
     let app = create_test_app(config, pool.clone());
     let api_key3 = create_test_admin_api_key(&pool, "test_name_conflict3").await;
     let request = put_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/policies/{}", org_id, policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}",
+            org_id, policy_id
+        ),
         json!({
             "name": "Existing Name"
         }),
@@ -665,7 +686,10 @@ async fn test_delete_policy_success() {
     let app = create_test_app(config.clone(), pool.clone());
     let api_key2 = create_test_admin_api_key(&pool, "test_delete_policy2").await;
     let request = delete_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/policies/{}", org_id, policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}",
+            org_id, policy_id
+        ),
         &api_key2,
     );
 
@@ -676,7 +700,10 @@ async fn test_delete_policy_success() {
     let app = create_test_app(config, pool.clone());
     let api_key3 = create_test_admin_api_key(&pool, "test_delete_policy3").await;
     let request = get_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/policies/{}", org_id, policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}",
+            org_id, policy_id
+        ),
         &api_key3,
     );
 
@@ -700,7 +727,10 @@ async fn test_delete_policy_not_found() {
     let fake_policy_id = Uuid::new_v4();
 
     let request = delete_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/policies/{}", org_id, fake_policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}",
+            org_id, fake_policy_id
+        ),
         &api_key,
     );
 
@@ -747,7 +777,10 @@ async fn test_apply_policy_to_group() {
     let api_key2 = create_test_admin_api_key(&pool, "test_apply_policy2").await;
     let request = json_request_with_api_key(
         Method::POST,
-        &format!("/api/admin/v1/organizations/{}/policies/{}/apply", org_id, policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}/apply",
+            org_id, policy_id
+        ),
         json!({
             "targets": [
                 {"type": "group", "id": group_id}
@@ -800,7 +833,10 @@ async fn test_unapply_policy_from_group() {
     let api_key2 = create_test_admin_api_key(&pool, "test_unapply_policy2").await;
     let request = json_request_with_api_key(
         Method::POST,
-        &format!("/api/admin/v1/organizations/{}/policies/{}/apply", org_id, policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}/apply",
+            org_id, policy_id
+        ),
         json!({
             "targets": [
                 {"type": "group", "id": group_id}
@@ -816,7 +852,10 @@ async fn test_unapply_policy_from_group() {
     let api_key3 = create_test_admin_api_key(&pool, "test_unapply_policy3").await;
     let request = json_request_with_api_key(
         Method::POST,
-        &format!("/api/admin/v1/organizations/{}/policies/{}/unapply", org_id, policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}/unapply",
+            org_id, policy_id
+        ),
         json!({
             "targets": [
                 {"type": "group", "id": group_id}
@@ -851,7 +890,10 @@ async fn test_apply_policy_not_found() {
 
     let request = json_request_with_api_key(
         Method::POST,
-        &format!("/api/admin/v1/organizations/{}/policies/{}/apply", org_id, fake_policy_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/policies/{}/apply",
+            org_id, fake_policy_id
+        ),
         json!({
             "targets": [
                 {"type": "group", "id": fake_group_id}

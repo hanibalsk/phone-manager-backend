@@ -63,7 +63,10 @@ async fn test_create_webhook_success() {
     let body = parse_response_body(response).await;
     assert!(body.get("webhook_id").is_some());
     assert_eq!(body["name"], "Home Assistant");
-    assert_eq!(body["target_url"], "https://homeassistant.local/api/webhook/test");
+    assert_eq!(
+        body["target_url"],
+        "https://homeassistant.local/api/webhook/test"
+    );
     assert_eq!(body["enabled"], true);
 
     cleanup_all_test_data(&pool).await;
@@ -420,11 +423,8 @@ async fn test_list_webhooks_missing_device_id() {
 
     // List webhooks without device ID
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_api_key_and_jwt(
-        "/api/v1/webhooks",
-        &api_key,
-        &auth.access_token,
-    );
+    let request =
+        get_request_with_api_key_and_jwt("/api/v1/webhooks", &api_key, &auth.access_token);
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -751,7 +751,12 @@ async fn test_create_webhook_limit_exceeded() {
             &auth.access_token,
         );
         let response = app.oneshot(request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::CREATED, "Failed to create webhook {}", i);
+        assert_eq!(
+            response.status(),
+            StatusCode::CREATED,
+            "Failed to create webhook {}",
+            i
+        );
     }
 
     // Try to create 11th webhook (should fail)
@@ -964,7 +969,10 @@ async fn test_update_webhook_only_target_url() {
 
     let body = parse_response_body(response).await;
     assert_eq!(body["name"], "Home Assistant"); // Unchanged
-    assert_eq!(body["target_url"], "https://new.homeassistant.local/webhook"); // Changed
+    assert_eq!(
+        body["target_url"],
+        "https://new.homeassistant.local/webhook"
+    ); // Changed
     assert_eq!(body["enabled"], true); // Unchanged
 
     cleanup_all_test_data(&pool).await;
@@ -1443,7 +1451,10 @@ async fn test_webhook_timestamps_updated_on_modification() {
 
 #[tokio::test]
 async fn test_create_webhook_without_api_key() {
-    use axum::{body::Body, http::{header, Method, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
 
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
@@ -1467,21 +1478,26 @@ async fn test_create_webhook_without_api_key() {
         .method(Method::POST)
         .uri("/api/v1/webhooks")
         .header(header::CONTENT_TYPE, "application/json")
-        .header(header::AUTHORIZATION, format!("Bearer {}", auth.access_token))
-        .body(Body::from(serde_json::to_string(&json!({
-            "owner_device_id": device_id,
-            "name": "Test Webhook",
-            "target_url": "https://example.com/webhook",
-            "secret": "secret-key-12345",
-            "enabled": true
-        })).unwrap()))
+        .header(
+            header::AUTHORIZATION,
+            format!("Bearer {}", auth.access_token),
+        )
+        .body(Body::from(
+            serde_json::to_string(&json!({
+                "owner_device_id": device_id,
+                "name": "Test Webhook",
+                "target_url": "https://example.com/webhook",
+                "secret": "secret-key-12345",
+                "enabled": true
+            }))
+            .unwrap(),
+        ))
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
     // Should be unauthorized without API key
     assert!(
-        response.status() == StatusCode::UNAUTHORIZED
-            || response.status() == StatusCode::FORBIDDEN
+        response.status() == StatusCode::UNAUTHORIZED || response.status() == StatusCode::FORBIDDEN
     );
 
     cleanup_all_test_data(&pool).await;
@@ -1489,7 +1505,10 @@ async fn test_create_webhook_without_api_key() {
 
 #[tokio::test]
 async fn test_create_webhook_with_invalid_api_key() {
-    use axum::{body::Body, http::{header, Method, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
 
     let pool = create_test_pool().await;
     run_migrations(&pool).await;
@@ -1514,21 +1533,26 @@ async fn test_create_webhook_with_invalid_api_key() {
         .uri("/api/v1/webhooks")
         .header(header::CONTENT_TYPE, "application/json")
         .header("X-API-Key", "pm_invalid_key_12345678901234567890")
-        .header(header::AUTHORIZATION, format!("Bearer {}", auth.access_token))
-        .body(Body::from(serde_json::to_string(&json!({
-            "owner_device_id": device_id,
-            "name": "Test Webhook",
-            "target_url": "https://example.com/webhook",
-            "secret": "secret-key-12345",
-            "enabled": true
-        })).unwrap()))
+        .header(
+            header::AUTHORIZATION,
+            format!("Bearer {}", auth.access_token),
+        )
+        .body(Body::from(
+            serde_json::to_string(&json!({
+                "owner_device_id": device_id,
+                "name": "Test Webhook",
+                "target_url": "https://example.com/webhook",
+                "secret": "secret-key-12345",
+                "enabled": true
+            }))
+            .unwrap(),
+        ))
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
     // Should be unauthorized with invalid API key
     assert!(
-        response.status() == StatusCode::UNAUTHORIZED
-            || response.status() == StatusCode::FORBIDDEN
+        response.status() == StatusCode::UNAUTHORIZED || response.status() == StatusCode::FORBIDDEN
     );
 
     cleanup_all_test_data(&pool).await;
@@ -2109,7 +2133,10 @@ async fn test_webhook_response_contains_all_required_fields() {
 
     // Verify all required fields are present
     assert!(body.get("webhook_id").is_some(), "Missing webhook_id");
-    assert!(body.get("owner_device_id").is_some(), "Missing owner_device_id");
+    assert!(
+        body.get("owner_device_id").is_some(),
+        "Missing owner_device_id"
+    );
     assert!(body.get("name").is_some(), "Missing name");
     assert!(body.get("target_url").is_some(), "Missing target_url");
     assert!(body.get("secret").is_some(), "Missing secret");
@@ -2129,7 +2156,10 @@ async fn test_webhook_response_contains_all_required_fields() {
 
     // Verify webhook_id is a valid UUID
     let webhook_id = body["webhook_id"].as_str().unwrap();
-    assert!(uuid::Uuid::parse_str(webhook_id).is_ok(), "webhook_id is not a valid UUID");
+    assert!(
+        uuid::Uuid::parse_str(webhook_id).is_ok(),
+        "webhook_id is not a valid UUID"
+    );
 
     // Verify owner_device_id matches
     assert_eq!(body["owner_device_id"].as_str().unwrap(), device_id);

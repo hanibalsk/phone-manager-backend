@@ -36,8 +36,8 @@ impl UserAuth {
             .map_err(|e| format!("Invalid token: {}", e))?;
 
         // Parse user ID from claims
-        let user_id = Uuid::parse_str(&claims.sub)
-            .map_err(|_| "Invalid user ID in token".to_string())?;
+        let user_id =
+            Uuid::parse_str(&claims.sub).map_err(|_| "Invalid user ID in token".to_string())?;
 
         Ok(UserAuth {
             user_id,

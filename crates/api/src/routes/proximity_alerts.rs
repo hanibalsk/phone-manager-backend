@@ -28,7 +28,13 @@ const MAX_ALERTS_PER_DEVICE: i64 = 20;
 pub async fn create_proximity_alert(
     State(state): State<AppState>,
     Json(request): Json<CreateProximityAlertRequest>,
-) -> Result<(StatusCode, Json<ResponseWithWarnings<ProximityAlertResponse>>), ApiError> {
+) -> Result<
+    (
+        StatusCode,
+        Json<ResponseWithWarnings<ProximityAlertResponse>>,
+    ),
+    ApiError,
+> {
     // Validate request
     request.validate().map_err(|e| {
         let errors: Vec<String> = e

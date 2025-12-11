@@ -49,15 +49,13 @@ pub fn router() -> Router<AppState> {
 /// Returns all available system roles with their descriptions and requirements.
 /// Requires any system role.
 #[axum::debug_handler(state = AppState)]
-async fn list_system_roles(
-    _system_auth: SystemRoleAuth,
-) -> Result<impl IntoResponse, ApiError> {
-    let roles: Vec<SystemRoleInfo> = SystemRole::all()
-        .iter()
-        .map(|&role| role.into())
-        .collect();
+async fn list_system_roles(_system_auth: SystemRoleAuth) -> Result<impl IntoResponse, ApiError> {
+    let roles: Vec<SystemRoleInfo> = SystemRole::all().iter().map(|&role| role.into()).collect();
 
-    Ok((StatusCode::OK, Json(ListSystemRolesResponse { data: roles })))
+    Ok((
+        StatusCode::OK,
+        Json(ListSystemRolesResponse { data: roles }),
+    ))
 }
 
 /// Get a user's system roles.
@@ -176,7 +174,9 @@ async fn remove_system_role(
 
     // Check if user has this role
     if !repo.has_role(target_user_id, role).await? {
-        return Err(ApiError::NotFound("User does not have this role".to_string()));
+        return Err(ApiError::NotFound(
+            "User does not have this role".to_string(),
+        ));
     }
 
     // Protection: Cannot remove the last super_admin
@@ -291,9 +291,7 @@ async fn assign_org(
 
     // Verify user has org_admin or org_manager role
     let user_roles = repo.get_user_roles(target_user_id).await?;
-    let has_org_role = user_roles
-        .iter()
-        .any(|r| r.role.requires_org_assignment());
+    let has_org_role = user_roles.iter().any(|r| r.role.requires_org_assignment());
 
     if !has_org_role {
         return Err(ApiError::Validation(
@@ -304,7 +302,11 @@ async fn assign_org(
 
     // Verify organization exists
     let org_repo = OrganizationRepository::new(state.pool.clone());
-    if org_repo.find_by_id(request.organization_id).await?.is_none() {
+    if org_repo
+        .find_by_id(request.organization_id)
+        .await?
+        .is_none()
+    {
         return Err(ApiError::NotFound("Organization not found".to_string()));
     }
 
@@ -396,10 +398,8 @@ mod tests {
 
     #[test]
     fn test_list_system_roles_returns_all_roles() {
-        let roles: Vec<SystemRoleInfo> = SystemRole::all()
-            .iter()
-            .map(|&role| role.into())
-            .collect();
+        let roles: Vec<SystemRoleInfo> =
+            SystemRole::all().iter().map(|&role| role.into()).collect();
 
         assert_eq!(roles.len(), 5);
         assert!(roles.iter().any(|r| r.role == SystemRole::SuperAdmin));

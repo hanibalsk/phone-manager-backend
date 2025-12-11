@@ -197,10 +197,7 @@ impl OrganizationRepository {
         };
 
         // Get total count
-        let count_query = format!(
-            "SELECT COUNT(*) FROM organizations {}",
-            where_clause
-        );
+        let count_query = format!("SELECT COUNT(*) FROM organizations {}", where_clause);
         let total: i64 = sqlx::query_scalar(&count_query)
             .fetch_one(&self.pool)
             .await?;
@@ -229,7 +226,10 @@ impl OrganizationRepository {
     }
 
     /// Get organization usage statistics.
-    pub async fn get_usage(&self, org_id: Uuid) -> Result<Option<OrganizationUsageResponse>, sqlx::Error> {
+    pub async fn get_usage(
+        &self,
+        org_id: Uuid,
+    ) -> Result<Option<OrganizationUsageResponse>, sqlx::Error> {
         // First check if org exists
         let org = self.find_by_id(org_id).await?;
         let org = match org {

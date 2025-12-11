@@ -67,7 +67,11 @@ async fn create_enrollment_token(pool: &PgPool, org_id: Uuid) -> String {
 }
 
 /// Create an enrollment token with max uses.
-async fn create_enrollment_token_with_max_uses(pool: &PgPool, org_id: Uuid, max_uses: i32) -> String {
+async fn create_enrollment_token_with_max_uses(
+    pool: &PgPool,
+    org_id: Uuid,
+    max_uses: i32,
+) -> String {
     let token = format!("enroll_{}", Uuid::new_v4().simple());
     let token_prefix = &token[..8];
 
@@ -135,7 +139,10 @@ async fn create_revoked_enrollment_token(pool: &PgPool, org_id: Uuid) -> String 
 
 /// Build a JSON request for enrollment (no auth required).
 fn enroll_request(body: serde_json::Value) -> axum::http::Request<axum::body::Body> {
-    use axum::{body::Body, http::{header, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Request},
+    };
 
     Request::builder()
         .method(Method::POST)
@@ -261,9 +268,7 @@ async fn test_enroll_device_expired_token() {
 
     let response = app.oneshot(request).await.unwrap();
     // Expired token should return 410 GONE or 404 NOT FOUND
-    assert!(
-        response.status() == StatusCode::GONE || response.status() == StatusCode::NOT_FOUND
-    );
+    assert!(response.status() == StatusCode::GONE || response.status() == StatusCode::NOT_FOUND);
 
     cleanup_all_test_data(&pool).await;
 }
@@ -291,9 +296,7 @@ async fn test_enroll_device_revoked_token() {
 
     let response = app.oneshot(request).await.unwrap();
     // Revoked token should return 410 GONE or 404 NOT FOUND
-    assert!(
-        response.status() == StatusCode::GONE || response.status() == StatusCode::NOT_FOUND
-    );
+    assert!(response.status() == StatusCode::GONE || response.status() == StatusCode::NOT_FOUND);
 
     cleanup_all_test_data(&pool).await;
 }
@@ -333,9 +336,7 @@ async fn test_enroll_device_exhausted_token() {
     }));
     let response = app.oneshot(request).await.unwrap();
     // Exhausted token should return 410 GONE or 404 NOT FOUND
-    assert!(
-        response.status() == StatusCode::GONE || response.status() == StatusCode::NOT_FOUND
-    );
+    assert!(response.status() == StatusCode::GONE || response.status() == StatusCode::NOT_FOUND);
 
     cleanup_all_test_data(&pool).await;
 }

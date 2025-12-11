@@ -123,7 +123,9 @@ pub fn resolve_effective_settings(input: PolicyResolutionInput) -> ResolvedSetti
     if let Some(org_defaults) = input.organization_defaults {
         for (key, value) in org_defaults {
             result.settings.insert(key.clone(), value);
-            result.sources.insert(key, SettingSource::OrganizationDefault);
+            result
+                .sources
+                .insert(key, SettingSource::OrganizationDefault);
         }
     }
 
@@ -382,7 +384,10 @@ mod tests {
 
         // b: overridden by org defaults
         assert_eq!(result.get("b"), Some(&json!(2)));
-        assert_eq!(result.get_source("b"), Some(&SettingSource::OrganizationDefault));
+        assert_eq!(
+            result.get_source("b"),
+            Some(&SettingSource::OrganizationDefault)
+        );
 
         // c: overridden by group policy, locked
         assert_eq!(result.get("c"), Some(&json!(3)));
@@ -415,7 +420,10 @@ mod tests {
 
     #[test]
     fn test_setting_source_display() {
-        assert_eq!(SettingSource::OrganizationDefault.to_string(), "organization_default");
+        assert_eq!(
+            SettingSource::OrganizationDefault.to_string(),
+            "organization_default"
+        );
         assert_eq!(SettingSource::GroupPolicy.to_string(), "group_policy");
         assert_eq!(SettingSource::DevicePolicy.to_string(), "device_policy");
         assert_eq!(SettingSource::DeviceCustom.to_string(), "device_custom");
@@ -427,12 +435,17 @@ mod tests {
         let mut result = ResolvedSettings::new();
         result.settings.insert("key1".to_string(), json!(42));
         result.locked_keys.insert("key2".to_string());
-        result.sources.insert("key1".to_string(), SettingSource::DeviceCustom);
+        result
+            .sources
+            .insert("key1".to_string(), SettingSource::DeviceCustom);
 
         assert_eq!(result.get("key1"), Some(&json!(42)));
         assert_eq!(result.get("nonexistent"), None);
         assert!(!result.is_locked("key1"));
         assert!(result.is_locked("key2"));
-        assert_eq!(result.get_source("key1"), Some(&SettingSource::DeviceCustom));
+        assert_eq!(
+            result.get_source("key1"),
+            Some(&SettingSource::DeviceCustom)
+        );
     }
 }

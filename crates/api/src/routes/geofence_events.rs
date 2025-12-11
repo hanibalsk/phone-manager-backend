@@ -9,7 +9,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use persistence::repositories::{DeviceRepository, GeofenceRepository, GeofenceEventRepository};
+use persistence::repositories::{DeviceRepository, GeofenceEventRepository, GeofenceRepository};
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
@@ -18,8 +18,8 @@ use crate::app::AppState;
 use crate::error::ApiError;
 use crate::services::webhook_delivery::WebhookDeliveryService;
 use domain::models::geofence_event::{
-    CreateGeofenceEventRequest, GeofenceEventResponse, ListGeofenceEventsQuery,
-    ListGeofenceEventsResponse, GeofenceEvent,
+    CreateGeofenceEventRequest, GeofenceEvent, GeofenceEventResponse, ListGeofenceEventsQuery,
+    ListGeofenceEventsResponse,
 };
 
 /// Maximum events per query.

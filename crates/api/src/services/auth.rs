@@ -177,10 +177,7 @@ impl AuthService {
     /// Normalize PEM key by converting various newline representations to actual newlines.
     /// Handles: literal "\n" string, escaped "\\n", and already-correct newlines.
     fn normalize_pem_key(key: &str) -> String {
-        tracing::debug!(
-            "Raw key first 80 chars: {:?}",
-            &key[..80.min(key.len())]
-        );
+        tracing::debug!("Raw key first 80 chars: {:?}", &key[..80.min(key.len())]);
 
         // Strip surrounding quotes if present (some env file parsers include them)
         let key = key.trim_matches('"').trim_matches('\'');
@@ -225,12 +222,10 @@ impl AuthService {
         let password_hash = hash_password(password)?;
 
         // Check if email already exists
-        let existing: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM users WHERE email = $1"
-        )
-        .bind(email.to_lowercase())
-        .fetch_optional(&self.pool)
-        .await?;
+        let existing: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM users WHERE email = $1")
+            .bind(email.to_lowercase())
+            .fetch_optional(&self.pool)
+            .await?;
 
         if existing.is_some() {
             return Err(AuthError::EmailAlreadyExists);
@@ -348,8 +343,8 @@ impl AuthService {
         id_token: &str,
     ) -> Result<AuthResult, AuthError> {
         // Parse and validate provider
-        let provider = OAuthProvider::from_str(provider)
-            .map_err(|_| AuthError::UnsupportedOAuthProvider)?;
+        let provider =
+            OAuthProvider::from_str(provider).map_err(|_| AuthError::UnsupportedOAuthProvider)?;
 
         // Verify the ID token with the OAuth provider
         let oauth_user_info = self.verify_oauth_token(provider, id_token).await?;
@@ -371,12 +366,11 @@ impl AuthService {
             existing_user_id
         } else {
             // Check if a user with this email already exists
-            let existing_user: Option<(Uuid,)> = sqlx::query_as(
-                "SELECT id FROM users WHERE email = $1",
-            )
-            .bind(oauth_user_info.email.to_lowercase())
-            .fetch_optional(&self.pool)
-            .await?;
+            let existing_user: Option<(Uuid,)> =
+                sqlx::query_as("SELECT id FROM users WHERE email = $1")
+                    .bind(oauth_user_info.email.to_lowercase())
+                    .fetch_optional(&self.pool)
+                    .await?;
 
             if let Some((existing_user_id,)) = existing_user {
                 // Link OAuth account to existing user
@@ -391,9 +385,7 @@ impl AuthService {
                 existing_user_id
             } else {
                 // Create new user and link OAuth account
-                let new_user_id = self
-                    .create_oauth_user(&oauth_user_info, provider)
-                    .await?;
+                let new_user_id = self.create_oauth_user(&oauth_user_info, provider).await?;
 
                 new_user_id
             }
@@ -468,10 +460,9 @@ impl AuthService {
             return Err(AuthError::InvalidOAuthToken);
         }
 
-        let token_info: GoogleTokenInfo = response
-            .json()
-            .await
-            .map_err(|e| AuthError::OAuthProviderError(format!("Failed to parse Google response: {}", e)))?;
+        let token_info: GoogleTokenInfo = response.json().await.map_err(|e| {
+            AuthError::OAuthProviderError(format!("Failed to parse Google response: {}", e))
+        })?;
 
         // Validate audience - token must be issued for our app
         if let Some(ref expected_client_id) = self.google_client_id {
@@ -488,9 +479,9 @@ impl AuthService {
             tracing::warn!("Google OAuth client ID not configured - audience validation skipped");
         }
 
-        let email = token_info
-            .email
-            .ok_or(AuthError::OAuthProviderError("No email in Google token".to_string()))?;
+        let email = token_info.email.ok_or(AuthError::OAuthProviderError(
+            "No email in Google token".to_string(),
+        ))?;
 
         Ok(OAuthUserInfo {
             provider_user_id: token_info.sub,
@@ -509,7 +500,10 @@ impl AuthService {
     /// 3. Validating the claims (iss, aud, exp)
     async fn verify_apple_token(&self, id_token: &str) -> Result<OAuthUserInfo, AuthError> {
         // Use AppleAuthClient for proper JWT verification with JWKS
-        let claims = self.apple_auth_client.verify_token(id_token).await
+        let claims = self
+            .apple_auth_client
+            .verify_token(id_token)
+            .await
             .map_err(|e| match e {
                 AppleAuthError::InvalidSignature => AuthError::InvalidOAuthToken,
                 AppleAuthError::TokenExpired => AuthError::InvalidOAuthToken,
@@ -534,9 +528,9 @@ impl AuthService {
             })?;
 
         // Extract email (required)
-        let email = claims
-            .email
-            .ok_or(AuthError::OAuthProviderError("No email in Apple token".to_string()))?;
+        let email = claims.email.ok_or(AuthError::OAuthProviderError(
+            "No email in Apple token".to_string(),
+        ))?;
 
         Ok(OAuthUserInfo {
             provider_user_id: claims.sub,
@@ -587,10 +581,14 @@ impl AuthService {
         let now = Utc::now();
 
         // Generate display name from email if not provided
-        let display_name = oauth_info
-            .display_name
-            .clone()
-            .unwrap_or_else(|| oauth_info.email.split('@').next().unwrap_or("User").to_string());
+        let display_name = oauth_info.display_name.clone().unwrap_or_else(|| {
+            oauth_info
+                .email
+                .split('@')
+                .next()
+                .unwrap_or("User")
+                .to_string()
+        });
 
         // Create user (no password_hash for OAuth-only users)
         sqlx::query(
@@ -635,8 +633,7 @@ impl AuthService {
             })?;
 
         // Parse user ID from claims
-        let user_id =
-            Uuid::parse_str(&claims.sub).map_err(|_| AuthError::InvalidRefreshToken)?;
+        let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AuthError::InvalidRefreshToken)?;
 
         // Hash the JTI to find the session
         let jti_hash = sha256_hex(&claims.jti);
@@ -791,11 +788,7 @@ impl AuthService {
     ///
     /// If `all_devices` is true, invalidates all sessions for the user.
     /// Otherwise, only invalidates the session identified by the refresh token.
-    pub async fn logout(
-        &self,
-        refresh_token: &str,
-        all_devices: bool,
-    ) -> Result<(), AuthError> {
+    pub async fn logout(&self, refresh_token: &str, all_devices: bool) -> Result<(), AuthError> {
         // Validate the refresh token to get user ID
         let claims = self
             .jwt_config
@@ -807,8 +800,7 @@ impl AuthService {
             })?;
 
         // Parse user ID from claims
-        let user_id =
-            Uuid::parse_str(&claims.sub).map_err(|_| AuthError::InvalidRefreshToken)?;
+        let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AuthError::InvalidRefreshToken)?;
 
         if all_devices {
             // Delete all sessions for this user
@@ -898,11 +890,7 @@ impl AuthService {
     ///
     /// Validates the token, updates the password, invalidates the token,
     /// and clears all user sessions.
-    pub async fn reset_password(
-        &self,
-        token: &str,
-        new_password: &str,
-    ) -> Result<(), AuthError> {
+    pub async fn reset_password(&self, token: &str, new_password: &str) -> Result<(), AuthError> {
         // Validate new password requirements
         self.validate_password(new_password)?;
 
@@ -975,10 +963,7 @@ impl AuthService {
     ///
     /// Returns the verification token (to be logged in MVP, emailed in production).
     /// Returns error if email is already verified.
-    pub async fn request_email_verification(
-        &self,
-        user_id: Uuid,
-    ) -> Result<String, AuthError> {
+    pub async fn request_email_verification(&self, user_id: Uuid) -> Result<String, AuthError> {
         // Check if user exists and get email verification status
         let user: Option<(String, bool)> = sqlx::query_as(
             "SELECT email, email_verified FROM users WHERE id = $1 AND is_active = true",

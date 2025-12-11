@@ -5,7 +5,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::entities::{
-    GroupEntity, GroupMembershipEntity, GroupRoleDb, GroupWithMembershipEntity, MemberWithUserEntity,
+    GroupEntity, GroupMembershipEntity, GroupRoleDb, GroupWithMembershipEntity,
+    MemberWithUserEntity,
 };
 use crate::metrics::QueryTimer;
 

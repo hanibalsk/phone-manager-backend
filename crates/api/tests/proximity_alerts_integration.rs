@@ -39,13 +39,17 @@ async fn test_create_proximity_alert_success() {
     let group_id = format!("test-group-{}", uuid::Uuid::new_v4().simple());
 
     // Register source device
-    let source_device = TestDevice::new().with_group(&group_id).with_name("Source Device");
+    let source_device = TestDevice::new()
+        .with_group(&group_id)
+        .with_name("Source Device");
     let app = create_test_app(config.clone(), pool.clone());
     let source_response = register_test_device(&app, &pool, &auth, &source_device).await;
     let source_device_id = source_response["device_id"].as_str().unwrap();
 
     // Register target device
-    let target_device = TestDevice::new().with_group(&group_id).with_name("Target Device");
+    let target_device = TestDevice::new()
+        .with_group(&group_id)
+        .with_name("Target Device");
     let app = create_test_app(config.clone(), pool.clone());
     let target_response = register_test_device(&app, &pool, &auth, &target_device).await;
     let target_device_id = target_response["device_id"].as_str().unwrap();
@@ -85,7 +89,11 @@ async fn test_create_proximity_alert_invalid_radius_too_small() {
     let app = create_test_app(config.clone(), pool.clone());
 
     // Create API key and authenticated user
-    let api_key = create_test_api_key(&pool, "test_create_proximity_alert_invalid_radius_too_small").await;
+    let api_key = create_test_api_key(
+        &pool,
+        "test_create_proximity_alert_invalid_radius_too_small",
+    )
+    .await;
     let user = TestUser::new();
     let auth = create_authenticated_user(&app, &user).await;
 
@@ -292,7 +300,10 @@ async fn test_list_proximity_alerts_success() {
     // List alerts for source device
     let app = create_test_app(config, pool.clone());
     let request = get_request_with_api_key_and_jwt(
-        &format!("/api/v1/proximity-alerts?source_device_id={}", source_device_id),
+        &format!(
+            "/api/v1/proximity-alerts?source_device_id={}",
+            source_device_id
+        ),
         &api_key,
         &auth.access_token,
     );

@@ -67,7 +67,10 @@ impl SystemRole {
 
     /// Check if this role has global access (doesn't need org assignment).
     pub fn has_global_access(&self) -> bool {
-        matches!(self, SystemRole::SuperAdmin | SystemRole::Support | SystemRole::Viewer)
+        matches!(
+            self,
+            SystemRole::SuperAdmin | SystemRole::Support | SystemRole::Viewer
+        )
     }
 
     /// Get default permissions for this role.
@@ -81,20 +84,11 @@ impl SystemRole {
                 "user:manage_all",
                 "audit:read_all",
             ],
-            SystemRole::OrgManager => vec![
-                "org:read",
-                "user:read_all",
-                "user:manage_all",
-            ],
-            SystemRole::Support => vec![
-                "system:read",
-                "org:read",
-                "user:read_all",
-                "audit:read_all",
-            ],
-            SystemRole::Viewer => vec![
-                "system:read",
-            ],
+            SystemRole::OrgManager => vec!["org:read", "user:read_all", "user:manage_all"],
+            SystemRole::Support => {
+                vec!["system:read", "org:read", "user:read_all", "audit:read_all"]
+            }
+            SystemRole::Viewer => vec!["system:read"],
         }
     }
 
@@ -188,7 +182,11 @@ impl From<SystemRole> for SystemRoleInfo {
             is_system_defined: role.is_system_defined(),
             requires_org_assignment: role.requires_org_assignment(),
             description: role.description().to_string(),
-            default_permissions: role.default_permissions().iter().map(|s| s.to_string()).collect(),
+            default_permissions: role
+                .default_permissions()
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
         }
     }
 }
@@ -351,11 +349,26 @@ mod tests {
 
     #[test]
     fn test_system_role_from_str() {
-        assert_eq!(SystemRole::from_str("super_admin").unwrap(), SystemRole::SuperAdmin);
-        assert_eq!(SystemRole::from_str("SUPER_ADMIN").unwrap(), SystemRole::SuperAdmin);
-        assert_eq!(SystemRole::from_str("superadmin").unwrap(), SystemRole::SuperAdmin);
-        assert_eq!(SystemRole::from_str("org_admin").unwrap(), SystemRole::OrgAdmin);
-        assert_eq!(SystemRole::from_str("support").unwrap(), SystemRole::Support);
+        assert_eq!(
+            SystemRole::from_str("super_admin").unwrap(),
+            SystemRole::SuperAdmin
+        );
+        assert_eq!(
+            SystemRole::from_str("SUPER_ADMIN").unwrap(),
+            SystemRole::SuperAdmin
+        );
+        assert_eq!(
+            SystemRole::from_str("superadmin").unwrap(),
+            SystemRole::SuperAdmin
+        );
+        assert_eq!(
+            SystemRole::from_str("org_admin").unwrap(),
+            SystemRole::OrgAdmin
+        );
+        assert_eq!(
+            SystemRole::from_str("support").unwrap(),
+            SystemRole::Support
+        );
         assert!(SystemRole::from_str("invalid").is_err());
     }
 

@@ -197,10 +197,16 @@ async fn test_create_enrollment_token_requires_jwt() {
     let api_key = create_test_admin_api_key(&pool, "test_requires_jwt").await;
 
     // Try to create without JWT (only API key)
-    use axum::{body::Body, http::{header, Request}};
+    use axum::{
+        body::Body,
+        http::{header, Request},
+    };
     let request = Request::builder()
         .method(Method::POST)
-        .uri(format!("/api/admin/v1/organizations/{}/enrollment-tokens", org_id))
+        .uri(format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens",
+            org_id
+        ))
         .header(header::CONTENT_TYPE, "application/json")
         .header("X-API-Key", &api_key)
         .body(Body::from(r#"{}"#))
@@ -343,7 +349,10 @@ async fn test_get_enrollment_token_success() {
     let app = create_test_app(config, pool.clone());
     let api_key2 = create_test_admin_api_key(&pool, "test_get_token2").await;
     let request = get_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/enrollment-tokens/{}", org_id, token_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens/{}",
+            org_id, token_id
+        ),
         &api_key2,
     );
 
@@ -370,7 +379,10 @@ async fn test_get_enrollment_token_not_found() {
     let fake_token_id = Uuid::new_v4();
 
     let request = get_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/enrollment-tokens/{}", org_id, fake_token_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens/{}",
+            org_id, fake_token_id
+        ),
         &api_key,
     );
 
@@ -416,7 +428,10 @@ async fn test_get_enrollment_token_wrong_org() {
     let app = create_test_app(config, pool.clone());
     let api_key2 = create_test_admin_api_key(&pool, "test_wrong_org2").await;
     let request = get_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/enrollment-tokens/{}", org2_id, token_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens/{}",
+            org2_id, token_id
+        ),
         &api_key2,
     );
 
@@ -465,7 +480,10 @@ async fn test_revoke_enrollment_token_success() {
     let app = create_test_app(config.clone(), pool.clone());
     let api_key2 = create_test_admin_api_key(&pool, "test_revoke_token2").await;
     let request = delete_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/enrollment-tokens/{}", org_id, token_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens/{}",
+            org_id, token_id
+        ),
         &api_key2,
     );
 
@@ -476,7 +494,10 @@ async fn test_revoke_enrollment_token_success() {
     let app = create_test_app(config, pool.clone());
     let api_key3 = create_test_admin_api_key(&pool, "test_revoke_token3").await;
     let request = get_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/enrollment-tokens/{}", org_id, token_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens/{}",
+            org_id, token_id
+        ),
         &api_key3,
     );
     let response = app.oneshot(request).await.unwrap();
@@ -521,7 +542,10 @@ async fn test_revoke_enrollment_token_already_revoked() {
     let app = create_test_app(config.clone(), pool.clone());
     let api_key2 = create_test_admin_api_key(&pool, "test_already_revoked2").await;
     let request = delete_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/enrollment-tokens/{}", org_id, token_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens/{}",
+            org_id, token_id
+        ),
         &api_key2,
     );
     let response = app.oneshot(request).await.unwrap();
@@ -531,7 +555,10 @@ async fn test_revoke_enrollment_token_already_revoked() {
     let app = create_test_app(config, pool.clone());
     let api_key3 = create_test_admin_api_key(&pool, "test_already_revoked3").await;
     let request = delete_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/enrollment-tokens/{}", org_id, token_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens/{}",
+            org_id, token_id
+        ),
         &api_key3,
     );
 
@@ -555,7 +582,10 @@ async fn test_revoke_enrollment_token_not_found() {
     let fake_token_id = Uuid::new_v4();
 
     let request = delete_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/enrollment-tokens/{}", org_id, fake_token_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens/{}",
+            org_id, fake_token_id
+        ),
         &api_key,
     );
 
@@ -604,7 +634,10 @@ async fn test_get_enrollment_token_qr_success() {
     let app = create_test_app(config, pool.clone());
     let api_key2 = create_test_admin_api_key(&pool, "test_qr_token2").await;
     let request = get_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/enrollment-tokens/{}/qr", org_id, token_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens/{}/qr",
+            org_id, token_id
+        ),
         &api_key2,
     );
 
@@ -656,7 +689,10 @@ async fn test_get_enrollment_token_qr_revoked_token() {
     let app = create_test_app(config.clone(), pool.clone());
     let api_key2 = create_test_admin_api_key(&pool, "test_qr_revoked2").await;
     let request = delete_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/enrollment-tokens/{}", org_id, token_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens/{}",
+            org_id, token_id
+        ),
         &api_key2,
     );
     let response = app.oneshot(request).await.unwrap();
@@ -666,7 +702,10 @@ async fn test_get_enrollment_token_qr_revoked_token() {
     let app = create_test_app(config, pool.clone());
     let api_key3 = create_test_admin_api_key(&pool, "test_qr_revoked3").await;
     let request = get_request_with_api_key(
-        &format!("/api/admin/v1/organizations/{}/enrollment-tokens/{}/qr", org_id, token_id),
+        &format!(
+            "/api/admin/v1/organizations/{}/enrollment-tokens/{}/qr",
+            org_id, token_id
+        ),
         &api_key3,
     );
 

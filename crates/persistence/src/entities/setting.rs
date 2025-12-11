@@ -99,25 +99,13 @@ mod tests {
 
     #[test]
     fn test_setting_data_type_variants() {
-        assert_eq!(
-            format!("{:?}", SettingDataTypeDb::Boolean),
-            "Boolean"
-        );
-        assert_eq!(
-            format!("{:?}", SettingDataTypeDb::Integer),
-            "Integer"
-        );
+        assert_eq!(format!("{:?}", SettingDataTypeDb::Boolean), "Boolean");
+        assert_eq!(format!("{:?}", SettingDataTypeDb::Integer), "Integer");
     }
 
     #[test]
     fn test_setting_category_variants() {
-        assert_eq!(
-            format!("{:?}", SettingCategoryDb::Tracking),
-            "Tracking"
-        );
-        assert_eq!(
-            format!("{:?}", SettingCategoryDb::Privacy),
-            "Privacy"
-        );
+        assert_eq!(format!("{:?}", SettingCategoryDb::Tracking), "Tracking");
+        assert_eq!(format!("{:?}", SettingCategoryDb::Privacy), "Privacy");
     }
 }

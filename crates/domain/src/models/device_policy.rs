@@ -185,26 +185,26 @@ pub struct UnapplyPolicyResponse {
 /// Validate locked settings array.
 fn validate_locked_settings(settings: &[String]) -> Result<(), validator::ValidationError> {
     if settings.len() > 100 {
-        return Err(validator::ValidationError::new("too_many_locked_settings")
-            .with_message(std::borrow::Cow::Borrowed(
-                "Cannot lock more than 100 settings",
-            )));
+        return Err(
+            validator::ValidationError::new("too_many_locked_settings").with_message(
+                std::borrow::Cow::Borrowed("Cannot lock more than 100 settings"),
+            ),
+        );
     }
     for setting in settings {
         if setting.len() > 100 {
-            return Err(validator::ValidationError::new("setting_key_too_long")
-                .with_message(std::borrow::Cow::Borrowed(
-                    "Setting key must be at most 100 characters",
-                )));
+            return Err(
+                validator::ValidationError::new("setting_key_too_long").with_message(
+                    std::borrow::Cow::Borrowed("Setting key must be at most 100 characters"),
+                ),
+            );
         }
     }
     Ok(())
 }
 
 /// Validate optional locked settings array.
-fn validate_locked_settings_option(
-    settings: &[String],
-) -> Result<(), validator::ValidationError> {
+fn validate_locked_settings_option(settings: &[String]) -> Result<(), validator::ValidationError> {
     validate_locked_settings(settings)
 }
 
@@ -274,14 +274,8 @@ mod tests {
     fn test_policy_target_type_serialization() {
         let device = PolicyTargetType::Device;
         let group = PolicyTargetType::Group;
-        assert_eq!(
-            serde_json::to_string(&device).unwrap(),
-            "\"device\""
-        );
-        assert_eq!(
-            serde_json::to_string(&group).unwrap(),
-            "\"group\""
-        );
+        assert_eq!(serde_json::to_string(&device).unwrap(), "\"device\"");
+        assert_eq!(serde_json::to_string(&group).unwrap(), "\"group\"");
     }
 
     #[test]

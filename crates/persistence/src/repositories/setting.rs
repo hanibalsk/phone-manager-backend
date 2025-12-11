@@ -284,10 +284,11 @@ impl SettingRepository {
     /// Count lockable settings.
     pub async fn count_lockable_settings(&self) -> Result<i64, sqlx::Error> {
         let timer = QueryTimer::new("count_lockable_settings");
-        let result =
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM setting_definitions WHERE is_lockable = true")
-                .fetch_one(&self.pool)
-                .await;
+        let result = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM setting_definitions WHERE is_lockable = true",
+        )
+        .fetch_one(&self.pool)
+        .await;
         timer.record();
         result
     }

@@ -103,7 +103,9 @@ impl CreateGeofenceEventRequest {
         }
 
         // Try parsing as ISO 8601 without timezone (assume UTC)
-        if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(&self.timestamp, "%Y-%m-%dT%H:%M:%S%.fZ") {
+        if let Ok(dt) =
+            chrono::NaiveDateTime::parse_from_str(&self.timestamp, "%Y-%m-%dT%H:%M:%S%.fZ")
+        {
             return Ok(dt.and_utc().timestamp_millis());
         }
 
@@ -220,17 +222,35 @@ mod tests {
 
     #[test]
     fn test_geofence_transition_type_parse() {
-        assert_eq!(GeofenceTransitionType::parse("enter"), Some(GeofenceTransitionType::Enter));
-        assert_eq!(GeofenceTransitionType::parse("EXIT"), Some(GeofenceTransitionType::Exit));
-        assert_eq!(GeofenceTransitionType::parse("Dwell"), Some(GeofenceTransitionType::Dwell));
+        assert_eq!(
+            GeofenceTransitionType::parse("enter"),
+            Some(GeofenceTransitionType::Enter)
+        );
+        assert_eq!(
+            GeofenceTransitionType::parse("EXIT"),
+            Some(GeofenceTransitionType::Exit)
+        );
+        assert_eq!(
+            GeofenceTransitionType::parse("Dwell"),
+            Some(GeofenceTransitionType::Dwell)
+        );
         assert_eq!(GeofenceTransitionType::parse("invalid"), None);
     }
 
     #[test]
     fn test_geofence_transition_type_to_webhook_event_type() {
-        assert_eq!(GeofenceTransitionType::Enter.to_webhook_event_type(), "geofence_enter");
-        assert_eq!(GeofenceTransitionType::Exit.to_webhook_event_type(), "geofence_exit");
-        assert_eq!(GeofenceTransitionType::Dwell.to_webhook_event_type(), "geofence_dwell");
+        assert_eq!(
+            GeofenceTransitionType::Enter.to_webhook_event_type(),
+            "geofence_enter"
+        );
+        assert_eq!(
+            GeofenceTransitionType::Exit.to_webhook_event_type(),
+            "geofence_exit"
+        );
+        assert_eq!(
+            GeofenceTransitionType::Dwell.to_webhook_event_type(),
+            "geofence_dwell"
+        );
     }
 
     #[test]

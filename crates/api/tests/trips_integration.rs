@@ -389,8 +389,7 @@ async fn test_invalid_state_transition() {
     let response = app.oneshot(request).await.unwrap();
     // Should fail - can't cancel completed trip
     assert!(
-        response.status() == StatusCode::BAD_REQUEST
-            || response.status() == StatusCode::CONFLICT
+        response.status() == StatusCode::BAD_REQUEST || response.status() == StatusCode::CONFLICT
     );
 
     cleanup_all_test_data(&pool).await;
@@ -439,7 +438,12 @@ async fn test_get_device_trips_success() {
             &auth.access_token,
         );
         let response = app.oneshot(request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::CREATED, "Trip {} creation failed", i);
+        assert_eq!(
+            response.status(),
+            StatusCode::CREATED,
+            "Trip {} creation failed",
+            i
+        );
         let body = parse_response_body(response).await;
         let trip_id = body["id"].as_str().unwrap();
 
@@ -459,7 +463,12 @@ async fn test_get_device_trips_success() {
             &auth.access_token,
         );
         let response = app.oneshot(request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK, "Trip {} completion failed", i);
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Trip {} completion failed",
+            i
+        );
     }
 
     // Get device trips
@@ -519,7 +528,12 @@ async fn test_get_device_trips_with_pagination() {
             &auth.access_token,
         );
         let response = app.oneshot(request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::CREATED, "Trip {} creation failed", i);
+        assert_eq!(
+            response.status(),
+            StatusCode::CREATED,
+            "Trip {} creation failed",
+            i
+        );
         let body = parse_response_body(response).await;
         let trip_id = body["id"].as_str().unwrap();
 
@@ -539,7 +553,12 @@ async fn test_get_device_trips_with_pagination() {
             &auth.access_token,
         );
         let response = app.oneshot(request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK, "Trip {} completion failed", i);
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Trip {} completion failed",
+            i
+        );
     }
 
     // Get first page

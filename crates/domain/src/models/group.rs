@@ -108,7 +108,11 @@ pub struct GroupMembership {
 #[derive(Debug, Clone, Deserialize, Validate)]
 #[serde(rename_all = "snake_case")]
 pub struct CreateGroupRequest {
-    #[validate(length(min = 1, max = 100, message = "Name must be between 1 and 100 characters"))]
+    #[validate(length(
+        min = 1,
+        max = 100,
+        message = "Name must be between 1 and 100 characters"
+    ))]
     pub name: String,
 
     #[validate(length(max = 500, message = "Description must be at most 500 characters"))]
@@ -125,7 +129,11 @@ pub struct CreateGroupRequest {
 #[derive(Debug, Clone, Deserialize, Validate)]
 #[serde(rename_all = "snake_case")]
 pub struct UpdateGroupRequest {
-    #[validate(length(min = 1, max = 100, message = "Name must be between 1 and 100 characters"))]
+    #[validate(length(
+        min = 1,
+        max = 100,
+        message = "Name must be between 1 and 100 characters"
+    ))]
     pub name: Option<String>,
 
     #[validate(length(max = 500, message = "Description must be at most 500 characters"))]
