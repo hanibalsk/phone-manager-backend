@@ -13,7 +13,7 @@ use domain::models::{
     validate_permissions, AddOrgUserRequest, CreateOrganizationRequest, CreateOrganizationResponse,
     ListOrgUsersQuery, ListOrgUsersResponse, ListOrganizationsQuery, ListOrganizationsResponse,
     OrgUserPagination, OrgUserResponse, OrgUserRole, OrganizationPagination, PlanType,
-    UpdateOrgUserRequest, UpdateOrganizationRequest,
+    SuspendOrganizationRequest, UpdateOrgUserRequest, UpdateOrganizationRequest,
 };
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -253,6 +253,80 @@ pub async fn get_organization_usage(
                 admin_key_id = auth.api_key_id,
                 organization_id = %org_id,
                 "Organization not found"
+            );
+            Err(ApiError::NotFound("Organization not found".to_string()))
+        }
+    }
+}
+
+/// POST /api/admin/v1/organizations/:org_id/suspend
+///
+/// Suspend an organization.
+pub async fn suspend_organization(
+    State(state): State<AppState>,
+    Extension(auth): Extension<ApiKeyAuth>,
+    Path(org_id): Path<Uuid>,
+    Json(request): Json<SuspendOrganizationRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let repo = OrganizationRepository::new(state.pool.clone());
+
+    // Get admin user ID from auth context
+    let suspended_by = auth
+        .user_id
+        .ok_or_else(|| ApiError::Unauthorized("Admin user ID required for suspension".to_string()))?;
+
+    let result = repo
+        .suspend(org_id, suspended_by, request.reason.as_deref())
+        .await?;
+
+    match result {
+        Some(response) => {
+            info!(
+                admin_key_id = auth.api_key_id,
+                organization_id = %org_id,
+                suspended_by = %suspended_by,
+                reason = ?request.reason,
+                "Suspended organization"
+            );
+            Ok(Json(response))
+        }
+        None => {
+            warn!(
+                admin_key_id = auth.api_key_id,
+                organization_id = %org_id,
+                "Organization not found for suspension"
+            );
+            Err(ApiError::NotFound("Organization not found".to_string()))
+        }
+    }
+}
+
+/// POST /api/admin/v1/organizations/:org_id/reactivate
+///
+/// Reactivate a suspended organization.
+pub async fn reactivate_organization(
+    State(state): State<AppState>,
+    Extension(auth): Extension<ApiKeyAuth>,
+    Path(org_id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    let repo = OrganizationRepository::new(state.pool.clone());
+
+    let result = repo.reactivate(org_id).await?;
+
+    match result {
+        Some(response) => {
+            info!(
+                admin_key_id = auth.api_key_id,
+                organization_id = %org_id,
+                "Reactivated organization"
+            );
+            Ok(Json(response))
+        }
+        None => {
+            warn!(
+                admin_key_id = auth.api_key_id,
+                organization_id = %org_id,
+                "Organization not found for reactivation"
             );
             Err(ApiError::NotFound("Organization not found".to_string()))
         }

@@ -52,6 +52,10 @@ pub struct OrganizationEntity {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // Suspension fields
+    pub suspended_at: Option<DateTime<Utc>>,
+    pub suspended_by: Option<Uuid>,
+    pub suspension_reason: Option<String>,
 }
 
 impl From<OrganizationEntity> for domain::models::Organization {
@@ -69,6 +73,9 @@ impl From<OrganizationEntity> for domain::models::Organization {
             is_active: entity.is_active,
             created_at: entity.created_at,
             updated_at: entity.updated_at,
+            suspended_at: entity.suspended_at,
+            suspended_by: entity.suspended_by,
+            suspension_reason: entity.suspension_reason,
         }
     }
 }
@@ -88,6 +95,10 @@ pub struct OrganizationWithUsageEntity {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // Suspension fields
+    pub suspended_at: Option<DateTime<Utc>>,
+    pub suspended_by: Option<Uuid>,
+    pub suspension_reason: Option<String>,
     // Usage statistics
     pub current_users: i64,
     pub current_devices: i64,
@@ -110,6 +121,9 @@ impl From<OrganizationWithUsageEntity> for domain::models::OrganizationWithUsage
                 is_active: entity.is_active,
                 created_at: entity.created_at,
                 updated_at: entity.updated_at,
+                suspended_at: entity.suspended_at,
+                suspended_by: entity.suspended_by,
+                suspension_reason: entity.suspension_reason,
             },
             current_users: entity.current_users,
             current_devices: entity.current_devices,

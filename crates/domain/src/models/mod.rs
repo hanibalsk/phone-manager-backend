@@ -122,8 +122,9 @@ pub use org_webhook::{
 pub use organization::{
     CreateOrganizationRequest, CreateOrganizationResponse, DeviceStatusCounts, DeviceUsageMetric,
     ListOrganizationsQuery, ListOrganizationsResponse, Organization, OrganizationPagination,
-    OrganizationUsageResponse, OrganizationWithUsage, PlanType, UpdateOrganizationRequest,
-    UsageMetric, SLUG_REGEX,
+    OrganizationUsageResponse, OrganizationWithUsage, PlanType, ReactivateOrganizationResponse,
+    SuspendOrganizationRequest, SuspendOrganizationResponse, UpdateOrganizationRequest, UsageMetric,
+    SLUG_REGEX,
 };
 pub use organization_role::{
     is_system_role_name, CreateOrganizationRoleRequest, DeleteOrganizationRoleResponse,

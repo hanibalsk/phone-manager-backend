@@ -353,6 +353,15 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/admin/v1/organizations/:org_id/usage",
             get(organizations::get_organization_usage),
         )
+        // Organization suspend/reactivate routes (Story AP-2.7)
+        .route(
+            "/api/admin/v1/organizations/:org_id/suspend",
+            post(organizations::suspend_organization),
+        )
+        .route(
+            "/api/admin/v1/organizations/:org_id/reactivate",
+            post(organizations::reactivate_organization),
+        )
         // Organization user management routes (Story 13.2)
         .route(
             "/api/admin/v1/organizations/:org_id/users",

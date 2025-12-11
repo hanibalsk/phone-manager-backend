@@ -71,6 +71,20 @@ pub struct Organization {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // Suspension fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspended_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspended_by: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspension_reason: Option<String>,
+}
+
+impl Organization {
+    /// Check if the organization is currently suspended.
+    pub fn is_suspended(&self) -> bool {
+        self.suspended_at.is_some()
+    }
 }
 
 /// Organization with usage statistics.
@@ -210,6 +224,34 @@ lazy_static::lazy_static! {
     pub static ref SLUG_REGEX: regex::Regex = regex::Regex::new(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$").unwrap();
 }
 
+/// Request to suspend an organization.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct SuspendOrganizationRequest {
+    /// Optional reason for the suspension.
+    pub reason: Option<String>,
+}
+
+/// Response for suspend/reactivate operations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SuspendOrganizationResponse {
+    pub organization_id: Uuid,
+    pub suspended: bool,
+    pub suspended_at: Option<DateTime<Utc>>,
+    pub suspended_by: Option<Uuid>,
+    pub suspension_reason: Option<String>,
+}
+
+/// Response for reactivate operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ReactivateOrganizationResponse {
+    pub organization_id: Uuid,
+    pub reactivated: bool,
+    pub reactivated_at: DateTime<Utc>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -299,12 +341,43 @@ mod tests {
             is_active: true,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            suspended_at: None,
+            suspended_by: None,
+            suspension_reason: None,
         };
 
         let json = serde_json::to_string(&org).unwrap();
         assert!(json.contains("\"plan_type\":\"starter\""));
         assert!(json.contains("\"max_users\":25"));
         assert!(json.contains("\"billing_email\":\"test@test.com\""));
+        // Suspension fields should not appear when None (skip_serializing_if)
+        assert!(!json.contains("suspended_at"));
+    }
+
+    #[test]
+    fn test_organization_is_suspended() {
+        let mut org = Organization {
+            id: Uuid::nil(),
+            name: "Test Org".to_string(),
+            slug: "test-org".to_string(),
+            billing_email: "test@test.com".to_string(),
+            plan_type: PlanType::Starter,
+            max_users: 25,
+            max_devices: 100,
+            max_groups: 20,
+            settings: json!({}),
+            is_active: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            suspended_at: None,
+            suspended_by: None,
+            suspension_reason: None,
+        };
+
+        assert!(!org.is_suspended());
+
+        org.suspended_at = Some(Utc::now());
+        assert!(org.is_suspended());
     }
 
     #[test]

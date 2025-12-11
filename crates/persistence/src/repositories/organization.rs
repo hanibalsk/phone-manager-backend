@@ -3,7 +3,8 @@
 use chrono::Utc;
 use domain::models::{
     DeviceStatusCounts, DeviceUsageMetric, ListOrganizationsQuery, Organization,
-    OrganizationUsageResponse, PlanType, UsageMetric,
+    OrganizationUsageResponse, PlanType, ReactivateOrganizationResponse,
+    SuspendOrganizationResponse, UsageMetric,
 };
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
@@ -40,7 +41,7 @@ impl OrganizationRepository {
             r#"
             INSERT INTO organizations (name, slug, billing_email, plan_type, max_users, max_devices, max_groups, settings)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id, name, slug, billing_email, plan_type, max_users, max_devices, max_groups, settings, is_active, created_at, updated_at
+            RETURNING id, name, slug, billing_email, plan_type, max_users, max_devices, max_groups, settings, is_active, created_at, updated_at, suspended_at, suspended_by, suspension_reason
             "#,
         )
         .bind(name)
@@ -61,7 +62,7 @@ impl OrganizationRepository {
     pub async fn find_by_id(&self, id: Uuid) -> Result<Option<Organization>, sqlx::Error> {
         let entity = sqlx::query_as::<_, OrganizationEntity>(
             r#"
-            SELECT id, name, slug, billing_email, plan_type, max_users, max_devices, max_groups, settings, is_active, created_at, updated_at
+            SELECT id, name, slug, billing_email, plan_type, max_users, max_devices, max_groups, settings, is_active, created_at, updated_at, suspended_at, suspended_by, suspension_reason
             FROM organizations
             WHERE id = $1
             "#,
@@ -77,7 +78,7 @@ impl OrganizationRepository {
     pub async fn find_by_slug(&self, slug: &str) -> Result<Option<Organization>, sqlx::Error> {
         let entity = sqlx::query_as::<_, OrganizationEntity>(
             r#"
-            SELECT id, name, slug, billing_email, plan_type, max_users, max_devices, max_groups, settings, is_active, created_at, updated_at
+            SELECT id, name, slug, billing_email, plan_type, max_users, max_devices, max_groups, settings, is_active, created_at, updated_at, suspended_at, suspended_by, suspension_reason
             FROM organizations
             WHERE slug = $1
             "#,
@@ -129,7 +130,7 @@ impl OrganizationRepository {
                 settings = COALESCE($8, settings),
                 updated_at = NOW()
             WHERE id = $1
-            RETURNING id, name, slug, billing_email, plan_type, max_users, max_devices, max_groups, settings, is_active, created_at, updated_at
+            RETURNING id, name, slug, billing_email, plan_type, max_users, max_devices, max_groups, settings, is_active, created_at, updated_at, suspended_at, suspended_by, suspension_reason
             "#,
         )
         .bind(id)
@@ -205,7 +206,7 @@ impl OrganizationRepository {
         // Get organizations
         let list_query = format!(
             r#"
-            SELECT id, name, slug, billing_email, plan_type, max_users, max_devices, max_groups, settings, is_active, created_at, updated_at
+            SELECT id, name, slug, billing_email, plan_type, max_users, max_devices, max_groups, settings, is_active, created_at, updated_at, suspended_at, suspended_by, suspension_reason
             FROM organizations
             {}
             ORDER BY created_at DESC
@@ -317,6 +318,119 @@ impl OrganizationRepository {
                 percentage: groups_percentage,
             },
             period,
+        }))
+    }
+
+    /// Suspend an organization.
+    pub async fn suspend(
+        &self,
+        org_id: Uuid,
+        suspended_by: Uuid,
+        reason: Option<&str>,
+    ) -> Result<Option<SuspendOrganizationResponse>, sqlx::Error> {
+        let now = Utc::now();
+
+        let result = sqlx::query(
+            r#"
+            UPDATE organizations
+            SET
+                suspended_at = $2,
+                suspended_by = $3,
+                suspension_reason = $4,
+                updated_at = NOW()
+            WHERE id = $1 AND suspended_at IS NULL
+            "#,
+        )
+        .bind(org_id)
+        .bind(now)
+        .bind(suspended_by)
+        .bind(reason)
+        .execute(&self.pool)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            // Check if org exists
+            let exists = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM organizations WHERE id = $1)",
+            )
+            .bind(org_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+            if !exists {
+                return Ok(None);
+            }
+
+            // Org exists but already suspended - return current state
+            let org = self.find_by_id(org_id).await?;
+            if let Some(o) = org {
+                return Ok(Some(SuspendOrganizationResponse {
+                    organization_id: org_id,
+                    suspended: true,
+                    suspended_at: o.suspended_at,
+                    suspended_by: o.suspended_by,
+                    suspension_reason: o.suspension_reason,
+                }));
+            }
+            return Ok(None);
+        }
+
+        Ok(Some(SuspendOrganizationResponse {
+            organization_id: org_id,
+            suspended: true,
+            suspended_at: Some(now),
+            suspended_by: Some(suspended_by),
+            suspension_reason: reason.map(String::from),
+        }))
+    }
+
+    /// Reactivate a suspended organization.
+    pub async fn reactivate(
+        &self,
+        org_id: Uuid,
+    ) -> Result<Option<ReactivateOrganizationResponse>, sqlx::Error> {
+        let now = Utc::now();
+
+        let result = sqlx::query(
+            r#"
+            UPDATE organizations
+            SET
+                suspended_at = NULL,
+                suspended_by = NULL,
+                suspension_reason = NULL,
+                updated_at = NOW()
+            WHERE id = $1 AND suspended_at IS NOT NULL
+            "#,
+        )
+        .bind(org_id)
+        .execute(&self.pool)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            // Check if org exists
+            let exists = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM organizations WHERE id = $1)",
+            )
+            .bind(org_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+            if !exists {
+                return Ok(None);
+            }
+
+            // Org exists but not suspended - return success (idempotent)
+            return Ok(Some(ReactivateOrganizationResponse {
+                organization_id: org_id,
+                reactivated: true,
+                reactivated_at: now,
+            }));
+        }
+
+        Ok(Some(ReactivateOrganizationResponse {
+            organization_id: org_id,
+            reactivated: true,
+            reactivated_at: now,
         }))
     }
 }
