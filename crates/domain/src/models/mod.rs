@@ -6,7 +6,9 @@ pub mod admin_user;
 pub mod api_key;
 pub mod audit_log;
 pub mod bulk_import;
+pub mod compliance;
 pub mod dashboard;
+pub mod data_subject_request;
 pub mod device;
 pub mod device_policy;
 pub mod device_token;
@@ -77,9 +79,22 @@ pub use bulk_import::{
     BulkImportError, BulkImportJobStatus, BulkImportOptions, BulkImportResult,
     MAX_BULK_IMPORT_DEVICES, MAX_METADATA_SIZE,
 };
+pub use compliance::{
+    ActionCount, AuditActivitySummary, AuditLogStats, ComplianceAssessment,
+    ComplianceDashboardResponse, ComplianceFinding, ComplianceReportFormat, ComplianceReportQuery,
+    ComplianceReportResponse, ComplianceStatus, DataRetentionStatus, DataSubjectRequestReportSummary,
+    DataSubjectRequestStats, FindingSeverity, OrganizationReportSummary, RequestStatusCounts,
+    RequestTypeCount,
+};
 pub use dashboard::{
     ActivityPeriod, ActivitySummary, DashboardMetrics, DeviceMetrics, DeviceStatusBreakdown,
     EnrollmentMetrics, GroupMetrics, PolicyMetrics, RoleBreakdown, TrendData, Trends, UserMetrics,
+};
+pub use data_subject_request::{
+    CreateDataSubjectRequestRequest, DataSubjectRequestAction, DataSubjectRequestPagination,
+    DataSubjectRequestResponse, DataSubjectRequestStatus, DataSubjectRequestType,
+    ListDataSubjectRequestsQuery, ListDataSubjectRequestsResponse, ProcessDataSubjectRequestRequest,
+    ProcessorInfo,
 };
 pub use device::Device;
 pub use device_policy::{

@@ -8,6 +8,7 @@ pub mod admin_user;
 pub mod api_key;
 pub mod audit_export_job;
 pub mod audit_log;
+pub mod data_subject_request;
 pub mod device;
 pub mod device_command;
 pub mod device_policy;
@@ -51,6 +52,10 @@ pub use admin_user::{
 pub use api_key::ApiKeyEntity;
 pub use audit_export_job::AuditExportJobEntity;
 pub use audit_log::AuditLogEntity;
+pub use data_subject_request::{
+    DataSubjectRequestEntity, DataSubjectRequestStatusDb, DataSubjectRequestTypeDb,
+    DataSubjectRequestWithProcessorEntity,
+};
 pub use device::{DeviceEntity, DeviceWithLastLocationEntity, FleetDeviceEntity};
 pub use device_command::DeviceCommandEntity;
 pub use device_policy::DevicePolicyEntity;

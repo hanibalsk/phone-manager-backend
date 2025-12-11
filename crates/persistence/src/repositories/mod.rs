@@ -6,6 +6,7 @@ pub mod admin_user;
 pub mod api_key;
 pub mod audit_export_job;
 pub mod audit_log;
+pub mod data_subject_request;
 pub mod dashboard;
 pub mod device;
 pub mod device_command;
@@ -42,6 +43,10 @@ pub use admin_user::AdminUserRepository;
 pub use api_key::ApiKeyRepository;
 pub use audit_export_job::{AuditExportJobRepository, ExportJob};
 pub use audit_log::AuditLogRepository;
+pub use data_subject_request::{
+    CreateDataSubjectRequestInput, DataSubjectRequestCounts, DataSubjectRequestRepository,
+    ListDataSubjectRequestsQuery, ProcessDataSubjectRequestInput, DEFAULT_DUE_DAYS,
+};
 pub use dashboard::DashboardRepository;
 pub use device::{AdminStats, DeviceRepository, FleetSummaryCounts};
 pub use device_command::DeviceCommandRepository;

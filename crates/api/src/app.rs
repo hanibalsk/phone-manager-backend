@@ -23,7 +23,8 @@ use crate::middleware::{
 };
 use crate::routes::{
     admin, admin_geofences, admin_groups, admin_locations, admin_unlock_requests, admin_users,
-    api_keys, audit_logs, auth, bulk_import, dashboard, device_policies, device_settings, devices,
+    api_keys, audit_logs, auth, bulk_import, compliance, dashboard, data_subject_requests,
+    device_policies, device_settings, devices,
     enrollment, enrollment_tokens, fleet, frontend, geofence_events, geofences, groups, health,
     invites, locations, movement_events, openapi, org_invitations, org_webhooks,
     organization_settings, organizations, permissions, privacy, proximity_alerts, public_config,
@@ -421,6 +422,16 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .nest(
             "/api/admin/v1/organizations/:org_id/audit-logs",
             audit_logs::router(),
+        )
+        // Data subject request routes (AP-11.4-6)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/data-requests",
+            data_subject_requests::router(),
+        )
+        // Compliance routes (AP-11.7-8)
+        .nest(
+            "/api/admin/v1/organizations/:org_id/compliance",
+            compliance::router(),
         )
         // Dashboard metrics (Story 14.1)
         .route(
