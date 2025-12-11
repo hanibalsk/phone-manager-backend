@@ -113,7 +113,8 @@ pub use org_member_invite::{
 pub use org_user::{
     validate_permissions, AddOrgUserRequest, ListOrgUsersQuery, ListOrgUsersResponse, OrgUser,
     OrgUserInfo, OrgUserPagination, OrgUserResponse, OrgUserRole, OrgUserWithDetails,
-    UpdateOrgUserRequest, PERMISSIONS,
+    ReactivateOrgUserResponse, SuspendOrgUserRequest, SuspendOrgUserResponse, UpdateOrgUserRequest,
+    PERMISSIONS,
 };
 pub use org_webhook::{
     CreateOrgWebhookRequest, ListOrgWebhooksResponse, OrgWebhookResponse, UpdateOrgWebhookRequest,
@@ -123,8 +124,8 @@ pub use organization::{
     CreateOrganizationRequest, CreateOrganizationResponse, DeviceStatusCounts, DeviceUsageMetric,
     ListOrganizationsQuery, ListOrganizationsResponse, Organization, OrganizationPagination,
     OrganizationUsageResponse, OrganizationWithUsage, PlanType, ReactivateOrganizationResponse,
-    SuspendOrganizationRequest, SuspendOrganizationResponse, UpdateOrganizationRequest, UsageMetric,
-    SLUG_REGEX,
+    SuspendOrganizationRequest, SuspendOrganizationResponse, UpdateOrganizationRequest,
+    UsageMetric, SLUG_REGEX,
 };
 pub use organization_role::{
     is_system_role_name, CreateOrganizationRoleRequest, DeleteOrganizationRoleResponse,

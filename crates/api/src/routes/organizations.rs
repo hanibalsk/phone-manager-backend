@@ -271,9 +271,9 @@ pub async fn suspend_organization(
     let repo = OrganizationRepository::new(state.pool.clone());
 
     // Get admin user ID from auth context
-    let suspended_by = auth
-        .user_id
-        .ok_or_else(|| ApiError::Unauthorized("Admin user ID required for suspension".to_string()))?;
+    let suspended_by = auth.user_id.ok_or_else(|| {
+        ApiError::Unauthorized("Admin user ID required for suspension".to_string())
+    })?;
 
     let result = repo
         .suspend(org_id, suspended_by, request.reason.as_deref())

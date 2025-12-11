@@ -89,6 +89,13 @@ pub struct OrgUser {
     pub permissions: Vec<String>,
     pub granted_at: DateTime<Utc>,
     pub granted_by: Option<Uuid>,
+    // Suspension fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspended_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspended_by: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspension_reason: Option<String>,
 }
 
 impl OrgUser {
@@ -108,6 +115,11 @@ impl OrgUser {
             OrgUserRole::Admin => target_role == OrgUserRole::Member,
             OrgUserRole::Member => false,
         }
+    }
+
+    /// Check if this user is currently suspended.
+    pub fn is_suspended(&self) -> bool {
+        self.suspended_at.is_some()
     }
 }
 
@@ -130,6 +142,20 @@ pub struct OrgUserWithDetails {
     pub role: OrgUserRole,
     pub permissions: Vec<String>,
     pub granted_at: DateTime<Utc>,
+    // Suspension fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspended_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspended_by: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspension_reason: Option<String>,
+}
+
+impl OrgUserWithDetails {
+    /// Check if this user is currently suspended.
+    pub fn is_suspended(&self) -> bool {
+        self.suspended_at.is_some()
+    }
 }
 
 /// Request to add a user to an organization.
@@ -196,6 +222,42 @@ pub fn validate_permissions(permissions: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// Request to suspend an organization user.
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+#[serde(rename_all = "snake_case")]
+pub struct SuspendOrgUserRequest {
+    #[validate(length(
+        max = 500,
+        message = "Suspension reason must not exceed 500 characters"
+    ))]
+    pub reason: Option<String>,
+}
+
+/// Response for suspend organization user.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SuspendOrgUserResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub organization_id: Uuid,
+    pub suspended_at: DateTime<Utc>,
+    pub suspended_by: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspension_reason: Option<String>,
+    pub message: String,
+}
+
+/// Response for reactivate organization user.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ReactivateOrgUserResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub organization_id: Uuid,
+    pub reactivated_at: DateTime<Utc>,
+    pub message: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,6 +318,9 @@ mod tests {
             permissions: vec![],
             granted_at: Utc::now(),
             granted_by: None,
+            suspended_at: None,
+            suspended_by: None,
+            suspension_reason: None,
         };
         // Owner has all permissions implicitly
         assert!(owner.has_permission("audit:read"));
@@ -268,6 +333,9 @@ mod tests {
             permissions: vec!["device:manage".to_string()],
             granted_at: Utc::now(),
             granted_by: None,
+            suspended_at: None,
+            suspended_by: None,
+            suspension_reason: None,
         };
         assert!(admin.has_permission("device:manage"));
         assert!(!admin.has_permission("audit:read"));
@@ -283,6 +351,9 @@ mod tests {
             permissions: vec![],
             granted_at: Utc::now(),
             granted_by: None,
+            suspended_at: None,
+            suspended_by: None,
+            suspension_reason: None,
         };
         assert!(owner.can_manage_role(OrgUserRole::Owner));
         assert!(owner.can_manage_role(OrgUserRole::Admin));
@@ -295,10 +366,44 @@ mod tests {
             permissions: vec![],
             granted_at: Utc::now(),
             granted_by: None,
+            suspended_at: None,
+            suspended_by: None,
+            suspension_reason: None,
         };
         assert!(!admin.can_manage_role(OrgUserRole::Owner));
         assert!(!admin.can_manage_role(OrgUserRole::Admin));
         assert!(admin.can_manage_role(OrgUserRole::Member));
+    }
+
+    #[test]
+    fn test_is_suspended() {
+        let active_user = OrgUser {
+            id: Uuid::nil(),
+            organization_id: Uuid::nil(),
+            user_id: Uuid::nil(),
+            role: OrgUserRole::Member,
+            permissions: vec![],
+            granted_at: Utc::now(),
+            granted_by: None,
+            suspended_at: None,
+            suspended_by: None,
+            suspension_reason: None,
+        };
+        assert!(!active_user.is_suspended());
+
+        let suspended_user = OrgUser {
+            id: Uuid::nil(),
+            organization_id: Uuid::nil(),
+            user_id: Uuid::nil(),
+            role: OrgUserRole::Member,
+            permissions: vec![],
+            granted_at: Utc::now(),
+            granted_by: None,
+            suspended_at: Some(Utc::now()),
+            suspended_by: Some(Uuid::nil()),
+            suspension_reason: Some("Policy violation".to_string()),
+        };
+        assert!(suspended_user.is_suspended());
     }
 
     #[test]

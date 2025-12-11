@@ -239,12 +239,11 @@ impl OrganizationRepository {
         };
 
         // Get current user count from org_users table
-        let current_users: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM org_users WHERE organization_id = $1",
-        )
-        .bind(org_id)
-        .fetch_one(&self.pool)
-        .await?;
+        let current_users: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM org_users WHERE organization_id = $1")
+                .bind(org_id)
+                .fetch_one(&self.pool)
+                .await?;
 
         // Get current device count (managed devices with this organization_id)
         let current_devices: i64 = sqlx::query_scalar(

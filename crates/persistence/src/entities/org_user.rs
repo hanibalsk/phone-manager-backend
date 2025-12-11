@@ -44,6 +44,10 @@ pub struct OrgUserEntity {
     pub permissions: JsonValue,
     pub granted_at: DateTime<Utc>,
     pub granted_by: Option<Uuid>,
+    // Suspension fields
+    pub suspended_at: Option<DateTime<Utc>>,
+    pub suspended_by: Option<Uuid>,
+    pub suspension_reason: Option<String>,
 }
 
 impl From<OrgUserEntity> for domain::models::OrgUser {
@@ -58,6 +62,9 @@ impl From<OrgUserEntity> for domain::models::OrgUser {
             permissions,
             granted_at: entity.granted_at,
             granted_by: entity.granted_by,
+            suspended_at: entity.suspended_at,
+            suspended_by: entity.suspended_by,
+            suspension_reason: entity.suspension_reason,
         }
     }
 }
@@ -72,6 +79,10 @@ pub struct OrgUserWithDetailsEntity {
     pub permissions: JsonValue,
     pub granted_at: DateTime<Utc>,
     pub granted_by: Option<Uuid>,
+    // Suspension fields
+    pub suspended_at: Option<DateTime<Utc>>,
+    pub suspended_by: Option<Uuid>,
+    pub suspension_reason: Option<String>,
     // User details
     pub user_email: String,
     pub user_display_name: Option<String>,
@@ -92,6 +103,9 @@ impl From<OrgUserWithDetailsEntity> for domain::models::OrgUserWithDetails {
             role: entity.role.into(),
             permissions,
             granted_at: entity.granted_at,
+            suspended_at: entity.suspended_at,
+            suspended_by: entity.suspended_by,
+            suspension_reason: entity.suspension_reason,
         }
     }
 }
