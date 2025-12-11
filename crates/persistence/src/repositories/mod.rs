@@ -73,6 +73,6 @@ pub use trip_path_correction::{
     TripPathCorrectionInput, TripPathCorrectionRepository, TripPathCorrectionUpdateInput,
 };
 pub use unlock_request::UnlockRequestRepository;
-pub use user::{MfaStatusRow, UserRepository};
+pub use user::{MfaStatusRow, UserRepository, UserSessionRow};
 pub use webhook::WebhookRepository;
 pub use webhook_delivery::{DeliveryStats, WebhookDeliveryRepository};

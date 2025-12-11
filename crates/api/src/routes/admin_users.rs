@@ -21,10 +21,11 @@ use crate::services::auth::{AuthError, AuthService};
 
 use domain::models::{
     validate_permissions, AdminUserDetailResponse, AdminUserListResponse, AdminUserPagination,
-    AdminUserQuery, ForceMfaResponse, MfaMethod, MfaStatusResponse, OrgUserRole,
-    ReactivateOrgUserResponse, RemoveUserResponse, ResetMfaResponse, SuspendOrgUserRequest,
+    AdminUserQuery, ForceMfaResponse, ListUserSessionsResponse, MfaMethod, MfaStatusResponse,
+    OrgUserRole, ReactivateOrgUserResponse, RemoveUserResponse, ResetMfaResponse,
+    RevokeAllSessionsResponse, RevokeSessionResponse, SuspendOrgUserRequest,
     SuspendOrgUserResponse, TriggerPasswordResetResponse, UpdateAdminUserRequest,
-    UpdateAdminUserResponse,
+    UpdateAdminUserResponse, UserSessionInfo,
 };
 
 /// Create admin user management routes.
@@ -40,6 +41,9 @@ pub fn router() -> Router<AppState> {
         .route("/{user_id}/mfa", get(get_mfa_status))
         .route("/{user_id}/mfa/force", post(force_mfa))
         .route("/{user_id}/mfa", delete(reset_mfa))
+        .route("/{user_id}/sessions", get(list_user_sessions))
+        .route("/{user_id}/sessions/{session_id}", delete(revoke_session))
+        .route("/{user_id}/sessions", delete(revoke_all_sessions))
 }
 
 /// Helper to create AuthService with OAuth config from AppState.
@@ -888,6 +892,212 @@ async fn reset_mfa(
         mfa_reset: true,
         reset_at: Utc::now(),
         message: "MFA has been reset for the user".to_string(),
+    };
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// List active sessions for a user in organization.
+///
+/// GET /api/admin/v1/organizations/{org_id}/users/{user_id}/sessions
+///
+/// Story AP-3.11: List User Sessions
+#[axum::debug_handler]
+async fn list_user_sessions(
+    State(state): State<AppState>,
+    Path((org_id, target_user_id)): Path<(Uuid, Uuid)>,
+    user: UserAuth,
+) -> Result<impl IntoResponse, ApiError> {
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+    let user_repo = UserRepository::new(state.pool.clone());
+
+    // Verify user has access to organization
+    let org_user = org_user_repo
+        .find_by_org_and_user(org_id, user.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
+
+    // Check permission (admin or owner can view sessions)
+    if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
+    }
+
+    // Verify target user is in the organization
+    let _target_org_user = org_user_repo
+        .find_by_org_and_user(org_id, target_user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found in organization".to_string()))?;
+
+    // Get sessions
+    let sessions = user_repo.list_user_sessions(target_user_id).await?;
+    let total = sessions.len() as i64;
+
+    // Convert to response format
+    let data: Vec<UserSessionInfo> = sessions
+        .into_iter()
+        .map(|s| UserSessionInfo {
+            id: s.id,
+            user_id: s.user_id,
+            device_name: s.device_name,
+            device_type: s.device_type,
+            browser: s.browser,
+            os: s.os,
+            ip_address: s.ip_address,
+            location: s.location,
+            created_at: s.created_at,
+            last_used_at: s.last_used_at,
+            expires_at: s.expires_at,
+            is_current: false, // We don't have access to current token in this context
+        })
+        .collect();
+
+    let response = ListUserSessionsResponse { data, total };
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// Revoke a specific session for a user in organization.
+///
+/// DELETE /api/admin/v1/organizations/{org_id}/users/{user_id}/sessions/{session_id}
+///
+/// Story AP-3.12: Revoke Session
+#[axum::debug_handler]
+async fn revoke_session(
+    State(state): State<AppState>,
+    Path((org_id, target_user_id, session_id)): Path<(Uuid, Uuid, Uuid)>,
+    user: UserAuth,
+) -> Result<impl IntoResponse, ApiError> {
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+    let user_repo = UserRepository::new(state.pool.clone());
+
+    // Verify user has access to organization
+    let org_user = org_user_repo
+        .find_by_org_and_user(org_id, user.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
+
+    // Check permission (admin or owner can revoke sessions)
+    if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
+    }
+
+    // Verify target user is in the organization
+    let target_org_user = org_user_repo
+        .find_by_org_and_user(org_id, target_user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found in organization".to_string()))?;
+
+    // Admins cannot revoke sessions for owners or other admins
+    if org_user.role == OrgUserRole::Admin {
+        if target_org_user.role == OrgUserRole::Owner {
+            return Err(ApiError::Forbidden(
+                "Admins cannot revoke sessions for owners".to_string(),
+            ));
+        }
+        if target_org_user.role == OrgUserRole::Admin && target_user_id != user.user_id {
+            return Err(ApiError::Forbidden(
+                "Admins cannot revoke sessions for other admins".to_string(),
+            ));
+        }
+    }
+
+    // Revoke the session
+    let revoked = user_repo.revoke_session(session_id, target_user_id).await?;
+
+    if !revoked {
+        return Err(ApiError::NotFound("Session not found".to_string()));
+    }
+
+    // Log the action
+    tracing::info!(
+        org_id = %org_id,
+        target_user_id = %target_user_id,
+        session_id = %session_id,
+        revoked_by = %user.user_id,
+        "Admin revoked user session"
+    );
+
+    let response = RevokeSessionResponse {
+        session_id,
+        revoked: true,
+        revoked_at: Utc::now(),
+        message: "Session has been revoked successfully".to_string(),
+    };
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// Revoke all sessions for a user in organization.
+///
+/// DELETE /api/admin/v1/organizations/{org_id}/users/{user_id}/sessions
+///
+/// Story AP-3.13: Revoke All Sessions
+#[axum::debug_handler]
+async fn revoke_all_sessions(
+    State(state): State<AppState>,
+    Path((org_id, target_user_id)): Path<(Uuid, Uuid)>,
+    user: UserAuth,
+) -> Result<impl IntoResponse, ApiError> {
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+    let user_repo = UserRepository::new(state.pool.clone());
+
+    // Verify user has access to organization
+    let org_user = org_user_repo
+        .find_by_org_and_user(org_id, user.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("User not in organization".to_string()))?;
+
+    // Check permission (admin or owner can revoke all sessions)
+    if org_user.role != OrgUserRole::Owner && org_user.role != OrgUserRole::Admin {
+        return Err(ApiError::Forbidden(
+            "Admin or owner access required".to_string(),
+        ));
+    }
+
+    // Verify target user is in the organization
+    let target_org_user = org_user_repo
+        .find_by_org_and_user(org_id, target_user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found in organization".to_string()))?;
+
+    // Admins cannot revoke all sessions for owners or other admins
+    if org_user.role == OrgUserRole::Admin {
+        if target_org_user.role == OrgUserRole::Owner {
+            return Err(ApiError::Forbidden(
+                "Admins cannot revoke sessions for owners".to_string(),
+            ));
+        }
+        if target_org_user.role == OrgUserRole::Admin && target_user_id != user.user_id {
+            return Err(ApiError::Forbidden(
+                "Admins cannot revoke sessions for other admins".to_string(),
+            ));
+        }
+    }
+
+    // Revoke all sessions
+    let revoked_count = user_repo.revoke_all_sessions(target_user_id).await?;
+
+    // Log the action
+    tracing::info!(
+        org_id = %org_id,
+        target_user_id = %target_user_id,
+        revoked_count = %revoked_count,
+        revoked_by = %user.user_id,
+        "Admin revoked all user sessions"
+    );
+
+    let response = RevokeAllSessionsResponse {
+        user_id: target_user_id,
+        revoked_count,
+        revoked_at: Utc::now(),
+        message: format!(
+            "{} session(s) have been revoked successfully",
+            revoked_count
+        ),
     };
 
     Ok((StatusCode::OK, Json(response)))

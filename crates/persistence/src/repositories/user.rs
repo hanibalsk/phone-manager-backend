@@ -304,6 +304,83 @@ impl UserRepository {
         timer.record();
         Ok(result.rows_affected() > 0)
     }
+
+    /// List active sessions for a user.
+    pub async fn list_user_sessions(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<UserSessionRow>, sqlx::Error> {
+        let timer = QueryTimer::new("list_user_sessions");
+        let result = sqlx::query_as::<_, UserSessionRow>(
+            r#"
+            SELECT id, user_id, token_hash, expires_at, created_at, last_used_at,
+                   device_name, device_type, browser, os,
+                   ip_address::text as ip_address, location, user_agent
+            FROM user_sessions
+            WHERE user_id = $1 AND expires_at > NOW()
+            ORDER BY last_used_at DESC
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
+    /// Count active sessions for a user.
+    pub async fn count_user_sessions(&self, user_id: Uuid) -> Result<i64, sqlx::Error> {
+        let timer = QueryTimer::new("count_user_sessions");
+        let count: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) as count
+            FROM user_sessions
+            WHERE user_id = $1 AND expires_at > NOW()
+            "#,
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+        timer.record();
+        Ok(count.0)
+    }
+
+    /// Revoke a specific session by ID.
+    pub async fn revoke_session(
+        &self,
+        session_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let timer = QueryTimer::new("revoke_session");
+        let result = sqlx::query(
+            r#"
+            DELETE FROM user_sessions
+            WHERE id = $1 AND user_id = $2
+            "#,
+        )
+        .bind(session_id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        timer.record();
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Revoke all sessions for a user.
+    pub async fn revoke_all_sessions(&self, user_id: Uuid) -> Result<i64, sqlx::Error> {
+        let timer = QueryTimer::new("revoke_all_sessions");
+        let result = sqlx::query(
+            r#"
+            DELETE FROM user_sessions
+            WHERE user_id = $1
+            "#,
+        )
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        timer.record();
+        Ok(result.rows_affected() as i64)
+    }
 }
 
 /// Row for MFA status queries.
@@ -316,6 +393,24 @@ pub struct MfaStatusRow {
     pub mfa_forced: bool,
     pub mfa_forced_at: Option<DateTime<Utc>>,
     pub mfa_forced_by: Option<Uuid>,
+}
+
+/// Row for user session queries with metadata.
+#[derive(Debug, sqlx::FromRow)]
+pub struct UserSessionRow {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub token_hash: String,
+    pub expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub last_used_at: DateTime<Utc>,
+    pub device_name: Option<String>,
+    pub device_type: Option<String>,
+    pub browser: Option<String>,
+    pub os: Option<String>,
+    pub ip_address: Option<String>,
+    pub location: Option<String>,
+    pub user_agent: Option<String>,
 }
 
 #[cfg(test)]

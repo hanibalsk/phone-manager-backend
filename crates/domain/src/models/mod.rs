@@ -112,10 +112,11 @@ pub use org_member_invite::{
 };
 pub use org_user::{
     validate_permissions, AddOrgUserRequest, ForceMfaResponse, ListOrgUsersQuery,
-    ListOrgUsersResponse, MfaMethod, MfaStatusResponse, OrgUser, OrgUserInfo, OrgUserPagination,
-    OrgUserResponse, OrgUserRole, OrgUserWithDetails, ReactivateOrgUserResponse, ResetMfaResponse,
+    ListOrgUsersResponse, ListUserSessionsResponse, MfaMethod, MfaStatusResponse, OrgUser,
+    OrgUserInfo, OrgUserPagination, OrgUserResponse, OrgUserRole, OrgUserWithDetails,
+    ReactivateOrgUserResponse, ResetMfaResponse, RevokeAllSessionsResponse, RevokeSessionResponse,
     SuspendOrgUserRequest, SuspendOrgUserResponse, TriggerPasswordResetResponse,
-    UpdateOrgUserRequest, PERMISSIONS,
+    UpdateOrgUserRequest, UserSessionInfo, PERMISSIONS,
 };
 pub use org_webhook::{
     CreateOrgWebhookRequest, ListOrgWebhooksResponse, OrgWebhookResponse, UpdateOrgWebhookRequest,

@@ -339,6 +339,58 @@ pub struct ResetMfaResponse {
     pub message: String,
 }
 
+/// Session information for admin viewing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct UserSessionInfo {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub browser: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub os: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ip_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub last_used_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub is_current: bool,
+}
+
+/// Response for listing user sessions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListUserSessionsResponse {
+    pub data: Vec<UserSessionInfo>,
+    pub total: i64,
+}
+
+/// Response for revoking a single session.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct RevokeSessionResponse {
+    pub session_id: Uuid,
+    pub revoked: bool,
+    pub revoked_at: DateTime<Utc>,
+    pub message: String,
+}
+
+/// Response for revoking all sessions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct RevokeAllSessionsResponse {
+    pub user_id: Uuid,
+    pub revoked_count: i64,
+    pub revoked_at: DateTime<Utc>,
+    pub message: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
