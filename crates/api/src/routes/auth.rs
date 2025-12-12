@@ -1,6 +1,11 @@
 //! Authentication routes for user registration, login, and token management.
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    response::IntoResponse,
+    Json,
+};
 use persistence::repositories::RegistrationInviteRepository;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -99,10 +104,13 @@ pub struct RegisterResponse {
 /// Register a new user with email and password.
 ///
 /// POST /api/v1/auth/register
+///
+/// When cookie authentication is enabled, tokens are also set as httpOnly cookies.
+/// The response body still contains the tokens for backward compatibility.
 pub async fn register(
     State(state): State<AppState>,
     Json(request): Json<RegisterRequest>,
-) -> Result<(StatusCode, Json<RegisterResponse>), ApiError> {
+) -> Result<impl IntoResponse, ApiError> {
     // Check auth toggles
     if !state.config.auth_toggles.registration_enabled {
         return Err(ApiError::Forbidden(
@@ -218,8 +226,8 @@ pub async fn register(
             created_at: chrono::Utc::now().to_rfc3339(),
         },
         tokens: TokensResponse {
-            access_token: result.access_token,
-            refresh_token: result.refresh_token,
+            access_token: result.access_token.clone(),
+            refresh_token: result.refresh_token.clone(),
             token_type: "Bearer".to_string(),
             expires_in: result.access_token_expires_in,
         },
@@ -227,7 +235,13 @@ pub async fn register(
         requires_email_verification: true,
     };
 
-    Ok((StatusCode::CREATED, Json(response)))
+    // Set cookies if cookie authentication is enabled
+    let mut headers = HeaderMap::new();
+    state
+        .cookie_helper
+        .add_token_cookies(&mut headers, &result.access_token, &result.refresh_token);
+
+    Ok((StatusCode::CREATED, headers, Json(response)))
 }
 
 /// Request body for user login.
@@ -283,10 +297,13 @@ pub struct LoginResponse {
 /// Login with email and password.
 ///
 /// POST /api/v1/auth/login
+///
+/// When cookie authentication is enabled, tokens are also set as httpOnly cookies.
+/// The response body still contains the tokens for backward compatibility.
 pub async fn login(
     State(state): State<AppState>,
     Json(request): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>, ApiError> {
+) -> Result<impl IntoResponse, ApiError> {
     // Check auth toggles
     if state.config.auth_toggles.oauth_only {
         return Err(ApiError::Forbidden(
@@ -334,23 +351,32 @@ pub async fn login(
             created_at: chrono::Utc::now().to_rfc3339(),
         },
         tokens: TokensResponse {
-            access_token: result.access_token,
-            refresh_token: result.refresh_token,
+            access_token: result.access_token.clone(),
+            refresh_token: result.refresh_token.clone(),
             token_type: "Bearer".to_string(),
             expires_in: result.access_token_expires_in,
         },
     };
 
-    Ok(Json(response))
+    // Set cookies if cookie authentication is enabled
+    let mut headers = HeaderMap::new();
+    state
+        .cookie_helper
+        .add_token_cookies(&mut headers, &result.access_token, &result.refresh_token);
+
+    Ok((headers, Json(response)))
 }
 
 /// OAuth sign-in with Google or Apple.
 ///
 /// POST /api/v1/auth/oauth
+///
+/// When cookie authentication is enabled, tokens are also set as httpOnly cookies.
+/// The response body still contains the tokens for backward compatibility.
 pub async fn oauth_login(
     State(state): State<AppState>,
     Json(request): Json<OAuthLoginRequest>,
-) -> Result<Json<LoginResponse>, ApiError> {
+) -> Result<impl IntoResponse, ApiError> {
     // Validate request
     request
         .validate()
@@ -395,23 +421,31 @@ pub async fn oauth_login(
             created_at: chrono::Utc::now().to_rfc3339(),
         },
         tokens: TokensResponse {
-            access_token: result.access_token,
-            refresh_token: result.refresh_token,
+            access_token: result.access_token.clone(),
+            refresh_token: result.refresh_token.clone(),
             token_type: "Bearer".to_string(),
             expires_in: result.access_token_expires_in,
         },
     };
 
-    Ok(Json(response))
+    // Set cookies if cookie authentication is enabled
+    let mut headers = HeaderMap::new();
+    state
+        .cookie_helper
+        .add_token_cookies(&mut headers, &result.access_token, &result.refresh_token);
+
+    Ok((headers, Json(response)))
 }
 
 /// Request body for token refresh.
-#[derive(Debug, Clone, Deserialize, Validate)]
+/// When cookie authentication is enabled, the refresh_token can be read from cookies
+/// and the body may be empty.
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct RefreshRequest {
-    /// The refresh token to use
-    #[validate(length(min = 1, message = "Refresh token is required"))]
-    pub refresh_token: String,
+    /// The refresh token to use (optional when using cookie authentication)
+    #[serde(default)]
+    pub refresh_token: Option<String>,
 }
 
 /// Response body for successful token refresh.
@@ -424,21 +458,40 @@ pub struct RefreshResponse {
 /// Refresh access token using a valid refresh token.
 ///
 /// POST /api/v1/auth/refresh
+///
+/// When cookie authentication is enabled:
+/// - The refresh token is read from the `refresh_token` cookie
+/// - New tokens are set as httpOnly cookies in the response
+/// - The response body still contains tokens for backward compatibility
+///
+/// When cookie authentication is disabled:
+/// - The refresh token must be provided in the request body
 pub async fn refresh(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<RefreshRequest>,
-) -> Result<Json<RefreshResponse>, ApiError> {
-    // Validate request
-    request
-        .validate()
-        .map_err(|e| ApiError::Validation(e.to_string()))?;
+) -> Result<impl IntoResponse, ApiError> {
+    // Get refresh token from body or cookie
+    let refresh_token = if let Some(token) = request.refresh_token.filter(|t| !t.is_empty()) {
+        // Token provided in body - use it
+        token
+    } else if state.cookie_helper.is_enabled() {
+        // Try to get from cookie
+        state
+            .cookie_helper
+            .extract_refresh_token(&headers)
+            .map(|s| s.to_string())
+            .ok_or_else(|| ApiError::Unauthorized("Refresh token is required".to_string()))?
+    } else {
+        return Err(ApiError::Validation("Refresh token is required".to_string()));
+    };
 
     // Create auth service
     let auth_service = create_auth_service(&state)?;
 
     // Refresh tokens
     let result = auth_service
-        .refresh(&request.refresh_token)
+        .refresh(&refresh_token)
         .await
         .map_err(|e| match e {
             AuthError::InvalidRefreshToken => {
@@ -460,23 +513,31 @@ pub async fn refresh(
     // Build response
     let response = RefreshResponse {
         tokens: TokensResponse {
-            access_token: result.access_token,
-            refresh_token: result.refresh_token,
+            access_token: result.access_token.clone(),
+            refresh_token: result.refresh_token.clone(),
             token_type: "Bearer".to_string(),
             expires_in: result.expires_in,
         },
     };
 
-    Ok(Json(response))
+    // Set cookies if cookie authentication is enabled
+    let mut response_headers = HeaderMap::new();
+    state
+        .cookie_helper
+        .add_token_cookies(&mut response_headers, &result.access_token, &result.refresh_token);
+
+    Ok((response_headers, Json(response)))
 }
 
 /// Request body for logout.
-#[derive(Debug, Clone, Deserialize, Validate)]
+/// When cookie authentication is enabled, the refresh_token can be read from cookies
+/// and the body may only contain `all_devices`.
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct LogoutRequest {
-    /// The refresh token to invalidate
-    #[validate(length(min = 1, message = "Refresh token is required"))]
-    pub refresh_token: String,
+    /// The refresh token to invalidate (optional when using cookie authentication)
+    #[serde(default)]
+    pub refresh_token: Option<String>,
 
     /// If true, invalidate all sessions for the user
     #[serde(default)]
@@ -486,21 +547,40 @@ pub struct LogoutRequest {
 /// Logout and invalidate tokens.
 ///
 /// POST /api/v1/auth/logout
+///
+/// When cookie authentication is enabled:
+/// - The refresh token is read from the `refresh_token` cookie
+/// - Cookies are cleared in the response
+/// - Returns 204 No Content on success
+///
+/// When cookie authentication is disabled:
+/// - The refresh token must be provided in the request body
 pub async fn logout(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<LogoutRequest>,
-) -> Result<StatusCode, ApiError> {
-    // Validate request
-    request
-        .validate()
-        .map_err(|e| ApiError::Validation(e.to_string()))?;
+) -> Result<impl IntoResponse, ApiError> {
+    // Get refresh token from body or cookie
+    let refresh_token = if let Some(token) = request.refresh_token.filter(|t| !t.is_empty()) {
+        // Token provided in body - use it
+        token
+    } else if state.cookie_helper.is_enabled() {
+        // Try to get from cookie
+        state
+            .cookie_helper
+            .extract_refresh_token(&headers)
+            .map(|s| s.to_string())
+            .ok_or_else(|| ApiError::Unauthorized("Refresh token is required".to_string()))?
+    } else {
+        return Err(ApiError::Validation("Refresh token is required".to_string()));
+    };
 
     // Create auth service
     let auth_service = create_auth_service(&state)?;
 
     // Logout - invalidate the session
     auth_service
-        .logout(&request.refresh_token, request.all_devices)
+        .logout(&refresh_token, request.all_devices)
         .await
         .map_err(|e| match e {
             AuthError::InvalidRefreshToken => {
@@ -514,7 +594,11 @@ pub async fn logout(
             _ => ApiError::Internal(e.to_string()),
         })?;
 
-    Ok(StatusCode::NO_CONTENT)
+    // Clear cookies if cookie authentication is enabled
+    let mut response_headers = HeaderMap::new();
+    state.cookie_helper.add_clear_cookies(&mut response_headers);
+
+    Ok((StatusCode::NO_CONTENT, response_headers))
 }
 
 /// Request body for forgot password.
@@ -821,52 +905,72 @@ mod tests {
     }
 
     #[test]
-    fn test_refresh_request_validation() {
+    fn test_refresh_request_with_token() {
+        // RefreshRequest now has optional refresh_token (validation in handler)
         let request = RefreshRequest {
-            refresh_token: "some.refresh.token".to_string(),
+            refresh_token: Some("some.refresh.token".to_string()),
         };
 
-        assert!(request.validate().is_ok());
+        assert!(request.refresh_token.is_some());
     }
 
     #[test]
     fn test_refresh_request_empty_token() {
+        // Empty token is now None
         let request = RefreshRequest {
-            refresh_token: "".to_string(),
+            refresh_token: None,
         };
 
-        assert!(request.validate().is_err());
+        assert!(request.refresh_token.is_none());
     }
 
     #[test]
-    fn test_logout_request_validation() {
+    fn test_refresh_request_deserialization() {
+        // Test JSON deserialization with token
+        let json = r#"{"refresh_token": "some.token"}"#;
+        let request: RefreshRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.refresh_token, Some("some.token".to_string()));
+    }
+
+    #[test]
+    fn test_refresh_request_deserialization_empty_body() {
+        // Test JSON deserialization with empty body (for cookie auth)
+        let json = r#"{}"#;
+        let request: RefreshRequest = serde_json::from_str(json).unwrap();
+        assert!(request.refresh_token.is_none());
+    }
+
+    #[test]
+    fn test_logout_request_with_token() {
+        // LogoutRequest now has optional refresh_token (validation in handler)
         let request = LogoutRequest {
-            refresh_token: "some.refresh.token".to_string(),
+            refresh_token: Some("some.refresh.token".to_string()),
             all_devices: false,
         };
 
-        assert!(request.validate().is_ok());
+        assert!(request.refresh_token.is_some());
     }
 
     #[test]
     fn test_logout_request_with_all_devices() {
         let request = LogoutRequest {
-            refresh_token: "some.refresh.token".to_string(),
+            refresh_token: Some("some.refresh.token".to_string()),
             all_devices: true,
         };
 
-        assert!(request.validate().is_ok());
+        assert!(request.refresh_token.is_some());
         assert!(request.all_devices);
     }
 
     #[test]
-    fn test_logout_request_empty_token() {
+    fn test_logout_request_no_token() {
+        // No token is now valid (for cookie auth)
         let request = LogoutRequest {
-            refresh_token: "".to_string(),
+            refresh_token: None,
             all_devices: false,
         };
 
-        assert!(request.validate().is_err());
+        assert!(request.refresh_token.is_none());
     }
 
     #[test]
@@ -874,6 +978,16 @@ mod tests {
         // Test that all_devices defaults to false when not provided
         let json = r#"{"refresh_token": "some.token"}"#;
         let request: LogoutRequest = serde_json::from_str(json).unwrap();
+        assert!(!request.all_devices);
+        assert_eq!(request.refresh_token, Some("some.token".to_string()));
+    }
+
+    #[test]
+    fn test_logout_request_deserialization_empty_body() {
+        // Test JSON deserialization with empty body (for cookie auth)
+        let json = r#"{}"#;
+        let request: LogoutRequest = serde_json::from_str(json).unwrap();
+        assert!(request.refresh_token.is_none());
         assert!(!request.all_devices);
     }
 

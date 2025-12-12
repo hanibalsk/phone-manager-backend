@@ -256,3 +256,42 @@ batch_size = 5
 # After expiration, report files are deleted by the cleanup job
 # Set via PM__REPORTS__EXPIRATION_DAYS
 expiration_days = 7
+
+[cookies]
+# Whether httpOnly cookie authentication is enabled (default: false)
+# When true, tokens are set as httpOnly cookies for browser-based auth
+# Set via PM__COOKIES__ENABLED
+enabled = false
+
+# Whether to set Secure flag on cookies (default: true)
+# Should be true in production (HTTPS only)
+# Set via PM__COOKIES__SECURE
+secure = true
+
+# SameSite policy for cookies: Strict, Lax, or None (default: Strict)
+# Strict provides best CSRF protection
+# Set via PM__COOKIES__SAME_SITE
+same_site = "Strict"
+
+# Cookie domain (optional, defaults to request origin)
+# Set this if cookies need to work across subdomains
+# Example: ".example.com" for all subdomains
+# Set via PM__COOKIES__DOMAIN
+domain = ""
+
+# Path for access token cookie (default: "/")
+# Set via PM__COOKIES__ACCESS_TOKEN_PATH
+access_token_path = "/"
+
+# Path for refresh token cookie (default: "/api/v1/auth")
+# Restricts refresh token cookie to auth endpoints only
+# Set via PM__COOKIES__REFRESH_TOKEN_PATH
+refresh_token_path = "/api/v1/auth"
+
+# Cookie name for access token (default: "access_token")
+# Set via PM__COOKIES__ACCESS_TOKEN_NAME
+access_token_name = "access_token"
+
+# Cookie name for refresh token (default: "refresh_token")
+# Set via PM__COOKIES__REFRESH_TOKEN_NAME
+refresh_token_name = "refresh_token"

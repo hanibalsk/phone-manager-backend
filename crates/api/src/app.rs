@@ -30,6 +30,7 @@ use crate::routes::{
     privacy, proximity_alerts, public_config, roles, system_config, system_roles, trips, users,
     versioning, webhooks,
 };
+use crate::services::cookies::CookieHelper;
 use crate::services::fcm::FcmNotificationService;
 use crate::services::map_matching::MapMatchingClient;
 use domain::services::{MockNotificationService, NotificationService};
@@ -49,6 +50,8 @@ pub struct AppState {
     pub map_matching_client: Option<Arc<MapMatchingClient>>,
     /// Notification service for push notifications
     pub notification_service: Arc<dyn NotificationService>,
+    /// Cookie helper for httpOnly authentication
+    pub cookie_helper: Arc<CookieHelper>,
 }
 
 pub fn create_app(config: Config, pool: PgPool) -> Router {
@@ -128,6 +131,20 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         Arc::new(MockNotificationService::new())
     };
 
+    // Create cookie helper for httpOnly authentication
+    let cookie_helper = Arc::new(CookieHelper::new(
+        config.cookies.clone(),
+        config.jwt.access_token_expiry_secs,
+        config.jwt.refresh_token_expiry_secs,
+    ));
+    if config.cookies.enabled {
+        tracing::info!(
+            secure = %config.cookies.secure,
+            same_site = %config.cookies.same_site,
+            "Cookie authentication enabled"
+        );
+    }
+
     let state = AppState {
         pool,
         config: config.clone(),
@@ -137,10 +154,43 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         request_verification_rate_limiter,
         map_matching_client,
         notification_service,
+        cookie_helper,
     };
 
     // Build CORS layer based on configuration
-    let cors = if config.security.cors_origins.is_empty()
+    // When cookie authentication is enabled, we need credentials support,
+    // which requires specific origins (not wildcard "*")
+    let cors = if config.cookies.enabled {
+        // Cookie auth enabled: must use specific origins with credentials
+        use tower_http::cors::AllowOrigin;
+
+        if config.security.cors_origins.is_empty()
+            || config.security.cors_origins.iter().any(|o| o == "*")
+        {
+            tracing::warn!(
+                "Cookie authentication is enabled but CORS origins are not configured. \
+                 Set PM__SECURITY__CORS_ORIGINS to specific origins for credentials to work."
+            );
+            // Fall back to permissive (credentials won't work properly)
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any)
+        } else {
+            // Specific origins with credentials support
+            let origins: Vec<_> = config
+                .security
+                .cors_origins
+                .iter()
+                .filter_map(|o| o.parse().ok())
+                .collect();
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::list(origins))
+                .allow_methods(Any)
+                .allow_headers(Any)
+                .allow_credentials(true)
+        }
+    } else if config.security.cors_origins.is_empty()
         || config.security.cors_origins.iter().any(|o| o == "*")
     {
         // Default: allow any origin (for development or when "*" is specified)
@@ -149,7 +199,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             .allow_methods(Any)
             .allow_headers(Any)
     } else {
-        // Production: only allow specified origins
+        // Production: only allow specified origins (no credentials)
         use tower_http::cors::AllowOrigin;
         let origins: Vec<_> = config
             .security

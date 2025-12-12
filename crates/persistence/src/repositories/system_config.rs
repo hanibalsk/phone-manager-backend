@@ -319,6 +319,7 @@ impl SystemConfigRepository {
     }
 
     /// Update an email template.
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_email_template(
         &self,
         id: Uuid,

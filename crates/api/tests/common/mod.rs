@@ -209,6 +209,16 @@ YQIDAQAB
             batch_size: 5,
             expiration_days: 7,
         },
+        cookies: phone_manager_api::config::CookieConfig {
+            enabled: false,
+            secure: false, // Allow non-HTTPS in tests
+            same_site: "Strict".to_string(),
+            domain: String::new(),
+            access_token_path: "/".to_string(),
+            refresh_token_path: "/api/v1/auth".to_string(),
+            access_token_name: "access_token".to_string(),
+            refresh_token_name: "refresh_token".to_string(),
+        },
     }
 }
 

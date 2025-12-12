@@ -1,6 +1,10 @@
 //! User JWT authentication extractor.
 //!
 //! Provides an Axum extractor for validating JWT tokens from requests.
+//!
+//! When cookie authentication is enabled, the extractor will try to read
+//! the access token from the `access_token` cookie. It falls back to the
+//! Authorization header if no cookie is present.
 
 use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
 use uuid::Uuid;
@@ -11,8 +15,14 @@ use crate::middleware::user_auth::UserAuth as UserAuthData;
 
 /// Authenticated user information from JWT.
 ///
-/// This extractor validates the Bearer token in the Authorization header
-/// and provides access to the authenticated user's details.
+/// This extractor validates the JWT token from requests and provides
+/// access to the authenticated user's details.
+///
+/// ## Token Sources (in priority order):
+///
+/// 1. **Extensions**: Token already validated by middleware
+/// 2. **Cookie**: `access_token` cookie (when cookie auth is enabled)
+/// 3. **Header**: `Authorization: Bearer <token>` header
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Will be used in user-authenticated route handlers
 pub struct UserAuth {
@@ -44,20 +54,30 @@ impl FromRequestParts<AppState> for UserAuth {
             return Ok(auth.clone().into());
         }
 
-        // Otherwise, extract and validate the token directly
-        let auth_header = parts
+        // Try to extract token from cookie (if cookie auth is enabled)
+        let cookie_token = if state.cookie_helper.is_enabled() {
+            state.cookie_helper.extract_access_token(&parts.headers)
+        } else {
+            None
+        };
+
+        // Try to extract token from Authorization header
+        let header_token = parts
             .headers
             .get("Authorization")
             .and_then(|v| v.to_str().ok())
-            .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
+            .and_then(|h| h.strip_prefix("Bearer "));
 
-        if !auth_header.starts_with("Bearer ") {
-            return Err(ApiError::Unauthorized(
-                "Invalid Authorization header format".to_string(),
-            ));
-        }
-
-        let token = &auth_header[7..];
+        // Use cookie token first, fall back to header token
+        let token = cookie_token.or(header_token).ok_or_else(|| {
+            if state.cookie_helper.is_enabled() {
+                ApiError::Unauthorized(
+                    "Missing authentication token (cookie or Authorization header)".to_string(),
+                )
+            } else {
+                ApiError::Unauthorized("Missing Authorization header".to_string())
+            }
+        })?;
 
         // Create JWT config
         let jwt_config =
@@ -75,6 +95,12 @@ impl FromRequestParts<AppState> for UserAuth {
 ///
 /// This extractor allows routes to optionally check for authentication
 /// without rejecting unauthenticated requests.
+///
+/// ## Token Sources (in priority order):
+///
+/// 1. **Extensions**: Token already validated by middleware
+/// 2. **Cookie**: `access_token` cookie (when cookie auth is enabled)
+/// 3. **Header**: `Authorization: Bearer <token>` header
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Will be used in optional-auth route handlers
 pub struct OptionalUserAuth(pub Option<UserAuth>);
@@ -92,26 +118,34 @@ impl FromRequestParts<AppState> for OptionalUserAuth {
             return Ok(OptionalUserAuth(Some(auth.clone().into())));
         }
 
-        // Try to extract Bearer token
-        let auth_header = parts
+        // Try to extract token from cookie (if cookie auth is enabled)
+        let cookie_token = if state.cookie_helper.is_enabled() {
+            state.cookie_helper.extract_access_token(&parts.headers)
+        } else {
+            None
+        };
+
+        // Try to extract token from Authorization header
+        let header_token = parts
             .headers
             .get("Authorization")
-            .and_then(|v| v.to_str().ok());
+            .and_then(|v| v.to_str().ok())
+            .and_then(|h| h.strip_prefix("Bearer "));
 
-        match auth_header {
-            Some(header) if header.starts_with("Bearer ") => {
-                let token = &header[7..];
+        // Use cookie token first, fall back to header token
+        let token = match cookie_token.or(header_token) {
+            Some(t) => t,
+            None => return Ok(OptionalUserAuth(None)),
+        };
 
-                // Try to create JWT config and validate
-                if let Ok(jwt_config) = UserAuthData::create_jwt_config(&state.config.jwt) {
-                    if let Ok(auth_data) = UserAuthData::validate(&jwt_config, token) {
-                        return Ok(OptionalUserAuth(Some(auth_data.into())));
-                    }
-                }
-                Ok(OptionalUserAuth(None))
+        // Try to create JWT config and validate
+        if let Ok(jwt_config) = UserAuthData::create_jwt_config(&state.config.jwt) {
+            if let Ok(auth_data) = UserAuthData::validate(&jwt_config, token) {
+                return Ok(OptionalUserAuth(Some(auth_data.into())));
             }
-            _ => Ok(OptionalUserAuth(None)),
         }
+
+        Ok(OptionalUserAuth(None))
     }
 }
 

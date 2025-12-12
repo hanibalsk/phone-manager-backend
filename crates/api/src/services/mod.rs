@@ -3,6 +3,7 @@
 pub mod admin_bootstrap;
 pub mod apple_auth;
 pub mod auth;
+pub mod cookies;
 pub mod email;
 pub mod fcm;
 pub mod map_matching;
@@ -25,3 +26,5 @@ pub use path_correction::PathCorrectionService;
 pub use report_generation::{ReportGenerationError, ReportGenerationService};
 #[allow(unused_imports)] // Used in geofence_events routes
 pub use webhook_delivery::WebhookDeliveryService;
+#[allow(unused_imports)] // Used for httpOnly cookie authentication
+pub use cookies::CookieHelper;

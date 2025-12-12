@@ -38,6 +38,9 @@ pub struct Config {
     /// Reports configuration
     #[serde(default)]
     pub reports: ReportsConfig,
+    /// Cookie configuration for httpOnly authentication
+    #[serde(default)]
+    pub cookies: CookieConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -572,6 +575,81 @@ fn default_report_expiration_days() -> u32 {
     7
 }
 
+/// Cookie configuration for httpOnly authentication.
+/// Used by admin-portal for secure browser-based authentication.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CookieConfig {
+    /// Whether httpOnly cookie authentication is enabled (default: false)
+    /// When true, tokens are set as httpOnly cookies instead of response body
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Whether to set Secure flag on cookies (default: true)
+    /// Should be true in production (HTTPS only)
+    #[serde(default = "default_true")]
+    pub secure: bool,
+
+    /// SameSite policy for cookies: Strict, Lax, or None (default: Strict)
+    #[serde(default = "default_same_site")]
+    pub same_site: String,
+
+    /// Cookie domain (optional, defaults to request origin)
+    /// Set this if cookies need to work across subdomains
+    #[serde(default)]
+    pub domain: String,
+
+    /// Path for access token cookie (default: "/")
+    #[serde(default = "default_access_token_path")]
+    pub access_token_path: String,
+
+    /// Path for refresh token cookie (default: "/api/v1/auth")
+    #[serde(default = "default_refresh_token_path")]
+    pub refresh_token_path: String,
+
+    /// Cookie name for access token (default: "access_token")
+    #[serde(default = "default_access_token_name")]
+    pub access_token_name: String,
+
+    /// Cookie name for refresh token (default: "refresh_token")
+    #[serde(default = "default_refresh_token_name")]
+    pub refresh_token_name: String,
+}
+
+impl Default for CookieConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            secure: true,
+            same_site: default_same_site(),
+            domain: String::new(),
+            access_token_path: default_access_token_path(),
+            refresh_token_path: default_refresh_token_path(),
+            access_token_name: default_access_token_name(),
+            refresh_token_name: default_refresh_token_name(),
+        }
+    }
+}
+
+fn default_same_site() -> String {
+    "Strict".to_string()
+}
+
+fn default_access_token_path() -> String {
+    "/".to_string()
+}
+
+fn default_refresh_token_path() -> String {
+    "/api/v1/auth".to_string()
+}
+
+fn default_access_token_name() -> String {
+    "access_token".to_string()
+}
+
+fn default_refresh_token_name() -> String {
+    "refresh_token".to_string()
+}
+
 /// Frontend static file serving configuration for admin UI.
 #[derive(Debug, Clone, Deserialize)]
 pub struct FrontendConfig {
@@ -772,6 +850,16 @@ impl Config {
             reports_dir = "./reports"
             batch_size = 5
             expiration_days = 7
+
+            [cookies]
+            enabled = false
+            secure = true
+            same_site = "Strict"
+            domain = ""
+            access_token_path = "/"
+            refresh_token_path = "/api/v1/auth"
+            access_token_name = "access_token"
+            refresh_token_name = "refresh_token"
         "#;
 
         let mut builder = config::Config::builder()

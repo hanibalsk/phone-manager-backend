@@ -105,6 +105,7 @@ impl AppUsageRepository {
     }
 
     /// Get app usage history for a device.
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_device_history(
         &self,
         org_id: Uuid,
