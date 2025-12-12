@@ -12,10 +12,9 @@ ALTER TABLE user_sessions
     ADD COLUMN IF NOT EXISTS location VARCHAR(255), -- "City, Country" or "Unknown"
     ADD COLUMN IF NOT EXISTS user_agent TEXT;
 
--- Index for finding sessions by user
-CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id_active
-    ON user_sessions(user_id, expires_at)
-    WHERE expires_at > NOW();
+-- Index for finding sessions by user (ordered by expiration for efficient active session queries)
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id_expires
+    ON user_sessions(user_id, expires_at DESC);
 
 -- Comments for documentation
 COMMENT ON COLUMN user_sessions.device_name IS 'User-friendly device name (e.g., "iPhone 14", "Chrome on MacOS")';
