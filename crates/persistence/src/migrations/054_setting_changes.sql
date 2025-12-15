@@ -13,7 +13,7 @@ CREATE TABLE setting_changes (
     setting_key VARCHAR(100) NOT NULL,
     old_value JSONB,
     new_value JSONB,
-    changed_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    changed_by UUID REFERENCES users(id) ON DELETE SET NULL,
     changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     change_type setting_change_type NOT NULL
 );

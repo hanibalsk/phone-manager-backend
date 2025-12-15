@@ -29,7 +29,7 @@ pub struct SettingsHistoryResponse {
     /// List of setting changes.
     pub changes: Vec<SettingChangeResponse>,
     /// Total number of changes for this device.
-    pub total_count: i32,
+    pub total_count: i64,
     /// Whether there are more results available.
     pub has_more: bool,
 }

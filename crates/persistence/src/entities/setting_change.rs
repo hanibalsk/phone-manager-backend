@@ -33,7 +33,8 @@ pub struct SettingChangeEntity {
     pub setting_key: String,
     pub old_value: Option<serde_json::Value>,
     pub new_value: Option<serde_json::Value>,
-    pub changed_by: Uuid,
+    /// User who made the change (null if user was deleted).
+    pub changed_by: Option<Uuid>,
     pub changed_at: DateTime<Utc>,
     pub change_type: SettingChangeTypeDb,
 }
@@ -46,10 +47,11 @@ pub struct SettingChangeWithUserEntity {
     pub setting_key: String,
     pub old_value: Option<serde_json::Value>,
     pub new_value: Option<serde_json::Value>,
-    pub changed_by: Uuid,
+    /// User who made the change (null if user was deleted).
+    pub changed_by: Option<Uuid>,
     pub changed_at: DateTime<Utc>,
     pub change_type: SettingChangeTypeDb,
-    // User info from JOIN
+    // User info from JOIN (null if user was deleted)
     pub changed_by_name: Option<String>,
 }
 

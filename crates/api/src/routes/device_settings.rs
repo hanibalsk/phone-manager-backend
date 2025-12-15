@@ -228,6 +228,13 @@ pub async fn update_device_settings(
         .map(|d| (d.key.clone(), d))
         .collect();
 
+    // Prefetch all current device settings to avoid N+1 queries
+    let current_settings = setting_repo.get_device_settings(device_id).await?;
+    let current_settings_map: HashMap<String, _> = current_settings
+        .into_iter()
+        .map(|s| (s.setting_key.clone(), s))
+        .collect();
+
     let mut updated: Vec<String> = Vec::new();
     let mut locked: Vec<String> = Vec::new();
     let mut invalid: Vec<String> = Vec::new();
@@ -278,12 +285,12 @@ pub async fn update_device_settings(
             continue;
         }
 
-        // Get current value before update (for change logging)
-        let old_setting = setting_repo.get_device_setting(device_id, &key).await?;
-        let old_value = old_setting.as_ref().map(|s| s.value.clone());
+        // Get current value from prefetched map (for change logging)
+        let old_setting = current_settings_map.get(&key);
+        let old_value = old_setting.map(|s| s.value.clone());
 
         // Check if setting is locked
-        let is_locked = old_setting.as_ref().map(|s| s.is_locked).unwrap_or(false);
+        let is_locked = old_setting.map(|s| s.is_locked).unwrap_or(false);
 
         if is_locked && !can_force {
             locked.push(key.clone());
@@ -292,11 +299,11 @@ pub async fn update_device_settings(
                 settings.insert(
                     key.clone(),
                     SettingValue {
-                        value: current.value,
+                        value: current.value.clone(),
                         is_locked: current.is_locked,
                         locked_by: current.locked_by,
                         locked_at: current.locked_at,
-                        lock_reason: current.lock_reason,
+                        lock_reason: current.lock_reason.clone(),
                         updated_at: current.updated_at,
                         updated_by: current.updated_by,
                         error: Some("Setting is locked by admin".to_string()),
@@ -320,7 +327,7 @@ pub async fn update_device_settings(
         // Log the change if value actually changed
         let value_changed = old_value.as_ref() != Some(&result.value);
         if value_changed {
-            let _ = setting_change_repo
+            if let Err(e) = setting_change_repo
                 .create(CreateSettingChangeInput {
                     device_id,
                     setting_key: key.clone(),
@@ -329,7 +336,10 @@ pub async fn update_device_settings(
                     changed_by: user_auth.user_id,
                     change_type: SettingChangeTypeDb::ValueChanged,
                 })
-                .await;
+                .await
+            {
+                warn!(device_id = %device_id, key = %key, error = %e, "Failed to log setting change");
+            }
         }
 
         updated.push(key.clone());
@@ -466,7 +476,7 @@ pub async fn update_device_setting(
     // Log the change if value actually changed
     let value_changed = old_value.as_ref() != Some(&result.value);
     if value_changed {
-        let _ = setting_change_repo
+        if let Err(e) = setting_change_repo
             .create(CreateSettingChangeInput {
                 device_id,
                 setting_key: key.clone(),
@@ -475,7 +485,10 @@ pub async fn update_device_setting(
                 changed_by: user_auth.user_id,
                 change_type: SettingChangeTypeDb::ValueChanged,
             })
-            .await;
+            .await
+        {
+            warn!(device_id = %device_id, key = %key, error = %e, "Failed to log setting change");
+        }
     }
 
     info!(
@@ -630,6 +643,10 @@ pub async fn lock_setting(
         }
     }
 
+    // Get current setting value before lock (for history fidelity)
+    let old_setting = setting_repo.get_device_setting(device_id, &key).await?;
+    let old_value = old_setting.map(|s| s.value);
+
     // Lock the setting
     let result = setting_repo
         .lock_setting(
@@ -641,17 +658,20 @@ pub async fn lock_setting(
         )
         .await?;
 
-    // Log the lock change
-    let _ = setting_change_repo
+    // Log the lock change with prior value
+    if let Err(e) = setting_change_repo
         .create(CreateSettingChangeInput {
             device_id,
             setting_key: key.clone(),
-            old_value: None,
-            new_value: request.value.clone(),
+            old_value,
+            new_value: request.value.clone().or(Some(result.value.clone())),
             changed_by: user_auth.user_id,
             change_type: SettingChangeTypeDb::Locked,
         })
-        .await;
+        .await
+    {
+        warn!(device_id = %device_id, key = %key, error = %e, "Failed to log setting lock");
+    }
 
     info!(
         device_id = %device_id,
@@ -733,6 +753,10 @@ pub async fn unlock_setting(
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
 
+    // Get current setting value before unlock (for history fidelity)
+    let old_setting = setting_repo.get_device_setting(device_id, &key).await?;
+    let old_value = old_setting.map(|s| s.value);
+
     // Unlock the setting
     let result = setting_repo
         .unlock_setting(device_id, &key, user_auth.user_id)
@@ -745,17 +769,20 @@ pub async fn unlock_setting(
         )));
     }
 
-    // Log the unlock change
-    let _ = setting_change_repo
+    // Log the unlock change with prior locked value
+    if let Err(e) = setting_change_repo
         .create(CreateSettingChangeInput {
             device_id,
             setting_key: key.clone(),
-            old_value: None,
+            old_value,
             new_value: None,
             changed_by: user_auth.user_id,
             change_type: SettingChangeTypeDb::Unlocked,
         })
-        .await;
+        .await
+    {
+        warn!(device_id = %device_id, key = %key, error = %e, "Failed to log setting unlock");
+    }
 
     info!(
         device_id = %device_id,
@@ -811,6 +838,13 @@ pub async fn bulk_update_locks(
         .map(|d| (d.key.clone(), d))
         .collect();
 
+    // Prefetch all current device settings for history fidelity
+    let current_settings = setting_repo.get_device_settings(device_id).await?;
+    let current_settings_map: HashMap<String, _> = current_settings
+        .into_iter()
+        .map(|s| (s.setting_key.clone(), s))
+        .collect();
+
     let mut updated: Vec<LockUpdateResult> = Vec::new();
     let mut skipped: Vec<SkippedLockUpdate> = Vec::new();
 
@@ -836,6 +870,9 @@ pub async fn bulk_update_locks(
             continue;
         }
 
+        // Get old value from prefetched settings
+        let old_value = current_settings_map.get(&key).map(|s| s.value.clone());
+
         if should_lock {
             // Lock the setting
             let result = setting_repo
@@ -848,17 +885,20 @@ pub async fn bulk_update_locks(
                 )
                 .await?;
 
-            // Log the lock change
-            let _ = setting_change_repo
+            // Log the lock change with prior value
+            if let Err(e) = setting_change_repo
                 .create(CreateSettingChangeInput {
                     device_id,
                     setting_key: key.clone(),
-                    old_value: None,
-                    new_value: None,
+                    old_value: old_value.clone(),
+                    new_value: Some(result.value.clone()),
                     changed_by: user_auth.user_id,
                     change_type: SettingChangeTypeDb::Locked,
                 })
-                .await;
+                .await
+            {
+                warn!(device_id = %device_id, key = %key, error = %e, "Failed to log bulk setting lock");
+            }
 
             updated.push(LockUpdateResult {
                 key: key.clone(),
@@ -873,17 +913,20 @@ pub async fn bulk_update_locks(
                 .await?;
 
             if result.is_some() {
-                // Log the unlock change
-                let _ = setting_change_repo
+                // Log the unlock change with prior locked value
+                if let Err(e) = setting_change_repo
                     .create(CreateSettingChangeInput {
                         device_id,
                         setting_key: key.clone(),
-                        old_value: None,
+                        old_value,
                         new_value: None,
                         changed_by: user_auth.user_id,
                         change_type: SettingChangeTypeDb::Unlocked,
                     })
-                    .await;
+                    .await
+                {
+                    warn!(device_id = %device_id, key = %key, error = %e, "Failed to log bulk setting unlock");
+                }
 
                 updated.push(LockUpdateResult {
                     key: key.clone(),
@@ -966,13 +1009,16 @@ async fn check_is_admin(
         return Ok(true);
     }
 
-    // Check if user is an admin/owner of any group
+    // Check if user is an admin/owner of THIS SPECIFIC device's group
     if !device.group_id.is_empty() {
         let user_groups = group_repo.find_user_groups(user_id, None).await?;
         for group in user_groups {
-            let role: domain::models::GroupRole = group.role.into();
-            if role.can_manage_members() {
-                return Ok(true);
+            // Must match the device's group slug
+            if group.slug == device.group_id {
+                let role: domain::models::GroupRole = group.role.into();
+                if role.can_manage_members() {
+                    return Ok(true);
+                }
             }
         }
     }
@@ -1677,8 +1723,13 @@ pub async fn get_settings_history(
             setting_key: entity.setting_key,
             old_value: entity.old_value,
             new_value: entity.new_value,
-            changed_by: entity.changed_by.to_string(),
-            changed_by_name: entity.changed_by_name.unwrap_or_else(|| "Unknown".to_string()),
+            changed_by: entity
+                .changed_by
+                .map(|id| id.to_string())
+                .unwrap_or_else(|| "deleted".to_string()),
+            changed_by_name: entity
+                .changed_by_name
+                .unwrap_or_else(|| "Deleted User".to_string()),
             changed_at: entity.changed_at.to_rfc3339(),
             change_type: entity.change_type.to_string(),
         })
@@ -1697,7 +1748,7 @@ pub async fn get_settings_history(
 
     Ok(Json(SettingsHistoryResponse {
         changes,
-        total_count: total_count as i32,
+        total_count,
         has_more,
     }))
 }
