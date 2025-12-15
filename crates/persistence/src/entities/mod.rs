@@ -31,6 +31,7 @@ pub mod organization_settings;
 pub mod proximity_alert;
 pub mod registration_invite;
 pub mod setting;
+pub mod setting_change;
 pub mod system_config;
 pub mod system_role;
 pub mod trip;
@@ -96,6 +97,7 @@ pub use setting::{
     DeviceSettingEntity, DeviceSettingWithDefinitionEntity, SettingCategoryDb, SettingDataTypeDb,
     SettingDefinitionEntity, SettingLockEntity,
 };
+pub use setting_change::{SettingChangeEntity, SettingChangeTypeDb, SettingChangeWithUserEntity};
 pub use system_config::{
     EmailTemplateEntity, FeatureFlagEntity, NotificationTemplateEntity, RateLimitConfigEntity,
     SystemSettingEntity,

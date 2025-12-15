@@ -32,6 +32,7 @@ pub mod organization_settings;
 pub mod permission;
 pub mod proximity_alert;
 pub mod setting;
+pub mod setting_change;
 pub mod system_config;
 pub mod system_role;
 pub mod trip;
@@ -199,6 +200,7 @@ pub use setting::{
     DeviceSetting, GetSettingsResponse, SettingCategory, SettingDataType, SettingDefinition,
     SettingValue,
 };
+pub use setting_change::{SettingChangeResponse, SettingChangeType, SettingsHistoryResponse};
 pub use system_config::{
     AuthTogglesInfo, DatabaseSettingsInfo, EmailSettingsInfo, EmailTemplate,
     EmailTemplatesResponse, FcmSettingsInfo, FeatureFlagResponse, FeatureFlagsInfo,

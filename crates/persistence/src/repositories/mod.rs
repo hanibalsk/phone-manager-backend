@@ -31,6 +31,7 @@ pub mod organization_settings;
 pub mod proximity_alert;
 pub mod registration_invite;
 pub mod setting;
+pub mod setting_change;
 pub mod system_config;
 pub mod system_role;
 pub mod trip;
@@ -79,6 +80,7 @@ pub use registration_invite::{
     default_expiration, generate_invite_token, RegistrationInviteRepository,
 };
 pub use setting::SettingRepository;
+pub use setting_change::{CreateSettingChangeInput, SettingChangeRepository};
 pub use system_config::SystemConfigRepository;
 pub use system_role::SystemRoleRepository;
 pub use trip::{TripInput, TripQuery, TripRepository, TripUpdateInput};

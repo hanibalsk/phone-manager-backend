@@ -742,6 +742,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/devices/:device_id/settings/sync",
             post(device_settings::sync_settings),
         )
+        // Settings history endpoint
+        .route(
+            "/api/v1/devices/:device_id/settings/history",
+            get(device_settings::get_settings_history),
+        )
         // Unlock request endpoint (Story 12.6)
         .route(
             "/api/v1/devices/:device_id/settings/:key/unlock-request",

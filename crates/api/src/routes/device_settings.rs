@@ -14,6 +14,7 @@ use domain::models::setting::{
     SkippedLockUpdate, SyncSettingsRequest, SyncSettingsResponse, UnlockSettingResponse,
     UpdateSettingRequest, UpdateSettingsRequest, UpdateSettingsResponse,
 };
+use domain::models::setting_change::{SettingChangeResponse, SettingsHistoryResponse};
 use domain::models::unlock_request::{
     CreateUnlockRequestRequest, CreateUnlockRequestResponse, DeviceInfo, ListUnlockRequestsQuery,
     ListUnlockRequestsResponse, Pagination, RespondToUnlockRequestRequest,
@@ -23,10 +24,10 @@ use domain::services::{
     NotificationType, SettingChangeAction, SettingChangeNotification, SettingsChangedPayload,
     UnlockRequestResponsePayload,
 };
-use persistence::entities::UnlockRequestStatusDb;
+use persistence::entities::{SettingChangeTypeDb, UnlockRequestStatusDb};
 use persistence::repositories::{
-    DeviceRepository, GroupRepository, OrgUserRepository, SettingRepository,
-    UnlockRequestRepository, UserRepository,
+    CreateSettingChangeInput, DeviceRepository, GroupRepository, OrgUserRepository,
+    SettingChangeRepository, SettingRepository, UnlockRequestRepository, UserRepository,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -190,6 +191,7 @@ pub async fn update_device_settings(
 ) -> Result<Json<UpdateSettingsResponse>, ApiError> {
     let device_repo = DeviceRepository::new(state.pool.clone());
     let setting_repo = SettingRepository::new(state.pool.clone());
+    let setting_change_repo = SettingChangeRepository::new(state.pool.clone());
     let group_repo = GroupRepository::new(state.pool.clone());
     let org_user_repo = OrgUserRepository::new(state.pool.clone());
 
@@ -276,13 +278,17 @@ pub async fn update_device_settings(
             continue;
         }
 
+        // Get current value before update (for change logging)
+        let old_setting = setting_repo.get_device_setting(device_id, &key).await?;
+        let old_value = old_setting.as_ref().map(|s| s.value.clone());
+
         // Check if setting is locked
-        let is_locked = setting_repo.is_setting_locked(device_id, &key).await?;
+        let is_locked = old_setting.as_ref().map(|s| s.is_locked).unwrap_or(false);
 
         if is_locked && !can_force {
             locked.push(key.clone());
-            // Get current setting value
-            if let Some(current) = setting_repo.get_device_setting(device_id, &key).await? {
+            // Use already fetched setting value
+            if let Some(current) = old_setting {
                 settings.insert(
                     key.clone(),
                     SettingValue {
@@ -310,6 +316,21 @@ pub async fn update_device_settings(
                 .upsert_setting(device_id, &key, value.clone(), Some(user_auth.user_id))
                 .await?
         };
+
+        // Log the change if value actually changed
+        let value_changed = old_value.as_ref() != Some(&result.value);
+        if value_changed {
+            let _ = setting_change_repo
+                .create(CreateSettingChangeInput {
+                    device_id,
+                    setting_key: key.clone(),
+                    old_value,
+                    new_value: Some(result.value.clone()),
+                    changed_by: user_auth.user_id,
+                    change_type: SettingChangeTypeDb::ValueChanged,
+                })
+                .await;
+        }
 
         updated.push(key.clone());
         settings.insert(
@@ -360,6 +381,7 @@ pub async fn update_device_setting(
 ) -> Result<Json<SettingValue>, ApiError> {
     let device_repo = DeviceRepository::new(state.pool.clone());
     let setting_repo = SettingRepository::new(state.pool.clone());
+    let setting_change_repo = SettingChangeRepository::new(state.pool.clone());
     let group_repo = GroupRepository::new(state.pool.clone());
     let org_user_repo = OrgUserRepository::new(state.pool.clone());
 
@@ -403,12 +425,14 @@ pub async fn update_device_setting(
         )));
     }
 
-    // Check if setting is locked
-    let is_locked = setting_repo.is_setting_locked(device_id, &key).await?;
+    // Get current setting value before update (for change logging)
+    let old_setting = setting_repo.get_device_setting(device_id, &key).await?;
+    let old_value = old_setting.as_ref().map(|s| s.value.clone());
+    let is_locked = old_setting.as_ref().map(|s| s.is_locked).unwrap_or(false);
 
     if is_locked && !can_force {
-        // Get current setting value
-        if let Some(current) = setting_repo.get_device_setting(device_id, &key).await? {
+        // Return locked setting value
+        if let Some(current) = old_setting {
             return Ok(Json(SettingValue {
                 value: current.value,
                 is_locked: current.is_locked,
@@ -438,6 +462,21 @@ pub async fn update_device_setting(
             )
             .await?
     };
+
+    // Log the change if value actually changed
+    let value_changed = old_value.as_ref() != Some(&result.value);
+    if value_changed {
+        let _ = setting_change_repo
+            .create(CreateSettingChangeInput {
+                device_id,
+                setting_key: key.clone(),
+                old_value,
+                new_value: Some(result.value.clone()),
+                changed_by: user_auth.user_id,
+                change_type: SettingChangeTypeDb::ValueChanged,
+            })
+            .await;
+    }
 
     info!(
         device_id = %device_id,
@@ -549,6 +588,7 @@ pub async fn lock_setting(
 ) -> Result<Json<LockSettingResponse>, ApiError> {
     let device_repo = DeviceRepository::new(state.pool.clone());
     let setting_repo = SettingRepository::new(state.pool.clone());
+    let setting_change_repo = SettingChangeRepository::new(state.pool.clone());
     let group_repo = GroupRepository::new(state.pool.clone());
 
     // Get the device
@@ -600,6 +640,18 @@ pub async fn lock_setting(
             request.value.clone(),
         )
         .await?;
+
+    // Log the lock change
+    let _ = setting_change_repo
+        .create(CreateSettingChangeInput {
+            device_id,
+            setting_key: key.clone(),
+            old_value: None,
+            new_value: request.value.clone(),
+            changed_by: user_auth.user_id,
+            change_type: SettingChangeTypeDb::Locked,
+        })
+        .await;
 
     info!(
         device_id = %device_id,
@@ -657,6 +709,7 @@ pub async fn unlock_setting(
 ) -> Result<Json<UnlockSettingResponse>, ApiError> {
     let device_repo = DeviceRepository::new(state.pool.clone());
     let setting_repo = SettingRepository::new(state.pool.clone());
+    let setting_change_repo = SettingChangeRepository::new(state.pool.clone());
     let group_repo = GroupRepository::new(state.pool.clone());
 
     // Get the device
@@ -692,6 +745,18 @@ pub async fn unlock_setting(
         )));
     }
 
+    // Log the unlock change
+    let _ = setting_change_repo
+        .create(CreateSettingChangeInput {
+            device_id,
+            setting_key: key.clone(),
+            old_value: None,
+            new_value: None,
+            changed_by: user_auth.user_id,
+            change_type: SettingChangeTypeDb::Unlocked,
+        })
+        .await;
+
     info!(
         device_id = %device_id,
         user_id = %user_auth.user_id,
@@ -721,6 +786,7 @@ pub async fn bulk_update_locks(
 ) -> Result<Json<BulkUpdateLocksResponse>, ApiError> {
     let device_repo = DeviceRepository::new(state.pool.clone());
     let setting_repo = SettingRepository::new(state.pool.clone());
+    let setting_change_repo = SettingChangeRepository::new(state.pool.clone());
     let group_repo = GroupRepository::new(state.pool.clone());
 
     // Get the device
@@ -782,6 +848,18 @@ pub async fn bulk_update_locks(
                 )
                 .await?;
 
+            // Log the lock change
+            let _ = setting_change_repo
+                .create(CreateSettingChangeInput {
+                    device_id,
+                    setting_key: key.clone(),
+                    old_value: None,
+                    new_value: None,
+                    changed_by: user_auth.user_id,
+                    change_type: SettingChangeTypeDb::Locked,
+                })
+                .await;
+
             updated.push(LockUpdateResult {
                 key: key.clone(),
                 is_locked: result.is_locked,
@@ -795,6 +873,18 @@ pub async fn bulk_update_locks(
                 .await?;
 
             if result.is_some() {
+                // Log the unlock change
+                let _ = setting_change_repo
+                    .create(CreateSettingChangeInput {
+                        device_id,
+                        setting_key: key.clone(),
+                        old_value: None,
+                        new_value: None,
+                        changed_by: user_auth.user_id,
+                        change_type: SettingChangeTypeDb::Unlocked,
+                    })
+                    .await;
+
                 updated.push(LockUpdateResult {
                     key: key.clone(),
                     is_locked: false,
@@ -1508,6 +1598,107 @@ pub async fn sync_settings(
         synced_at,
         settings,
         changes_applied,
+    }))
+}
+
+/// Default limit for settings history pagination.
+fn default_history_limit() -> i64 {
+    50
+}
+
+/// Query parameters for settings history endpoint.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SettingsHistoryQuery {
+    /// Maximum number of changes to return (1-100, default 50).
+    #[serde(default = "default_history_limit")]
+    pub limit: i64,
+    /// Number of records to skip for pagination (default 0).
+    #[serde(default)]
+    pub offset: i64,
+}
+
+/// Get settings change history for a device.
+///
+/// GET /api/v1/devices/:device_id/settings/history
+///
+/// Requires JWT authentication.
+/// Device owner, group admin, or org admin can access.
+pub async fn get_settings_history(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(device_id): Path<Uuid>,
+    Query(query): Query<SettingsHistoryQuery>,
+) -> Result<Json<SettingsHistoryResponse>, ApiError> {
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let setting_change_repo = SettingChangeRepository::new(state.pool.clone());
+    let group_repo = GroupRepository::new(state.pool.clone());
+    let org_user_repo = OrgUserRepository::new(state.pool.clone());
+
+    // Get the device
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Authorization check: must be owner, or admin of device's group, or org admin
+    let is_authorized = check_settings_authorization(
+        &device_repo,
+        &group_repo,
+        Some(&org_user_repo),
+        &device,
+        user_auth.user_id,
+    )
+    .await?;
+
+    if !is_authorized {
+        return Err(ApiError::Forbidden(
+            "Not authorized to access this device's settings history".to_string(),
+        ));
+    }
+
+    // Clamp limit to valid range
+    let limit = query.limit.clamp(1, 100);
+    let offset = query.offset.max(0);
+
+    // Get total count
+    let total_count = setting_change_repo.count_for_device(device_id).await?;
+
+    // Get changes
+    let changes_entities = setting_change_repo
+        .list_for_device(device_id, limit, offset)
+        .await?;
+
+    // Convert entities to response DTOs
+    let changes: Vec<SettingChangeResponse> = changes_entities
+        .into_iter()
+        .map(|entity| SettingChangeResponse {
+            id: entity.id.to_string(),
+            setting_key: entity.setting_key,
+            old_value: entity.old_value,
+            new_value: entity.new_value,
+            changed_by: entity.changed_by.to_string(),
+            changed_by_name: entity.changed_by_name.unwrap_or_else(|| "Unknown".to_string()),
+            changed_at: entity.changed_at.to_rfc3339(),
+            change_type: entity.change_type.to_string(),
+        })
+        .collect();
+
+    // Calculate has_more
+    let has_more = (offset + limit) < total_count;
+
+    info!(
+        device_id = %device_id,
+        user_id = %user_auth.user_id,
+        changes_count = %changes.len(),
+        total_count = %total_count,
+        "Retrieved settings history"
+    );
+
+    Ok(Json(SettingsHistoryResponse {
+        changes,
+        total_count: total_count as i32,
+        has_more,
     }))
 }
 
