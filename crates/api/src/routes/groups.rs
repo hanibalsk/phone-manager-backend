@@ -1,21 +1,25 @@
 //! Group management routes for creating and managing location sharing groups.
 
+use std::collections::HashMap;
+
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use domain::models::device::{DeviceLastLocation, DeviceSummary};
 use domain::models::group::{
     generate_slug, CreateGroupRequest, CreateGroupResponse, GroupDetail, GroupRole, GroupSummary,
-    ListGroupsQuery, ListGroupsResponse, ListMembersQuery, ListMembersResponse, MemberResponse,
-    MembershipInfo, Pagination, TransferOwnershipRequest, TransferOwnershipResponse,
-    UpdateGroupRequest, UpdateRoleRequest, UpdateRoleResponse, UserPublic,
+    LastLocationInfo, ListGroupsQuery, ListGroupsResponse, ListMembersQuery, ListMembersResponse,
+    MemberDeviceInfo, MemberResponse, MembershipInfo, Pagination, TransferOwnershipRequest,
+    TransferOwnershipResponse, UpdateGroupRequest, UpdateRoleRequest, UpdateRoleResponse,
+    UserPublic,
 };
 use domain::models::invite::{
     JoinGroupInfo, JoinGroupRequest, JoinGroupResponse, JoinMembershipInfo,
 };
+use persistence::entities::MemberDeviceEntity;
 use persistence::repositories::{DeviceRepository, GroupRepository, InviteRepository};
 use tracing::info;
 use uuid::Uuid;
@@ -24,6 +28,37 @@ use validator::Validate;
 use crate::app::AppState;
 use crate::error::ApiError;
 use crate::extractors::UserAuth;
+
+/// Threshold in minutes for considering a device as online.
+/// A device is considered online if it was last seen within this duration.
+const DEVICE_ONLINE_THRESHOLD_MINUTES: i64 = 5;
+
+/// Convert a database device entity to the API response format.
+fn to_member_device_info(device: MemberDeviceEntity, now: DateTime<Utc>) -> MemberDeviceInfo {
+    let online_threshold = chrono::Duration::minutes(DEVICE_ONLINE_THRESHOLD_MINUTES);
+    let is_online = device
+        .last_seen_at
+        .map(|seen| now - seen < online_threshold)
+        .unwrap_or(false);
+
+    MemberDeviceInfo {
+        device_id: device.device_id,
+        name: Some(device.display_name),
+        is_online,
+        last_location: match (
+            device.last_latitude,
+            device.last_longitude,
+            device.last_location_time,
+        ) {
+            (Some(lat), Some(lon), Some(time)) => Some(LastLocationInfo {
+                latitude: lat,
+                longitude: lon,
+                timestamp: time,
+            }),
+            _ => None,
+        },
+    }
+}
 
 /// Create a new group.
 ///
@@ -347,6 +382,7 @@ pub async fn list_members(
     Query(query): Query<ListMembersQuery>,
 ) -> Result<Json<ListMembersResponse>, ApiError> {
     let repo = GroupRepository::new(state.pool.clone());
+    let device_repo = DeviceRepository::new(state.pool.clone());
 
     // Check user is a member of the group
     let _membership = repo
@@ -367,20 +403,39 @@ pub async fn list_members(
         .list_members(group_id, query.role.as_deref(), per_page, offset)
         .await?;
 
-    // Transform to response DTOs
+    // Collect user IDs and fetch their devices
+    let user_ids: Vec<Uuid> = members.iter().map(|m| m.user_id).collect();
+    let all_devices = device_repo.find_devices_by_users(&user_ids).await?;
+
+    // Group devices by user_id
+    let now = Utc::now();
+    let mut devices_by_user: HashMap<Uuid, Vec<MemberDeviceInfo>> = HashMap::new();
+    for device in all_devices {
+        let owner_id = device.owner_user_id;
+        let device_info = to_member_device_info(device, now);
+        devices_by_user
+            .entry(owner_id)
+            .or_default()
+            .push(device_info);
+    }
+
+    // Transform to response DTOs with devices
     let member_responses: Vec<MemberResponse> = members
         .into_iter()
-        .map(|m| MemberResponse {
-            id: m.id,
-            user: UserPublic {
-                id: m.user_id,
-                display_name: m.display_name,
-                avatar_url: m.avatar_url,
-            },
-            role: m.role.into(),
-            joined_at: m.joined_at,
-            invited_by: m.invited_by,
-            devices: None, // TODO: implement include_devices in future story
+        .map(|m| {
+            let user_devices = devices_by_user.remove(&m.user_id);
+            MemberResponse {
+                id: m.id,
+                user: UserPublic {
+                    id: m.user_id,
+                    display_name: m.display_name,
+                    avatar_url: m.avatar_url,
+                },
+                role: m.role.into(),
+                joined_at: m.joined_at,
+                invited_by: m.invited_by,
+                devices: user_devices,
+            }
         })
         .collect();
 
@@ -416,6 +471,7 @@ pub async fn get_member(
     Path((group_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<MemberResponse>, ApiError> {
     let repo = GroupRepository::new(state.pool.clone());
+    let device_repo = DeviceRepository::new(state.pool.clone());
 
     // Check user is a member of the group
     let _membership = repo
@@ -428,6 +484,14 @@ pub async fn get_member(
         .get_member_with_user(group_id, target_user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Member not found".to_string()))?;
+
+    // Fetch devices for the member
+    let member_devices = device_repo.find_devices_by_users(&[target_user_id]).await?;
+    let now = Utc::now();
+    let devices: Vec<MemberDeviceInfo> = member_devices
+        .into_iter()
+        .map(|d| to_member_device_info(d, now))
+        .collect();
 
     info!(
         group_id = %group_id,
@@ -446,7 +510,11 @@ pub async fn get_member(
         role: member.role.into(),
         joined_at: member.joined_at,
         invited_by: member.invited_by,
-        devices: None,
+        devices: if devices.is_empty() {
+            None
+        } else {
+            Some(devices)
+        },
     }))
 }
 

@@ -10,9 +10,9 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use chrono::{Datelike, Duration, NaiveDate, Utc};
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
-use chrono::{Datelike, Duration, NaiveDate, Utc};
 use uuid::Uuid;
 
 use crate::app::AppState;
@@ -22,9 +22,8 @@ use domain::models::{
     AnalyticsDeviceStatusBreakdown, AnalyticsGroupBy, AnalyticsPeriod, ApiUsageAnalyticsQuery,
     ApiUsageAnalyticsResponse, ApiUsageSummary, ApiUsageTrend, DeviceActivityTrend,
     DeviceAnalyticsQuery, DeviceAnalyticsResponse, DeviceAnalyticsSummary, EndpointUsage,
-    GenerateReportRequest, OrgUserRole, ReportJobResponse, ReportStatus,
-    UserActivityTrend, UserAnalyticsQuery, UserAnalyticsResponse, UserAnalyticsSummary,
-    UserRoleBreakdown,
+    GenerateReportRequest, OrgUserRole, ReportJobResponse, ReportStatus, UserActivityTrend,
+    UserAnalyticsQuery, UserAnalyticsResponse, UserAnalyticsSummary, UserRoleBreakdown,
 };
 use persistence::repositories::{AnalyticsRepository, OrgUserRepository};
 
@@ -142,7 +141,10 @@ async fn get_user_analytics(
 
     let response = UserAnalyticsResponse {
         organization_id: org_id,
-        period: AnalyticsPeriod { start: from, end: to },
+        period: AnalyticsPeriod {
+            start: from,
+            end: to,
+        },
         summary,
         trends,
         by_role,
@@ -223,7 +225,10 @@ async fn get_device_analytics(
 
     let response = DeviceAnalyticsResponse {
         organization_id: org_id,
-        period: AnalyticsPeriod { start: from, end: to },
+        period: AnalyticsPeriod {
+            start: from,
+            end: to,
+        },
         summary,
         trends,
         by_status,
@@ -332,7 +337,10 @@ async fn get_api_usage_analytics(
 
     let response = ApiUsageAnalyticsResponse {
         organization_id: org_id,
-        period: AnalyticsPeriod { start: from, end: to },
+        period: AnalyticsPeriod {
+            start: from,
+            end: to,
+        },
         summary,
         trends,
         top_endpoints,

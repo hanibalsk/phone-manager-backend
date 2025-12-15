@@ -15,6 +15,8 @@ pub mod webhook_delivery;
 pub use apple_auth::AppleAuthClient;
 #[allow(unused_imports)] // Used in routes
 pub use auth::AuthService;
+#[allow(unused_imports)] // Used for httpOnly cookie authentication
+pub use cookies::CookieHelper;
 #[allow(unused_imports)] // Used for email verification and password reset
 pub use email::{EmailError, EmailMessage, EmailService};
 #[allow(unused_imports)] // Used when FCM is enabled
@@ -26,5 +28,3 @@ pub use path_correction::PathCorrectionService;
 pub use report_generation::{ReportGenerationError, ReportGenerationService};
 #[allow(unused_imports)] // Used in geofence_events routes
 pub use webhook_delivery::WebhookDeliveryService;
-#[allow(unused_imports)] // Used for httpOnly cookie authentication
-pub use cookies::CookieHelper;

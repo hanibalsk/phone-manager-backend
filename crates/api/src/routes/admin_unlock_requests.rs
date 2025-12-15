@@ -257,7 +257,9 @@ async fn approve_unlock_request(
             request.note.as_deref(),
         )
         .await?
-        .ok_or_else(|| ApiError::NotFound("Unlock request not found or already responded".to_string()))?;
+        .ok_or_else(|| {
+            ApiError::NotFound("Unlock request not found or already responded".to_string())
+        })?;
 
     info!(
         org_id = %org_id,
@@ -326,7 +328,9 @@ async fn deny_unlock_request(
             request.note.as_deref(),
         )
         .await?
-        .ok_or_else(|| ApiError::NotFound("Unlock request not found or already responded".to_string()))?;
+        .ok_or_else(|| {
+            ApiError::NotFound("Unlock request not found or already responded".to_string())
+        })?;
 
     info!(
         org_id = %org_id,

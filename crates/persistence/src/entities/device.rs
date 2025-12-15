@@ -64,6 +64,19 @@ pub struct DeviceWithLastLocationEntity {
     pub last_accuracy: Option<f32>,
 }
 
+/// Database row mapping for member device listing with last location.
+/// Used for listing devices belonging to group members.
+#[derive(Debug, Clone, FromRow)]
+pub struct MemberDeviceEntity {
+    pub device_id: Uuid,
+    pub display_name: String,
+    pub last_seen_at: Option<DateTime<Utc>>,
+    pub owner_user_id: Uuid,
+    pub last_latitude: Option<f64>,
+    pub last_longitude: Option<f64>,
+    pub last_location_time: Option<DateTime<Utc>>,
+}
+
 /// Database row mapping for fleet device listing with joined data.
 #[derive(Debug, Clone, FromRow)]
 pub struct FleetDeviceEntity {

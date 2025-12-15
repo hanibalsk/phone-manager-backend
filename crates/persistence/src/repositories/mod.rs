@@ -8,8 +8,8 @@ pub mod api_key;
 pub mod app_usage;
 pub mod audit_export_job;
 pub mod audit_log;
-pub mod data_subject_request;
 pub mod dashboard;
+pub mod data_subject_request;
 pub mod device;
 pub mod device_command;
 pub mod device_policy;
@@ -48,11 +48,11 @@ pub use api_key::ApiKeyRepository;
 pub use app_usage::AppUsageRepository;
 pub use audit_export_job::{AuditExportJobRepository, ExportJob};
 pub use audit_log::AuditLogRepository;
+pub use dashboard::DashboardRepository;
 pub use data_subject_request::{
     CreateDataSubjectRequestInput, DataSubjectRequestCounts, DataSubjectRequestRepository,
     ListDataSubjectRequestsQuery, ProcessDataSubjectRequestInput, DEFAULT_DUE_DAYS,
 };
-pub use dashboard::DashboardRepository;
 pub use device::{AdminStats, DeviceRepository, FleetSummaryCounts};
 pub use device_command::DeviceCommandRepository;
 pub use device_policy::DevicePolicyRepository;

@@ -115,14 +115,12 @@ fn validate_display_name(display_name: &Option<String>) -> Result<(), Validation
 
     let trimmed = display_name.trim();
     if trimmed.is_empty() {
-        return Err(ValidationError::new("display_name_blank").with_message(
-            "Display name must be 1-100 characters".into(),
-        ));
+        return Err(ValidationError::new("display_name_blank")
+            .with_message("Display name must be 1-100 characters".into()));
     }
     if trimmed.len() > 100 {
-        return Err(ValidationError::new("display_name_too_long").with_message(
-            "Display name must be 1-100 characters".into(),
-        ));
+        return Err(ValidationError::new("display_name_too_long")
+            .with_message("Display name must be 1-100 characters".into()));
     }
     Ok(())
 }
@@ -156,9 +154,8 @@ fn validate_avatar_url_update(avatar_url: &Option<Option<String>>) -> Result<(),
 
     match url.scheme() {
         "http" | "https" => Ok(()),
-        _ => Err(ValidationError::new("avatar_url_scheme").with_message(
-            "Avatar URL must use http or https".into(),
-        )),
+        _ => Err(ValidationError::new("avatar_url_scheme")
+            .with_message("Avatar URL must use http or https".into())),
     }
 }
 
@@ -173,9 +170,7 @@ pub async fn update_current_user(
     Json(request): Json<UpdateProfileRequest>,
 ) -> Result<Json<ProfileResponse>, ApiError> {
     // Validate request
-    request
-        .validate()
-        .map_err(ApiError::from)?;
+    request.validate().map_err(ApiError::from)?;
 
     // Check if user exists
     let user_exists: Option<(bool,)> = sqlx::query_as("SELECT is_active FROM users WHERE id = $1")
@@ -203,10 +198,8 @@ pub async fn update_current_user(
     let normalized_display_name: Option<String> =
         request.display_name.as_ref().map(|s| s.trim().to_string());
     let normalized_avatar_url: Option<Option<String>> = request.avatar_url.as_ref().map(|inner| {
-        inner
-            .as_ref()
-            .map(|s| s.trim().to_string())
-            // explicit null stays None (clears)
+        inner.as_ref().map(|s| s.trim().to_string())
+        // explicit null stays None (clears)
     });
 
     // Build update query safely with QueryBuilder.

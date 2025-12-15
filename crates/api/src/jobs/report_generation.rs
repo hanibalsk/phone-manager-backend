@@ -143,6 +143,9 @@ mod tests {
         let batch_size: i64 = 5;
         // Batch size should be reasonable for report generation
         assert!(batch_size >= 1, "Batch size too small");
-        assert!(batch_size <= 20, "Batch size too large for report generation");
+        assert!(
+            batch_size <= 20,
+            "Batch size too large for report generation"
+        );
     }
 }

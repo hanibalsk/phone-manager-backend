@@ -260,9 +260,13 @@ pub struct UserPublic {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct MemberDeviceInfo {
-    pub id: Uuid,
-    pub display_name: String,
-    pub last_seen_at: Option<DateTime<Utc>>,
+    /// The device's UUID
+    pub device_id: Uuid,
+    /// Display name of the device
+    pub name: Option<String>,
+    /// Whether the device is currently online
+    pub is_online: bool,
+    /// Last known location
     pub last_location: Option<LastLocationInfo>,
 }
 
@@ -272,6 +276,7 @@ pub struct MemberDeviceInfo {
 pub struct LastLocationInfo {
     pub latitude: f64,
     pub longitude: f64,
+    pub timestamp: DateTime<Utc>,
 }
 
 /// Member response in list.

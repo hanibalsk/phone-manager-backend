@@ -58,7 +58,10 @@ impl CookieHelper {
 
     /// Build a Set-Cookie header to clear the access token cookie.
     pub fn build_clear_access_token_cookie(&self) -> String {
-        self.build_clear_cookie(&self.config.access_token_name, &self.config.access_token_path)
+        self.build_clear_cookie(
+            &self.config.access_token_name,
+            &self.config.access_token_path,
+        )
     }
 
     /// Build a Set-Cookie header to clear the refresh token cookie.
@@ -70,7 +73,12 @@ impl CookieHelper {
     }
 
     /// Add token cookies to a HeaderMap.
-    pub fn add_token_cookies(&self, headers: &mut HeaderMap, access_token: &str, refresh_token: &str) {
+    pub fn add_token_cookies(
+        &self,
+        headers: &mut HeaderMap,
+        access_token: &str,
+        refresh_token: &str,
+    ) {
         if !self.config.enabled {
             return;
         }

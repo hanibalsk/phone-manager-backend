@@ -19,14 +19,14 @@ use crate::error::ApiError;
 use crate::middleware::system_rbac::SystemRoleAuth;
 
 use domain::models::{
-    AuthTogglesInfo, DatabaseSettingsInfo, EmailSettingsInfo, EmailTemplate, EmailTemplatesResponse,
-    FcmSettingsInfo, FeatureFlagResponse, FeatureFlagsInfo, FeatureFlagsResponse,
-    FrontendSettingsInfo, LimitsSettingsInfo, LoggingSettingsInfo, MaintenanceModeResponse,
-    MapMatchingSettingsInfo, NotificationTemplate, NotificationTemplatesResponse,
-    RateLimitConfigItem, RateLimitsResponse, SecuritySettingsInfo, ServerSettingsInfo,
-    SystemSettingsResponse, ToggleMaintenanceModeRequest, UpdateEmailTemplateRequest,
-    UpdateFeatureFlagRequest, UpdateNotificationTemplateRequest, UpdateRateLimitsRequest,
-    UpdateSystemSettingsRequest, UpdateSystemSettingsResponse,
+    AuthTogglesInfo, DatabaseSettingsInfo, EmailSettingsInfo, EmailTemplate,
+    EmailTemplatesResponse, FcmSettingsInfo, FeatureFlagResponse, FeatureFlagsInfo,
+    FeatureFlagsResponse, FrontendSettingsInfo, LimitsSettingsInfo, LoggingSettingsInfo,
+    MaintenanceModeResponse, MapMatchingSettingsInfo, NotificationTemplate,
+    NotificationTemplatesResponse, RateLimitConfigItem, RateLimitsResponse, SecuritySettingsInfo,
+    ServerSettingsInfo, SystemSettingsResponse, ToggleMaintenanceModeRequest,
+    UpdateEmailTemplateRequest, UpdateFeatureFlagRequest, UpdateNotificationTemplateRequest,
+    UpdateRateLimitsRequest, UpdateSystemSettingsRequest, UpdateSystemSettingsResponse,
 };
 use persistence::repositories::SystemConfigRepository;
 
@@ -52,16 +52,16 @@ pub fn router() -> Router<AppState> {
         )
         .route("/feature-flags", get(get_feature_flags))
         .route("/feature-flags/{flag_id}", put(update_feature_flag))
-        .route(
-            "/rate-limits",
-            get(get_rate_limits).put(update_rate_limits),
-        )
+        .route("/rate-limits", get(get_rate_limits).put(update_rate_limits))
         .route(
             "/maintenance",
             get(get_maintenance_mode).post(toggle_maintenance_mode),
         )
         .route("/templates", get(list_notification_templates))
-        .route("/templates/{template_id}", put(update_notification_template))
+        .route(
+            "/templates/{template_id}",
+            put(update_notification_template),
+        )
         .route("/email-templates", get(list_email_templates))
         .route("/email-templates/{template_id}", put(update_email_template))
 }
@@ -303,7 +303,10 @@ async fn update_system_settings(
             idle_timeout_secs: config.database.idle_timeout_secs,
         },
         logging: LoggingSettingsInfo {
-            level: request.logging_level.clone().unwrap_or_else(|| config.logging.level.clone()),
+            level: request
+                .logging_level
+                .clone()
+                .unwrap_or_else(|| config.logging.level.clone()),
             format: config.logging.format.clone(),
         },
         security: SecuritySettingsInfo {
@@ -471,9 +474,7 @@ async fn get_rate_limits(
 /// Returns current maintenance mode status.
 /// Requires any system role.
 #[axum::debug_handler(state = AppState)]
-async fn get_maintenance_mode(
-    _system_auth: SystemRoleAuth,
-) -> Result<impl IntoResponse, ApiError> {
+async fn get_maintenance_mode(_system_auth: SystemRoleAuth) -> Result<impl IntoResponse, ApiError> {
     let maintenance = MAINTENANCE_MODE
         .read()
         .map_err(|_| ApiError::Internal("Failed to read maintenance state".to_string()))?;
@@ -633,7 +634,9 @@ async fn update_rate_limits(
     }
 
     // Validate request
-    request.validate().map_err(|e| ApiError::Validation(e.to_string()))?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     let repo = SystemConfigRepository::new(state.pool.clone());
     let mut updated_keys = Vec::new();
@@ -765,7 +768,9 @@ async fn update_notification_template(
     }
 
     // Validate request
-    request.validate().map_err(|e| ApiError::Validation(e.to_string()))?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     let repo = SystemConfigRepository::new(state.pool.clone());
 
@@ -881,7 +886,9 @@ async fn update_email_template(
     }
 
     // Validate request
-    request.validate().map_err(|e| ApiError::Validation(e.to_string()))?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(e.to_string()))?;
 
     let repo = SystemConfigRepository::new(state.pool.clone());
 

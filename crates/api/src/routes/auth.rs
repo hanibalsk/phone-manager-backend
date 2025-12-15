@@ -237,9 +237,11 @@ pub async fn register(
 
     // Set cookies if cookie authentication is enabled
     let mut headers = HeaderMap::new();
-    state
-        .cookie_helper
-        .add_token_cookies(&mut headers, &result.access_token, &result.refresh_token);
+    state.cookie_helper.add_token_cookies(
+        &mut headers,
+        &result.access_token,
+        &result.refresh_token,
+    );
 
     Ok((StatusCode::CREATED, headers, Json(response)))
 }
@@ -360,9 +362,11 @@ pub async fn login(
 
     // Set cookies if cookie authentication is enabled
     let mut headers = HeaderMap::new();
-    state
-        .cookie_helper
-        .add_token_cookies(&mut headers, &result.access_token, &result.refresh_token);
+    state.cookie_helper.add_token_cookies(
+        &mut headers,
+        &result.access_token,
+        &result.refresh_token,
+    );
 
     Ok((headers, Json(response)))
 }
@@ -430,9 +434,11 @@ pub async fn oauth_login(
 
     // Set cookies if cookie authentication is enabled
     let mut headers = HeaderMap::new();
-    state
-        .cookie_helper
-        .add_token_cookies(&mut headers, &result.access_token, &result.refresh_token);
+    state.cookie_helper.add_token_cookies(
+        &mut headers,
+        &result.access_token,
+        &result.refresh_token,
+    );
 
     Ok((headers, Json(response)))
 }
@@ -483,7 +489,9 @@ pub async fn refresh(
             .map(|s| s.to_string())
             .ok_or_else(|| ApiError::Unauthorized("Refresh token is required".to_string()))?
     } else {
-        return Err(ApiError::Validation("Refresh token is required".to_string()));
+        return Err(ApiError::Validation(
+            "Refresh token is required".to_string(),
+        ));
     };
 
     // Create auth service
@@ -522,9 +530,11 @@ pub async fn refresh(
 
     // Set cookies if cookie authentication is enabled
     let mut response_headers = HeaderMap::new();
-    state
-        .cookie_helper
-        .add_token_cookies(&mut response_headers, &result.access_token, &result.refresh_token);
+    state.cookie_helper.add_token_cookies(
+        &mut response_headers,
+        &result.access_token,
+        &result.refresh_token,
+    );
 
     Ok((response_headers, Json(response)))
 }
@@ -572,7 +582,9 @@ pub async fn logout(
             .map(|s| s.to_string())
             .ok_or_else(|| ApiError::Unauthorized("Refresh token is required".to_string()))?
     } else {
-        return Err(ApiError::Validation("Refresh token is required".to_string()));
+        return Err(ApiError::Validation(
+            "Refresh token is required".to_string(),
+        ));
     };
 
     // Create auth service

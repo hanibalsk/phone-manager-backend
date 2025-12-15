@@ -235,23 +235,43 @@ pub struct FeatureFlagResponse {
 #[serde(rename_all = "snake_case")]
 pub struct UpdateRateLimitsRequest {
     /// General API rate limit per minute
-    #[validate(range(min = 1, max = 10000, message = "Rate limit must be between 1 and 10000"))]
+    #[validate(range(
+        min = 1,
+        max = 10000,
+        message = "Rate limit must be between 1 and 10000"
+    ))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rate_limit_per_minute: Option<u32>,
     /// Export rate limit per hour
-    #[validate(range(min = 1, max = 1000, message = "Export rate limit must be between 1 and 1000"))]
+    #[validate(range(
+        min = 1,
+        max = 1000,
+        message = "Export rate limit must be between 1 and 1000"
+    ))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub export_rate_limit_per_hour: Option<u32>,
     /// Forgot password rate limit per hour
-    #[validate(range(min = 1, max = 100, message = "Forgot password rate limit must be between 1 and 100"))]
+    #[validate(range(
+        min = 1,
+        max = 100,
+        message = "Forgot password rate limit must be between 1 and 100"
+    ))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub forgot_password_rate_limit_per_hour: Option<u32>,
     /// Request verification rate limit per hour
-    #[validate(range(min = 1, max = 100, message = "Request verification rate limit must be between 1 and 100"))]
+    #[validate(range(
+        min = 1,
+        max = 100,
+        message = "Request verification rate limit must be between 1 and 100"
+    ))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_verification_rate_limit_per_hour: Option<u32>,
     /// Map matching rate limit per minute
-    #[validate(range(min = 1, max = 1000, message = "Map matching rate limit must be between 1 and 1000"))]
+    #[validate(range(
+        min = 1,
+        max = 1000,
+        message = "Map matching rate limit must be between 1 and 1000"
+    ))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub map_matching_rate_limit_per_minute: Option<u32>,
 }

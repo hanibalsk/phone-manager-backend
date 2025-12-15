@@ -17,9 +17,9 @@ use crate::app::AppState;
 use crate::error::ApiError;
 use crate::extractors::UserAuth;
 use domain::models::{
-    AnalyticsSummary, AnalyticsTrendPoint, AppUsageAnalyticsQuery,
-    AppUsageAnalyticsResponse, AppUsageHistoryEntry, AppUsageHistoryQuery, AppUsageHistoryResponse,
-    AppUsageItem, AppUsagePagination, AppUsagePeriod, AppUsageSummaryQuery, AppUsageSummaryResponse,
+    AnalyticsSummary, AnalyticsTrendPoint, AppUsageAnalyticsQuery, AppUsageAnalyticsResponse,
+    AppUsageHistoryEntry, AppUsageHistoryQuery, AppUsageHistoryResponse, AppUsageItem,
+    AppUsagePagination, AppUsagePeriod, AppUsageSummaryQuery, AppUsageSummaryResponse,
     CategoryUsageItem, OrgUserRole, TopAppItem,
 };
 use persistence::repositories::{AppUsageRepository, DeviceRepository, OrgUserRepository};
@@ -78,11 +78,9 @@ async fn get_device_app_usage_summary(
     // Calculate date range
     let today = Utc::now().date_naive();
     let to = query.to.unwrap_or(today);
-    let from = query.from.unwrap_or_else(|| {
-        today
-            .checked_sub_days(Days::new(7))
-            .unwrap_or(today)
-    });
+    let from = query
+        .from
+        .unwrap_or_else(|| today.checked_sub_days(Days::new(7)).unwrap_or(today));
     let top_apps_limit = query.top_apps_limit.unwrap_or(10).clamp(1, 50);
 
     // Get usage data
@@ -246,11 +244,9 @@ async fn get_org_app_usage_analytics(
     // Calculate date range
     let today = Utc::now().date_naive();
     let to = query.to.unwrap_or(today);
-    let from = query.from.unwrap_or_else(|| {
-        today
-            .checked_sub_days(Days::new(30))
-            .unwrap_or(today)
-    });
+    let from = query
+        .from
+        .unwrap_or_else(|| today.checked_sub_days(Days::new(30)).unwrap_or(today));
 
     let app_usage_repo = AppUsageRepository::new(state.pool.clone());
 
@@ -266,10 +262,14 @@ async fn get_org_app_usage_analytics(
     };
 
     // Get trends
-    let trends_entity = app_usage_repo.get_org_daily_trends(org_id, from, to).await?;
+    let trends_entity = app_usage_repo
+        .get_org_daily_trends(org_id, from, to)
+        .await?;
 
     // Get top apps
-    let top_apps_entity = app_usage_repo.get_org_top_apps(org_id, from, to, 10).await?;
+    let top_apps_entity = app_usage_repo
+        .get_org_top_apps(org_id, from, to, 10)
+        .await?;
 
     // Get device counts for top apps
     let package_names: Vec<String> = top_apps_entity

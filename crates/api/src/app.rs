@@ -24,11 +24,11 @@ use crate::middleware::{
 use crate::routes::{
     admin, admin_geofences, admin_groups, admin_locations, admin_unlock_requests, admin_users,
     analytics, api_keys, app_usage, audit_logs, auth, bulk_import, compliance, dashboard,
-    data_subject_requests, device_policies, device_settings, devices, enrollment, enrollment_tokens,
-    fleet, frontend, geofence_events, geofences, groups, health, invites, locations, movement_events,
-    openapi, org_invitations, org_webhooks, organization_settings, organizations, permissions,
-    privacy, proximity_alerts, public_config, roles, system_config, system_roles, trips, users,
-    versioning, webhooks,
+    data_subject_requests, device_policies, device_settings, devices, enrollment,
+    enrollment_tokens, fleet, frontend, geofence_events, geofences, groups, health, invites,
+    locations, movement_events, openapi, org_invitations, org_webhooks, organization_settings,
+    organizations, permissions, privacy, proximity_alerts, public_config, roles, system_config,
+    system_roles, trips, users, versioning, webhooks,
 };
 use crate::services::cookies::CookieHelper;
 use crate::services::fcm::FcmNotificationService;
@@ -634,8 +634,7 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
 
     // System configuration routes (require JWT auth with super_admin role)
     // AP-9: System Configuration endpoints
-    let system_config_routes =
-        Router::new().nest("/api/admin/v1/system", system_config::router());
+    let system_config_routes = Router::new().nest("/api/admin/v1/system", system_config::router());
 
     // Legacy routes - redirect to v1 with 301 Moved Permanently
     // These don't require auth since they just redirect

@@ -39,7 +39,10 @@ use persistence::repositories::{
 /// - POST /api/admin/v1/organizations/:org_id/data-requests/:request_id/process - Process request
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(list_data_subject_requests).post(create_data_subject_request))
+        .route(
+            "/",
+            get(list_data_subject_requests).post(create_data_subject_request),
+        )
         .route("/:request_id", get(get_data_subject_request))
         .route("/:request_id/process", post(process_data_subject_request))
 }
@@ -97,9 +100,9 @@ async fn create_data_subject_request(
     Json(request): Json<CreateDataSubjectRequestRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Invalid request: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Invalid request: {}", e)))?;
 
     let repo = DataSubjectRequestRepository::new(state.pool.clone());
 
@@ -160,7 +163,9 @@ async fn get_data_subject_request(
 
     match entity {
         Some(e) => Ok((StatusCode::OK, Json(entity_to_response(e)))),
-        None => Err(ApiError::NotFound("Data subject request not found".to_string())),
+        None => Err(ApiError::NotFound(
+            "Data subject request not found".to_string(),
+        )),
     }
 }
 
@@ -174,9 +179,9 @@ async fn process_data_subject_request(
     Json(request): Json<ProcessDataSubjectRequestRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
-    request.validate().map_err(|e| {
-        ApiError::Validation(format!("Invalid request: {}", e))
-    })?;
+    request
+        .validate()
+        .map_err(|e| ApiError::Validation(format!("Invalid request: {}", e)))?;
 
     // Validate rejection reason is provided when rejecting
     if request.action == DataSubjectRequestAction::Reject && request.rejection_reason.is_none() {
@@ -189,15 +194,11 @@ async fn process_data_subject_request(
 
     // Get current request to verify state transition
     let current = repo.find_by_id(org_id, request_id).await?;
-    let current = current.ok_or_else(|| {
-        ApiError::NotFound("Data subject request not found".to_string())
-    })?;
+    let current =
+        current.ok_or_else(|| ApiError::NotFound("Data subject request not found".to_string()))?;
 
     // Validate state transition
-    let new_status = validate_state_transition(
-        status_from_db(current.status),
-        request.action,
-    )?;
+    let new_status = validate_state_transition(status_from_db(current.status), request.action)?;
 
     // For now, we'll use a placeholder user ID
     // In a real implementation, this would come from the authenticated admin user
@@ -214,9 +215,8 @@ async fn process_data_subject_request(
 
     let entity = repo.process(org_id, request_id, input).await?;
 
-    let entity = entity.ok_or_else(|| {
-        ApiError::NotFound("Data subject request not found".to_string())
-    })?;
+    let entity =
+        entity.ok_or_else(|| ApiError::NotFound("Data subject request not found".to_string()))?;
 
     info!(
         org_id = %org_id,
@@ -315,7 +315,10 @@ fn entity_to_response(entity: DataSubjectRequestWithProcessorEntity) -> DataSubj
 }
 
 /// Check if a request is overdue.
-fn is_overdue(status: &DataSubjectRequestStatusDb, due_date: chrono::DateTime<chrono::Utc>) -> bool {
+fn is_overdue(
+    status: &DataSubjectRequestStatusDb,
+    due_date: chrono::DateTime<chrono::Utc>,
+) -> bool {
     matches!(
         status,
         DataSubjectRequestStatusDb::Pending | DataSubjectRequestStatusDb::InProgress

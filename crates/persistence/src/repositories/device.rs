@@ -410,6 +410,46 @@ impl DeviceRepository {
         result
     }
 
+    /// Find all active devices for multiple users with their last location.
+    /// Returns devices grouped by owner_user_id for efficient member listing.
+    pub async fn find_devices_by_users(
+        &self,
+        user_ids: &[Uuid],
+    ) -> Result<Vec<crate::entities::MemberDeviceEntity>, sqlx::Error> {
+        if user_ids.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let timer = QueryTimer::new("find_devices_by_users");
+        let result = sqlx::query_as::<_, crate::entities::MemberDeviceEntity>(
+            r#"
+            SELECT
+                d.device_id,
+                d.display_name,
+                d.last_seen_at,
+                d.owner_user_id,
+                loc.latitude as last_latitude,
+                loc.longitude as last_longitude,
+                loc.timestamp as last_location_time
+            FROM devices d
+            LEFT JOIN LATERAL (
+                SELECT latitude, longitude, timestamp
+                FROM locations
+                WHERE device_id = d.device_id
+                ORDER BY timestamp DESC
+                LIMIT 1
+            ) loc ON true
+            WHERE d.owner_user_id = ANY($1) AND d.active = true
+            ORDER BY d.owner_user_id, d.is_primary DESC, d.linked_at DESC NULLS LAST
+            "#,
+        )
+        .bind(user_ids)
+        .fetch_all(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
+
     /// Unlink a device from its owner.
     pub async fn unlink_device(&self, device_id: Uuid) -> Result<u64, sqlx::Error> {
         let now = Utc::now();

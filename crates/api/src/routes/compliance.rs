@@ -16,14 +16,14 @@ use uuid::Uuid;
 use crate::app::AppState;
 use crate::error::ApiError;
 use domain::models::{
-    AuditActivitySummary, AuditLogStats, ComplianceAssessment,
-    ComplianceDashboardResponse, ComplianceFinding, ComplianceReportFormat, ComplianceReportQuery,
-    ComplianceReportResponse, ComplianceStatus, DataRetentionStatus, DataSubjectRequestReportSummary,
+    AuditActivitySummary, AuditLogStats, ComplianceAssessment, ComplianceDashboardResponse,
+    ComplianceFinding, ComplianceReportFormat, ComplianceReportQuery, ComplianceReportResponse,
+    ComplianceStatus, DataRetentionStatus, DataSubjectRequestReportSummary,
     DataSubjectRequestStats, FindingSeverity, OrganizationReportSummary, RequestStatusCounts,
     RequestTypeCount,
 };
 use persistence::repositories::{
-    AuditLogRepository, DataSubjectRequestRepository, DashboardRepository,
+    AuditLogRepository, DashboardRepository, DataSubjectRequestRepository,
 };
 
 /// Create compliance router.
@@ -50,7 +50,9 @@ async fn get_compliance_dashboard(
 
     // Get DSR statistics
     let dsr_counts = dsr_repo.get_counts(org_id).await?;
-    let avg_processing_time = dsr_repo.get_average_processing_time(org_id, None, None).await?;
+    let avg_processing_time = dsr_repo
+        .get_average_processing_time(org_id, None, None)
+        .await?;
     let compliance_rate = dsr_repo.get_compliance_rate(org_id, None, None).await?;
 
     // Get audit log statistics
@@ -82,11 +84,8 @@ async fn get_compliance_dashboard(
     let (_, count_30d) = audit_repo.list(org_id, &query_30d).await?;
 
     // Calculate compliance score
-    let (score, status, _findings) = calculate_compliance_score(
-        &dsr_counts,
-        compliance_rate,
-        avg_processing_time,
-    );
+    let (score, status, _findings) =
+        calculate_compliance_score(&dsr_counts, compliance_rate, avg_processing_time);
 
     let response = ComplianceDashboardResponse {
         data_subject_requests: DataSubjectRequestStats {
@@ -108,7 +107,7 @@ async fn get_compliance_dashboard(
         data_retention: DataRetentionStatus {
             location_retention_days: state.config.limits.location_retention_days,
             audit_log_retention_days: None, // Could be configured
-            cleanup_enabled: true, // Assume cleanup is enabled
+            cleanup_enabled: true,          // Assume cleanup is enabled
         },
         compliance_score: score,
         status,
@@ -171,11 +170,8 @@ async fn generate_compliance_report(
     let (_, total_audit_entries) = audit_repo.list(org_id, &audit_query).await?;
 
     // Calculate compliance assessment
-    let (score, status, findings) = calculate_compliance_score(
-        &dsr_counts,
-        compliance_rate,
-        avg_processing_time,
-    );
+    let (score, status, findings) =
+        calculate_compliance_score(&dsr_counts, compliance_rate, avg_processing_time);
 
     let recommendations = generate_recommendations(&findings, &dsr_counts);
 
@@ -326,10 +322,9 @@ fn generate_recommendations(
     let mut recommendations = Vec::new();
 
     // Check for critical findings
-    let has_overdue = findings.iter().any(|f| {
-        f.severity == FindingSeverity::Critical
-            && f.description.contains("overdue")
-    });
+    let has_overdue = findings
+        .iter()
+        .any(|f| f.severity == FindingSeverity::Critical && f.description.contains("overdue"));
 
     if has_overdue {
         recommendations.push(
@@ -339,9 +334,9 @@ fn generate_recommendations(
     }
 
     // Check for low compliance rate
-    let has_low_rate = findings.iter().any(|f| {
-        f.description.contains("Compliance rate")
-    });
+    let has_low_rate = findings
+        .iter()
+        .any(|f| f.description.contains("Compliance rate"));
 
     if has_low_rate {
         recommendations.push(
@@ -351,9 +346,9 @@ fn generate_recommendations(
     }
 
     // Check for slow processing
-    let has_slow_processing = findings.iter().any(|f| {
-        f.description.contains("Average processing time")
-    });
+    let has_slow_processing = findings
+        .iter()
+        .any(|f| f.description.contains("Average processing time"));
 
     if has_slow_processing {
         recommendations.push(
@@ -402,7 +397,8 @@ mod tests {
             overdue: 0,
         };
 
-        let (score, status, findings) = calculate_compliance_score(&counts, Some(100.0), Some(10.0));
+        let (score, status, findings) =
+            calculate_compliance_score(&counts, Some(100.0), Some(10.0));
 
         assert_eq!(score, 100);
         assert_eq!(status, ComplianceStatus::Compliant);
@@ -423,7 +419,9 @@ mod tests {
         let (score, status, findings) = calculate_compliance_score(&counts, Some(95.0), Some(15.0));
 
         assert!(score < 100);
-        assert!(findings.iter().any(|f| f.severity == FindingSeverity::Critical));
+        assert!(findings
+            .iter()
+            .any(|f| f.severity == FindingSeverity::Critical));
     }
 
     #[test]

@@ -248,7 +248,9 @@ impl DataSubjectRequestRepository {
         id: Uuid,
         input: ProcessDataSubjectRequestInput,
     ) -> Result<Option<DataSubjectRequestEntity>, sqlx::Error> {
-        let result_expires_at = input.result_expires_days.map(|days| Utc::now() + Duration::days(days));
+        let result_expires_at = input
+            .result_expires_days
+            .map(|days| Utc::now() + Duration::days(days));
 
         let entity = sqlx::query_as::<_, DataSubjectRequestEntity>(
             r#"

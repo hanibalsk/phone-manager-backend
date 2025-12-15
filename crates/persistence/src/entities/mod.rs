@@ -68,7 +68,9 @@ pub use data_subject_request::{
     DataSubjectRequestEntity, DataSubjectRequestStatusDb, DataSubjectRequestTypeDb,
     DataSubjectRequestWithProcessorEntity,
 };
-pub use device::{DeviceEntity, DeviceWithLastLocationEntity, FleetDeviceEntity};
+pub use device::{
+    DeviceEntity, DeviceWithLastLocationEntity, FleetDeviceEntity, MemberDeviceEntity,
+};
 pub use device_command::DeviceCommandEntity;
 pub use device_policy::DevicePolicyEntity;
 pub use device_token::DeviceTokenEntity;
