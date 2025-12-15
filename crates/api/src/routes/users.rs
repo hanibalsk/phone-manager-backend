@@ -77,17 +77,35 @@ pub async fn get_current_user(
 }
 
 /// Request body for updating user profile.
-#[derive(Debug, Clone, Deserialize, Validate)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct UpdateProfileRequest {
     /// User's display name (1-100 characters)
-    #[validate(custom = "validate_display_name")]
     pub display_name: Option<String>,
 
     /// User's avatar URL (optional). If provided as `null`, clears the avatar URL.
     #[serde(default)]
-    #[validate(custom = "validate_avatar_url_update")]
     pub avatar_url: Option<Option<String>>,
+}
+
+impl UpdateProfileRequest {
+    /// Validate the request fields.
+    pub fn validate(&self) -> Result<(), validator::ValidationErrors> {
+        let mut errors = validator::ValidationErrors::new();
+
+        if let Err(e) = validate_display_name(&self.display_name) {
+            errors.add("display_name", e);
+        }
+        if let Err(e) = validate_avatar_url_update(&self.avatar_url) {
+            errors.add("avatar_url", e);
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 fn validate_display_name(display_name: &Option<String>) -> Result<(), ValidationError> {
