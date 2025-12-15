@@ -430,13 +430,13 @@ impl DeviceRepository {
                 d.owner_user_id,
                 loc.latitude as last_latitude,
                 loc.longitude as last_longitude,
-                loc.timestamp as last_location_time
+                loc.captured_at as last_location_time
             FROM devices d
             LEFT JOIN LATERAL (
-                SELECT latitude, longitude, timestamp
+                SELECT latitude, longitude, captured_at
                 FROM locations
                 WHERE device_id = d.device_id
-                ORDER BY timestamp DESC
+                ORDER BY captured_at DESC
                 LIMIT 1
             ) loc ON true
             WHERE d.owner_user_id = ANY($1) AND d.active = true
