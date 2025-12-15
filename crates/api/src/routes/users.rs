@@ -10,7 +10,7 @@ use persistence::repositories::DeviceRepository;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use uuid::Uuid;
-use validator::Validate;
+use validator::{Validate, ValidationError};
 
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -81,12 +81,67 @@ pub async fn get_current_user(
 #[serde(rename_all = "snake_case")]
 pub struct UpdateProfileRequest {
     /// User's display name (1-100 characters)
-    #[validate(length(min = 1, max = 100, message = "Display name must be 1-100 characters"))]
+    #[validate(custom = "validate_display_name")]
     pub display_name: Option<String>,
 
-    /// User's avatar URL (optional, must be valid URL if provided)
-    #[validate(url(message = "Invalid avatar URL format"))]
-    pub avatar_url: Option<String>,
+    /// User's avatar URL (optional). If provided as `null`, clears the avatar URL.
+    #[serde(default)]
+    #[validate(custom = "validate_avatar_url_update")]
+    pub avatar_url: Option<Option<String>>,
+}
+
+fn validate_display_name(display_name: &Option<String>) -> Result<(), ValidationError> {
+    let Some(display_name) = display_name else {
+        return Ok(());
+    };
+
+    let trimmed = display_name.trim();
+    if trimmed.is_empty() {
+        return Err(ValidationError::new("display_name_blank").with_message(
+            "Display name must be 1-100 characters".into(),
+        ));
+    }
+    if trimmed.len() > 100 {
+        return Err(ValidationError::new("display_name_too_long").with_message(
+            "Display name must be 1-100 characters".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_avatar_url_update(avatar_url: &Option<Option<String>>) -> Result<(), ValidationError> {
+    // Missing field => no-op (valid)
+    let Some(avatar_url) = avatar_url else {
+        return Ok(());
+    };
+
+    // Explicit null => clear (valid)
+    let Some(avatar_url) = avatar_url else {
+        return Ok(());
+    };
+
+    let trimmed = avatar_url.trim();
+    if trimmed.is_empty() {
+        return Err(ValidationError::new("avatar_url_blank")
+            .with_message("Invalid avatar URL format".into()));
+    }
+
+    // Keep this fairly conservative to avoid abuse/huge payloads.
+    if trimmed.len() > 2048 {
+        return Err(ValidationError::new("avatar_url_too_long")
+            .with_message("Avatar URL must be at most 2048 characters".into()));
+    }
+
+    let url = reqwest::Url::parse(trimmed).map_err(|_| {
+        ValidationError::new("avatar_url_invalid").with_message("Invalid avatar URL format".into())
+    })?;
+
+    match url.scheme() {
+        "http" | "https" => Ok(()),
+        _ => Err(ValidationError::new("avatar_url_scheme").with_message(
+            "Avatar URL must use http or https".into(),
+        )),
+    }
 }
 
 /// Update current user profile.
@@ -102,7 +157,7 @@ pub async fn update_current_user(
     // Validate request
     request
         .validate()
-        .map_err(|e| ApiError::Validation(e.to_string()))?;
+        .map_err(ApiError::from)?;
 
     // Check if user exists
     let user_exists: Option<(bool,)> = sqlx::query_as("SELECT is_active FROM users WHERE id = $1")
@@ -127,55 +182,42 @@ pub async fn update_current_user(
         return get_current_user(State(state), user_auth).await;
     }
 
-    // Build update query
-    let mut query_parts = vec!["updated_at = $1".to_string()];
-    let mut param_idx = 2;
+    let normalized_display_name: Option<String> =
+        request.display_name.as_ref().map(|s| s.trim().to_string());
+    let normalized_avatar_url: Option<Option<String>> = request.avatar_url.as_ref().map(|inner| {
+        inner
+            .as_ref()
+            .map(|s| s.trim().to_string())
+            // explicit null stays None (clears)
+    });
+
+    // Build update query safely with QueryBuilder.
+    let mut qb = sqlx::QueryBuilder::new("UPDATE users SET ");
+    qb.push("updated_at = ");
+    qb.push_bind(now);
 
     if request.display_name.is_some() {
-        query_parts.push(format!("display_name = ${}", param_idx));
-        param_idx += 1;
+        qb.push(", display_name = ");
+        qb.push_bind(normalized_display_name);
     }
 
     if request.avatar_url.is_some() {
-        query_parts.push(format!("avatar_url = ${}", param_idx));
-        param_idx += 1;
+        qb.push(", avatar_url = ");
+        // request.avatar_url Some(None) means clear (set NULL)
+        qb.push_bind(normalized_avatar_url.unwrap_or(None));
     }
 
-    let query = format!(
-        "UPDATE users SET {} WHERE id = ${} RETURNING id, email, COALESCE(display_name, '') as display_name, avatar_url, email_verified, created_at, updated_at",
-        query_parts.join(", "),
-        param_idx
+    qb.push(" WHERE id = ");
+    qb.push_bind(user_auth.user_id);
+    qb.push(
+        " RETURNING id, email, COALESCE(display_name, '') as display_name, avatar_url, email_verified, created_at, updated_at",
     );
 
-    // Execute query with dynamic binding
-    let user: UserProfileRow = match (&request.display_name, &request.avatar_url) {
-        (Some(display_name), Some(avatar_url)) => sqlx::query_as(&query)
-            .bind(now)
-            .bind(display_name)
-            .bind(avatar_url)
-            .bind(user_auth.user_id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(ApiError::from)?,
-        (Some(display_name), None) => sqlx::query_as(&query)
-            .bind(now)
-            .bind(display_name)
-            .bind(user_auth.user_id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(ApiError::from)?,
-        (None, Some(avatar_url)) => sqlx::query_as(&query)
-            .bind(now)
-            .bind(avatar_url)
-            .bind(user_auth.user_id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(ApiError::from)?,
-        (None, None) => {
-            // Already handled above, but satisfy the match
-            unreachable!()
-        }
-    };
+    let user: UserProfileRow = qb
+        .build_query_as()
+        .fetch_one(&state.pool)
+        .await
+        .map_err(ApiError::from)?;
 
     Ok(Json(ProfileResponse {
         id: user.id.to_string(),
@@ -617,10 +659,20 @@ mod tests {
     }
 
     #[test]
+    fn test_update_profile_request_display_name_whitespace_only() {
+        let request = UpdateProfileRequest {
+            display_name: Some("   ".to_string()),
+            avatar_url: None,
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
     fn test_update_profile_request_valid_avatar_url() {
         let request = UpdateProfileRequest {
             display_name: None,
-            avatar_url: Some("https://example.com/avatar.png".to_string()),
+            avatar_url: Some(Some("https://example.com/avatar.png".to_string())),
         };
 
         assert!(request.validate().is_ok());
@@ -630,10 +682,30 @@ mod tests {
     fn test_update_profile_request_invalid_avatar_url() {
         let request = UpdateProfileRequest {
             display_name: None,
-            avatar_url: Some("not-a-url".to_string()),
+            avatar_url: Some(Some("not-a-url".to_string())),
         };
 
         assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_profile_request_invalid_avatar_url_scheme() {
+        let request = UpdateProfileRequest {
+            display_name: None,
+            avatar_url: Some(Some("ftp://example.com/avatar.png".to_string())),
+        };
+
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_profile_request_clear_avatar_url() {
+        let request = UpdateProfileRequest {
+            display_name: None,
+            avatar_url: Some(None),
+        };
+
+        assert!(request.validate().is_ok());
     }
 
     #[test]

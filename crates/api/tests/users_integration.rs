@@ -194,6 +194,53 @@ async fn test_update_current_user_invalid_avatar_url() {
 }
 
 #[tokio::test]
+async fn test_update_current_user_clear_avatar_url() {
+    let pool = create_test_pool().await;
+    run_migrations(&pool).await;
+    cleanup_all_test_data(&pool).await;
+
+    let config = test_config();
+    let app = create_test_app(config.clone(), pool.clone());
+
+    // Create authenticated user
+    let user = TestUser::new();
+    let auth = create_authenticated_user(&app, &user).await;
+
+    // Set avatar URL first
+    let request = json_request_with_auth(
+        Method::PUT,
+        "/api/v1/users/me",
+        json!({
+            "avatar_url": "https://example.com/avatar.png"
+        }),
+        &auth.access_token,
+    );
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = parse_response_body(response).await;
+    assert_eq!(
+        body["avatar_url"].as_str().unwrap(),
+        "https://example.com/avatar.png"
+    );
+
+    // Clear avatar URL with explicit null
+    let request = json_request_with_auth(
+        Method::PUT,
+        "/api/v1/users/me",
+        json!({
+            "avatar_url": null
+        }),
+        &auth.access_token,
+    );
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = parse_response_body(response).await;
+    assert!(body["avatar_url"].is_null());
+
+    cleanup_all_test_data(&pool).await;
+}
+
+#[tokio::test]
 async fn test_update_current_user_display_name_too_long() {
     let pool = create_test_pool().await;
     run_migrations(&pool).await;

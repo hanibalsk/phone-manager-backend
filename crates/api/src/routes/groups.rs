@@ -6,6 +6,7 @@ use axum::{
     Json,
 };
 use chrono::Utc;
+use domain::models::device::{DeviceLastLocation, DeviceSummary};
 use domain::models::group::{
     generate_slug, CreateGroupRequest, CreateGroupResponse, GroupDetail, GroupRole, GroupSummary,
     ListGroupsQuery, ListGroupsResponse, ListMembersQuery, ListMembersResponse, MemberResponse,
@@ -15,7 +16,7 @@ use domain::models::group::{
 use domain::models::invite::{
     JoinGroupInfo, JoinGroupRequest, JoinGroupResponse, JoinMembershipInfo,
 };
-use persistence::repositories::{GroupRepository, InviteRepository};
+use persistence::repositories::{DeviceRepository, GroupRepository, InviteRepository};
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
@@ -791,6 +792,79 @@ pub async fn transfer_ownership(
         new_owner_id: request.new_owner_id,
         transferred_at,
     }))
+}
+
+// =============================================================================
+// Group Devices (Story 12.7 - JWT-authenticated endpoint)
+// =============================================================================
+
+/// Response for listing group devices.
+#[derive(Debug, serde::Serialize)]
+pub struct GroupDevicesResponse {
+    pub devices: Vec<DeviceSummary>,
+}
+
+/// Get devices in a group.
+///
+/// GET /api/v1/groups/:group_id/devices
+///
+/// Requires JWT authentication. User must be a member of the group.
+/// Returns devices with their last location information.
+pub async fn get_group_devices(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(group_id): Path<Uuid>,
+) -> Result<Json<GroupDevicesResponse>, ApiError> {
+    let group_repo = GroupRepository::new(state.pool.clone());
+    let device_repo = DeviceRepository::new(state.pool.clone());
+
+    // Verify user is a member of the group and get group details
+    let group = group_repo
+        .find_group_with_membership(group_id, user_auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Group not found or you are not a member".to_string()))?;
+
+    // Fetch devices using the group's slug (group_id column in devices table is the slug)
+    let devices = device_repo
+        .find_devices_with_last_location(&group.slug)
+        .await?;
+
+    // Transform to DeviceSummary
+    let summaries: Vec<DeviceSummary> = devices
+        .into_iter()
+        .map(|d| {
+            let last_location = match (
+                d.last_latitude,
+                d.last_longitude,
+                d.last_location_time,
+                d.last_accuracy,
+            ) {
+                (Some(lat), Some(lon), Some(time), Some(acc)) => Some(DeviceLastLocation {
+                    latitude: lat,
+                    longitude: lon,
+                    timestamp: time,
+                    accuracy: acc as f64,
+                }),
+                _ => None,
+            };
+
+            DeviceSummary {
+                device_id: d.device_id,
+                display_name: d.display_name,
+                last_location,
+                last_seen_at: d.last_seen_at,
+            }
+        })
+        .collect();
+
+    info!(
+        group_id = %group_id,
+        user_id = %user_auth.user_id,
+        device_count = summaries.len(),
+        "Listed group devices"
+    );
+
+    Ok(Json(GroupDevicesResponse { devices: summaries }))
 }
 
 #[cfg(test)]
