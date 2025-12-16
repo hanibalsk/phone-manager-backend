@@ -1,0 +1,61 @@
+# Phone Manager Test Users
+# Created: 2025-12-16
+# These users are for development/testing only
+
+# =============================================================================
+# USER 1: Test Admin
+# =============================================================================
+USER1_ID=519f27e6-dbfb-4b16-b271-946f4621ebea
+USER1_EMAIL=admin@test.local
+USER1_PASSWORD=TestAdmin123!
+USER1_DISPLAY_NAME=Test Admin
+USER1_ACCESS_TOKEN=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1MTlmMjdlNi1kYmZiLTRiMTYtYjI3MS05NDZmNDYyMWViZWEiLCJleHAiOjE3NjU4ODY0NzgsImlhdCI6MTc2NTg4Mjg3OCwianRpIjoiNGFlMWZkMmMtYjM3My00MGM5LTg3MjYtYjg2MjNmYmIzNDhmIiwidG9rZW5fdHlwZSI6ImFjY2VzcyJ9.mp_a5WBLbGbNuqrOkniWduOpcB6aJbhiq-wMGfRur--Kdi4101D9zba5PeU6BxoLd1o0j3rEZ3o4RSkbBnvTzSh54y73uehzpHw0rKTF9v8oXK34RRE_D9HTlXdmMJuQyzVcOQsL7vsCq32BHHXw0N-nE2x2dRMuthK8Db9zSIiAazgMbT4_cZ10BfN81WnbA87H168fprSA7DCXoaj8LPs_YCmF_kBVQf2rNo2-oLkC955Q-05KeQ11rOt_AIoWzLt48qucz2AKKKyoITQ7KZLx0Tk8zqTkZ9yMkT05F5hjVer7ri7F-du4IYYtSASkS3RN8EiVKFXShbGiErN4Iw
+USER1_REFRESH_TOKEN=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1MTlmMjdlNi1kYmZiLTRiMTYtYjI3MS05NDZmNDYyMWViZWEiLCJleHAiOjE3Njg0NzQ4NzgsImlhdCI6MTc2NTg4Mjg3OCwianRpIjoiYzJlM2E5OTMtY2FmYi00NzgyLTg1ZWMtNzY3ZDFlZjAzMjk0IiwidG9rZW5fdHlwZSI6InJlZnJlc2gifQ.C2RZI2YN2eqoBqkkeW_uGNc8NWmrq5dP4ZTSu1bn8uWRwTobvi5b3cD4ANmkfwy8jF_USgnvwy0t56Sl3JmnJ-iHIJJhj_rcVWy53jNFANtmjBYeKx7wQoJ3HUChzoEXwNRMMfu6oLsTG75e0VH57Uz_hxCgdmto3_qZ07_DqRUuFW6VdKzS52k9xkJWu6D1OGYNUS7a-5uc3VNlxKrqc8JuqG8N2pCU51usCpBLluLN3qLZqVnXaMlQCICRzXkEHZBF0l5ippVijWkCz07zFZeZVehHLzPKrliMnm-yfrvksQ1hV9vCd_YdVlvTuNcvxRNLjQ4khKjOSpIR7yqyDQ
+
+# =============================================================================
+# USER 2: Test User One
+# =============================================================================
+USER2_ID=6e7b887c-e8cd-4faa-abaf-08ac5bceb184
+USER2_EMAIL=user1@test.local
+USER2_PASSWORD=TestUser123!
+USER2_DISPLAY_NAME=Test User One
+USER2_ACCESS_TOKEN=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI2ZTdiODg3Yy1lOGNkLTRmYWEtYWJhZi0wOGFjNWJjZWIxODQiLCJleHAiOjE3NjU4ODY0ODYsImlhdCI6MTc2NTg4Mjg4NiwianRpIjoiZDExMTI5ZDEtMzZhOC00MTE5LWE2ZWUtMzkzYTZiNTU0NzRiIiwidG9rZW5fdHlwZSI6ImFjY2VzcyJ9.Vcp_rUVKzT6MEasejCq9tsye957GO1t1h1fjGj-qQYfZT4Z6yj9bHfBdYyF-F3FUKhtEpdsqlzR15PvwrACeUy78KfH39vDJ42A_4PFvk4M8SLjKKuJ6ki8ED5i6lNVGUDlasB05AH6RvJmT_ZDNozuzOfTOobVQpE8PYZXls_6y34JnIf1odBnSvNZFLNLCyaE8byc0KR7nDzsA6y6dgiWUrGCdcnh8DS-PXishF9TmieTkqzUDBC4Ll4VvrJR_XG1ju5-1QIq3dSarpGNwYV6-ITkbnB9SssbEr2JecAmgaRyisRYkxfRK-u4C4PqRzhvAfoWMPrubcwpKmvqzVA
+USER2_REFRESH_TOKEN=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI2ZTdiODg3Yy1lOGNkLTRmYWEtYWJhZi0wOGFjNWJjZWIxODQiLCJleHAiOjE3Njg0NzQ4ODYsImlhdCI6MTc2NTg4Mjg4NiwianRpIjoiMDI5NTVlNTUtMmY5Ni00NzBjLTllNDMtYTY4ODQwNmIwODBhIiwidG9rZW5fdHlwZSI6InJlZnJlc2gifQ.mmAfsyiT2ar0vKmvyQL_NGB10iM8al6Giu9cPkV-4FrqDTstsFd6V2TjqszF6DTz0qSezEyj7ScqJ13OhC5IlMlFaVTxY9wL9oxHykEicVBGB-oxlPOBxDCgFmAEK5-tmk0bq7OdfysjhGFj33Cmv23AWPV3ppNwUlPLoOIgBfEoLqGiaDd2OnuMYam29nSsoa1jXi2YQ--NSko-u2bZSQI8mSgBJo7-bESrFxrDvT48UyGV8bJG0muKxROqQLmCf2y47kesJPJDYqWFiIWgjD33FUi4g4oEA-lKurIku131RaFxNqDZpifDs5hkNA2QeoPbMIWxBkY_Khv_0hNNcw
+
+# =============================================================================
+# USER 3: Test User Two
+# =============================================================================
+USER3_ID=fa27a9b9-e682-4f80-a4c5-e9d6c3ee1df7
+USER3_EMAIL=user2@test.local
+USER3_PASSWORD=TestUser456!
+USER3_DISPLAY_NAME=Test User Two
+USER3_ACCESS_TOKEN=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJmYTI3YTliOS1lNjgyLTRmODAtYTRjNS1lOWQ2YzNlZTFkZjciLCJleHAiOjE3NjU4ODY0OTgsImlhdCI6MTc2NTg4Mjg5OCwianRpIjoiMGIyNmQ3ZGQtZDIyNC00YTFlLTg0NTgtNWI0YmRlN2E0NWRhIiwidG9rZW5fdHlwZSI6ImFjY2VzcyJ9.yZ2UC_tLCKYf644-q1jn6dPklhfE9FmJVthwvohfYGem1VpVcYc3tWWL1oUME9CvHtWwt6L6wIrVyt-sOi-29Q_0WocGpxhTp3HuLalxEd4NEJMxBwjOAOkyLrcFduyOxNrdmqoxLJxhLNGaa7MCikoR9SoY2ZuzYw_i2hWsSqJDtO2YXSsRiq9zs9F7O7D7kLqPTmrjf2TN_Q-jaVJ7OQIi4NGUuKRi7FpsuOp1oCjJK7bOJxcdYHemErC0vkClMGagEdEF5dWO3IAx3TX5JkV52u8UbMUPCvq9jV1mhpTiV44vniAxfJE6VsZd6ig-jIIJ5n7cwZszZ1L0YgCvwg
+USER3_REFRESH_TOKEN=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJmYTI3YTliOS1lNjgyLTRmODAtYTRjNS1lOWQ2YzNlZTFkZjciLCJleHAiOjE3Njg0NzQ4OTgsImlhdCI6MTc2NTg4Mjg5OCwianRpIjoiMDI3NTY3NDItNDBmYi00MGI4LThjNTgtMDE2MTM2MTEzNDE1IiwidG9rZW5fdHlwZSI6InJlZnJlc2gifQ.srWk-k32Xe30lmPJyHo8kx-Knc-QpgG_f0hxyLWJt1Ttsmlri0vnwP2M5A7CXdKEoBYflNGCAoN4JNlTGjeiBT_5N8fvjXdZkL1Ig49Dd5kytiMXdbGJt2tPgfY5NJvfDgzzRlMKynp51p2vKDvdK250samzwvIUrcunxCwg7qVUfplafLD9VzhB__tuOsnA0bZk0ng8j5yOgmB2aukpZD3FIGwodlZwsFjdOOK5oUmKvFJN-hmL74tue0bM9PJojYiH4RGCmfKRFWv427ly30film2cj_5XU-l-E_UPzOJUJ4oJYIDtJmtNIFELwxJqmnbVqvF4_pm-Bn0nPHBEJw
+
+# =============================================================================
+# QUICK REFERENCE
+# =============================================================================
+#
+# To use these tokens with curl:
+#   source .test_users
+#   curl -H "Authorization: Bearer $USER1_ACCESS_TOKEN" http://localhost:8080/api/v1/me
+#
+# To login and get fresh tokens:
+#   curl -X POST http://localhost:8080/api/v1/auth/login \
+#     -H "Content-Type: application/json" \
+#     -d '{"email": "admin@test.local", "password": "TestAdmin123!"}'
+#
+# Note: Access tokens expire in 1 hour, refresh tokens in 30 days
+
+# =============================================================================
+# TEST GROUP & INVITE
+# =============================================================================
+GROUP_ID=c4beabfe-eda8-4d38-80aa-78994955876b
+GROUP_NAME=Test Family Group
+GROUP_OWNER=admin@test.local
+
+INVITE_ID=fe704a05-3ff7-43d7-9759-7c09ebccc15e
+INVITE_CODE=672-6UN-WSY
+INVITE_URL=https://loc.rlt.sk/join/672-6UN-WSY
+INVITE_EXPIRES=2025-12-17T12:10:32.167215Z
+INVITE_MAX_USES=10
