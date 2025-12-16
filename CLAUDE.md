@@ -188,6 +188,17 @@ Critical production requirements:
 - 5-minute cooldown when circuit is open
 - Retry worker skips deliveries when circuit is open
 
+### Settings Control (Epic 12)
+- Per-device settings with key-value storage (JSONB)
+- Setting lock mechanism for parental control
+- Unlock request workflow with approval/denial
+- Settings sync endpoint for device state reconciliation
+- **Change history tracking**:
+  - Audit log of all setting changes (value changes, locks, unlocks)
+  - Captures old/new values for each change
+  - Preserves history when users are deleted (`ON DELETE SET NULL`)
+  - Offset-based pagination with configurable limit (1-100)
+
 ### Authentication
 
 **Three authentication methods:**
@@ -295,6 +306,50 @@ Critical production requirements:
 |--------|------|-------------|
 | GET | `/api/v1/devices/:device_id/data-export` | Export device data |
 | DELETE | `/api/v1/devices/:device_id/data` | Delete all device data |
+
+### Device Settings (Epic 12)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/devices/:device_id/settings` | Get all device settings |
+| PUT | `/api/v1/devices/:device_id/settings` | Bulk update device settings |
+| PUT | `/api/v1/devices/:device_id/settings/:key` | Update single setting |
+| GET | `/api/v1/devices/:device_id/settings/locks` | Get all setting locks |
+| PUT | `/api/v1/devices/:device_id/settings/locks` | Bulk update setting locks |
+| POST | `/api/v1/devices/:device_id/settings/:key/lock` | Lock a setting |
+| DELETE | `/api/v1/devices/:device_id/settings/:key/lock` | Unlock a setting |
+| POST | `/api/v1/devices/:device_id/settings/sync` | Sync settings from device |
+| GET | `/api/v1/devices/:device_id/settings/history` | Get settings change history |
+| POST | `/api/v1/devices/:device_id/settings/:key/unlock-request` | Request setting unlock |
+
+#### Settings History Query Parameters
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | int | 50 | Results per page (1-100) |
+| `offset` | int | 0 | Number of records to skip |
+
+#### Settings History Response
+```json
+{
+  "changes": [
+    {
+      "id": "uuid",
+      "setting_key": "daily_screen_time_limit",
+      "old_value": 3600,
+      "new_value": 7200,
+      "changed_by": "user-uuid",
+      "changed_by_name": "John Doe",
+      "changed_at": "2025-12-15T10:30:00Z",
+      "change_type": "VALUE_CHANGED"
+    }
+  ],
+  "total_count": 42,
+  "has_more": true
+}
+```
+
+**Change Types**: `VALUE_CHANGED`, `LOCKED`, `UNLOCKED`, `RESET`
+
+**Authorization**: Device owner, group admin, or organization admin
 
 ### Admin
 | Method | Path | Description |
@@ -584,6 +639,9 @@ cargo run --bin phone-manager
 - **Configuration**: `crates/api/src/config.rs`
 - **Error Types**: `crates/api/src/error.rs`
 - **Webhook Delivery**: `crates/api/src/services/webhook_delivery.rs`
+- **Device Settings**: `crates/api/src/routes/device_settings.rs`
+- **Setting Change Models**: `crates/domain/src/models/setting_change.rs`
+- **Setting Change Repository**: `crates/persistence/src/repositories/setting_change.rs`
 - **Migrations**: `crates/persistence/src/migrations/`
 - **Spec Document**: `docs/rust-backend-spec.md`
 

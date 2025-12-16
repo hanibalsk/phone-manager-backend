@@ -825,6 +825,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         )
         // Public invite info (Story 11.4)
         .route("/api/v1/invites/:code", get(invites::get_invite_info))
+        // Alias for Android app compatibility
+        .route(
+            "/api/v1/invites/:code/validate",
+            get(invites::get_invite_info),
+        )
         .route("/api/health/ready", get(health::ready))
         .route("/api/health/live", get(health::live))
         .route("/metrics", get(metrics_handler));
