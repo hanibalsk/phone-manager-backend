@@ -22,13 +22,13 @@ use crate::middleware::{
     ExportRateLimiterState, RateLimiterState,
 };
 use crate::routes::{
-    admin, admin_geofences, admin_groups, admin_locations, admin_unlock_requests, admin_users,
-    analytics, api_keys, app_usage, audit_logs, auth, bulk_import, compliance, dashboard,
-    data_subject_requests, device_policies, device_settings, devices, enrollment,
-    enrollment_tokens, fleet, frontend, geofence_events, geofences, groups, health, invites,
-    locations, movement_events, openapi, org_invitations, org_webhooks, organization_settings,
-    organizations, permissions, privacy, proximity_alerts, public_config, roles, system_config,
-    system_roles, trips, users, versioning, webhooks,
+    admin, admin_geofences, admin_groups, admin_locations, admin_managed_users,
+    admin_unlock_requests, admin_users, analytics, api_keys, app_usage, audit_logs, auth,
+    bulk_import, compliance, dashboard, data_subject_requests, device_policies, device_settings,
+    devices, enrollment, enrollment_tokens, fleet, frontend, geofence_events, geofences, groups,
+    health, invites, locations, movement_events, openapi, org_invitations, org_webhooks,
+    organization_settings, organizations, permissions, privacy, proximity_alerts, public_config,
+    roles, system_config, system_roles, trips, users, versioning, webhooks,
 };
 use crate::services::cookies::CookieHelper;
 use crate::services::fcm::FcmNotificationService;
@@ -493,6 +493,8 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/admin/v1/organizations/:org_id/admin-users",
             admin_users::router(),
         )
+        // Admin managed users routes (Epic 9 - user location, geofences, tracking)
+        .nest("/api/admin/v1/users", admin_managed_users::router())
         // Admin group management routes (Story 14.4)
         .nest(
             "/api/admin/v1/organizations/:org_id/groups",

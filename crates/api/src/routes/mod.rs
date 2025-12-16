@@ -4,6 +4,7 @@ pub mod admin;
 pub mod admin_geofences;
 pub mod admin_groups;
 pub mod admin_locations;
+pub mod admin_managed_users;
 pub mod admin_unlock_requests;
 pub mod admin_users;
 pub mod analytics;

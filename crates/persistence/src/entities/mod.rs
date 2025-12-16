@@ -19,6 +19,8 @@ pub mod enrollment_token;
 pub mod geofence;
 pub mod geofence_event;
 pub mod group;
+pub mod managed_user;
+pub mod user_geofence;
 pub mod idempotency_key;
 pub mod invite;
 pub mod location;
@@ -82,6 +84,8 @@ pub use group::{
     GroupEntity, GroupMembershipEntity, GroupRoleDb, GroupWithMembershipEntity,
     MemberWithUserEntity,
 };
+pub use managed_user::{ManagedUserEntity, UserLocationEntity};
+pub use user_geofence::{UserGeofenceEntity, UserGeofenceWithCreatorEntity};
 pub use idempotency_key::IdempotencyKeyEntity;
 pub use invite::{GroupInviteEntity, InviteWithCreatorEntity, InviteWithGroupEntity};
 pub use location::LocationEntity;
