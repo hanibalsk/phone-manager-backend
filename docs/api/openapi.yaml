@@ -1,7 +1,7 @@
 openapi: "3.1.0"
 info:
   title: Phone Manager API
-  version: "0.11.1"
+  version: "0.12.0"
   description: |
     REST API for the Phone Manager mobile application.
     Handles device registration, location tracking, group management,
@@ -3357,6 +3357,261 @@ components:
           enum: [approve, reject, complete]
         notes:
           type: string
+
+    # Epic 9: Admin User Management Schemas
+    ManagedUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        tracking_enabled:
+          type: boolean
+        device_count:
+          type: integer
+        organization_id:
+          type: string
+          format: uuid
+          nullable: true
+        organization_name:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        last_location:
+          $ref: "#/components/schemas/UserLastLocation"
+
+    UserLastLocation:
+      type: object
+      nullable: true
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        device_name:
+          type: string
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        accuracy:
+          type: number
+          format: float
+        captured_at:
+          type: string
+          format: date-time
+
+    ListManagedUsersResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManagedUser"
+        total:
+          type: integer
+          format: int64
+        has_more:
+          type: boolean
+
+    RemoveManagedUserResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        removed:
+          type: boolean
+        action:
+          type: string
+          description: "Either 'deactivated' or 'removed_from_organizations'"
+
+    UserLocationResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        location:
+          $ref: "#/components/schemas/UserLastLocation"
+
+    UserGeofence:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        radius_meters:
+          type: number
+          format: float
+        event_types:
+          type: array
+          items:
+            type: string
+            enum: [enter, exit, dwell]
+        active:
+          type: boolean
+        color:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_by_name:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateUserGeofenceRequest:
+      type: object
+      required:
+        - name
+        - latitude
+        - longitude
+        - radius_meters
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        radius_meters:
+          type: number
+          format: float
+          minimum: 20
+          maximum: 50000
+        event_types:
+          type: array
+          items:
+            type: string
+            enum: [enter, exit, dwell]
+          default: [enter, exit]
+        color:
+          type: string
+          maxLength: 7
+        metadata:
+          type: object
+
+    CreateUserGeofenceResponse:
+      type: object
+      properties:
+        geofence:
+          $ref: "#/components/schemas/UserGeofence"
+
+    UpdateUserGeofenceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        radius_meters:
+          type: number
+          format: float
+          minimum: 20
+          maximum: 50000
+        event_types:
+          type: array
+          items:
+            type: string
+            enum: [enter, exit, dwell]
+        active:
+          type: boolean
+        color:
+          type: string
+          maxLength: 7
+        metadata:
+          type: object
+
+    UpdateUserGeofenceResponse:
+      type: object
+      properties:
+        geofence:
+          $ref: "#/components/schemas/UserGeofence"
+
+    ListUserGeofencesResponse:
+      type: object
+      properties:
+        geofences:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserGeofence"
+        total:
+          type: integer
+          format: int64
+
+    DeleteUserGeofenceResponse:
+      type: object
+      properties:
+        geofence_id:
+          type: string
+          format: uuid
+        deleted:
+          type: boolean
+
+    UpdateTrackingRequest:
+      type: object
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+
+    UpdateTrackingResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        tracking_enabled:
+          type: boolean
 
   responses:
     BadRequest:
@@ -7315,5 +7570,271 @@ paths:
       responses:
         "200":
           description: Request processed
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # Epic 9: Admin User Management
+  /api/admin/v1/users:
+    get:
+      tags: [Admin User Management]
+      summary: List managed users
+      description: |
+        List users that the admin can manage.
+        - Org admins see users in their organizations
+        - Non-org admins see users not in any organization
+      operationId: listManagedUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          description: Search by email or display name
+          schema:
+            type: string
+        - name: tracking_enabled
+          in: query
+          description: Filter by tracking status
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Managed users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListManagedUsersResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/admin/v1/users/{user_id}:
+    delete:
+      tags: [Admin User Management]
+      summary: Remove user from managed list
+      description: |
+        For org admins: removes user from the organization(s) but keeps account.
+        For non-org admins: deactivates the user account.
+      operationId: removeManagedUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemoveManagedUserResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/users/{user_id}/location:
+    get:
+      tags: [Admin User Management]
+      summary: Get user's current location
+      description: Returns the latest location from any of the user's active devices
+      operationId: getUserLocation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserLocationResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/users/{user_id}/geofences:
+    get:
+      tags: [Admin User Management]
+      summary: List geofences for user
+      description: Returns all geofences assigned to the user (apply to all user's devices)
+      operationId: listUserGeofences
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User geofences list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUserGeofencesResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Admin User Management]
+      summary: Create geofence for user
+      description: Creates a user-level geofence that applies to all user's devices
+      operationId: createUserGeofence
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserGeofenceRequest"
+      responses:
+        "201":
+          description: Geofence created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateUserGeofenceResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: Geofence limit reached (max 50 per user)
+
+  /api/admin/v1/users/{user_id}/geofences/{geofence_id}:
+    put:
+      tags: [Admin User Management]
+      summary: Update user geofence
+      operationId: updateUserGeofence
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: geofence_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserGeofenceRequest"
+      responses:
+        "200":
+          description: Geofence updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateUserGeofenceResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Admin User Management]
+      summary: Delete user geofence
+      operationId: deleteUserGeofence
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: geofence_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Geofence deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteUserGeofenceResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/users/{user_id}/tracking:
+    put:
+      tags: [Admin User Management]
+      summary: Enable/disable tracking for user
+      description: Updates the user's tracking_enabled flag
+      operationId: updateUserTracking
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTrackingRequest"
+      responses:
+        "200":
+          description: Tracking status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateTrackingResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"

@@ -26,8 +26,9 @@ use domain::models::geofence::GeofenceEventType;
 use domain::models::{
     CreateUserGeofenceRequest, CreateUserGeofenceResponse, DeleteUserGeofenceResponse,
     ListManagedUsersQuery, ListManagedUsersResponse, ListUserGeofencesResponse, ManagedUser,
-    ManagedUserPagination, RemoveManagedUserResponse, UpdateTrackingRequest, UpdateTrackingResponse,
-    UpdateUserGeofenceRequest, UpdateUserGeofenceResponse, UserGeofence, UserLastLocation,
+    ManagedUserPagination, RemoveManagedUserResponse, UpdateTrackingRequest,
+    UpdateTrackingResponse, UpdateUserGeofenceRequest, UpdateUserGeofenceResponse, UserGeofence,
+    UserLastLocation,
 };
 
 /// Maximum number of geofences per user.
@@ -85,7 +86,13 @@ async fn list_managed_users(
     };
 
     let entities = managed_user_repo
-        .list_managed_users(&org_ids, query.search.as_deref(), query.tracking_enabled, per_page, offset)
+        .list_managed_users(
+            &org_ids,
+            query.search.as_deref(),
+            query.tracking_enabled,
+            per_page,
+            offset,
+        )
         .await?;
 
     let users: Vec<ManagedUser> = entities
@@ -309,8 +316,11 @@ async fn create_user_geofence(
     }
 
     // Convert event types to strings for database
-    let event_type_strings: Vec<String> =
-        request.event_types.iter().map(|e| e.as_str().to_string()).collect();
+    let event_type_strings: Vec<String> = request
+        .event_types
+        .iter()
+        .map(|e| e.as_str().to_string())
+        .collect();
 
     let entity = geofence_repo
         .create(
@@ -424,9 +434,10 @@ async fn update_user_geofence(
     }
 
     // Convert event types to strings for database if provided
-    let event_type_strings: Option<Vec<String>> = request.event_types.as_ref().map(|types| {
-        types.iter().map(|e| e.as_str().to_string()).collect()
-    });
+    let event_type_strings: Option<Vec<String>> = request
+        .event_types
+        .as_ref()
+        .map(|types| types.iter().map(|e| e.as_str().to_string()).collect());
 
     let entity = geofence_repo
         .update(

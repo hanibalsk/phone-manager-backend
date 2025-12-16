@@ -523,7 +523,7 @@ pub async fn create_test_group(
     // Step 2: Create an invite for the group
     let invite_request = Request::builder()
         .method(Method::POST)
-        .uri(&format!("/api/v1/groups/{}/invites", group_id))
+        .uri(format!("/api/v1/groups/{}/invites", group_id))
         .header(header::CONTENT_TYPE, "application/json")
         .header(
             header::AUTHORIZATION,

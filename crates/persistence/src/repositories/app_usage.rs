@@ -395,8 +395,6 @@ impl AppUsageRepository {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_repository_creation() {
         // This is a compile-time check that the repository can be created

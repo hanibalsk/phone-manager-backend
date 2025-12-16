@@ -61,7 +61,10 @@ mod tests {
 
     #[test]
     fn test_setting_change_type_display() {
-        assert_eq!(format!("{}", SettingChangeTypeDb::ValueChanged), "VALUE_CHANGED");
+        assert_eq!(
+            format!("{}", SettingChangeTypeDb::ValueChanged),
+            "VALUE_CHANGED"
+        );
         assert_eq!(format!("{}", SettingChangeTypeDb::Locked), "LOCKED");
         assert_eq!(format!("{}", SettingChangeTypeDb::Unlocked), "UNLOCKED");
         assert_eq!(format!("{}", SettingChangeTypeDb::Reset), "RESET");
@@ -69,7 +72,10 @@ mod tests {
 
     #[test]
     fn test_setting_change_type_debug() {
-        assert_eq!(format!("{:?}", SettingChangeTypeDb::ValueChanged), "ValueChanged");
+        assert_eq!(
+            format!("{:?}", SettingChangeTypeDb::ValueChanged),
+            "ValueChanged"
+        );
         assert_eq!(format!("{:?}", SettingChangeTypeDb::Locked), "Locked");
     }
 }

@@ -19,11 +19,10 @@ pub mod enrollment_token;
 pub mod fleet;
 pub mod geofence;
 pub mod geofence_event;
-pub mod managed_user;
-pub mod user_geofence;
 pub mod group;
 pub mod invite;
 pub mod location;
+pub mod managed_user;
 pub mod movement_event;
 pub mod org_member_invite;
 pub mod org_user;
@@ -42,6 +41,7 @@ pub mod trip_path_correction;
 pub mod unlock_request;
 pub mod usage_warning;
 pub mod user;
+pub mod user_geofence;
 pub mod webhook;
 
 pub use admin_geofence::{
@@ -151,16 +151,12 @@ pub use geofence_event::{
     ListGeofenceEventsQuery, ListGeofenceEventsResponse,
 };
 pub use group::{Group, GroupMembership, GroupRole};
+pub use invite::GroupInvite;
+pub use location::Location;
 pub use managed_user::{
     ListManagedUsersQuery, ListManagedUsersResponse, ManagedUser, ManagedUserPagination,
     RemoveManagedUserResponse, UpdateTrackingRequest, UpdateTrackingResponse, UserLastLocation,
 };
-pub use user_geofence::{
-    CreateUserGeofenceRequest, CreateUserGeofenceResponse, DeleteUserGeofenceResponse,
-    ListUserGeofencesResponse, UpdateUserGeofenceRequest, UpdateUserGeofenceResponse, UserGeofence,
-};
-pub use invite::GroupInvite;
-pub use location::Location;
 pub use movement_event::MovementEvent;
 pub use org_member_invite::{
     AcceptInvitationRequest, AcceptInvitationResponse, AcceptedOrgInfo, AcceptedUserInfo,
@@ -239,6 +235,10 @@ pub use unlock_request::{
 };
 pub use usage_warning::{check_usage_warning, ResponseWithWarnings, UsageWarning};
 pub use user::{OAuthAccount, OAuthProvider, User, UserSession};
+pub use user_geofence::{
+    CreateUserGeofenceRequest, CreateUserGeofenceResponse, DeleteUserGeofenceResponse,
+    ListUserGeofencesResponse, UpdateUserGeofenceRequest, UpdateUserGeofenceResponse, UserGeofence,
+};
 pub use webhook::{
     CreateWebhookRequest, ListWebhooksQuery, ListWebhooksResponse, UpdateWebhookRequest, Webhook,
     WebhookResponse,

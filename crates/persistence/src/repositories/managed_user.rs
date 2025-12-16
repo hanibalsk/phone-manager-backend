@@ -327,13 +327,12 @@ impl ManagedUserRepository {
     ) -> Result<u64, sqlx::Error> {
         let timer = QueryTimer::new("remove_from_organizations");
 
-        let result = sqlx::query(
-            "DELETE FROM org_users WHERE user_id = $1 AND organization_id = ANY($2)",
-        )
-        .bind(user_id)
-        .bind(org_ids)
-        .execute(&self.pool)
-        .await?;
+        let result =
+            sqlx::query("DELETE FROM org_users WHERE user_id = $1 AND organization_id = ANY($2)")
+                .bind(user_id)
+                .bind(org_ids)
+                .execute(&self.pool)
+                .await?;
 
         timer.record();
         Ok(result.rows_affected())

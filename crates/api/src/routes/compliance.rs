@@ -416,7 +416,8 @@ mod tests {
             overdue: 2,
         };
 
-        let (score, status, findings) = calculate_compliance_score(&counts, Some(95.0), Some(15.0));
+        let (score, _status, findings) =
+            calculate_compliance_score(&counts, Some(95.0), Some(15.0));
 
         assert!(score < 100);
         assert!(findings

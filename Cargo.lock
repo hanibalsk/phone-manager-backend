@@ -619,7 +619,7 @@ dependencies = [
 
 [[package]]
 name = "domain"
-version = "0.11.1"
+version = "0.12.0"
 dependencies = [
  "async-trait",
  "base64 0.21.7",
@@ -1949,7 +1949,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "persistence"
-version = "0.11.1"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -2014,7 +2014,7 @@ dependencies = [
 
 [[package]]
 name = "phone-manager-api"
-version = "0.11.1"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2740,7 +2740,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.11.1"
+version = "0.12.0"
 dependencies = [
  "argon2",
  "base64 0.21.7",

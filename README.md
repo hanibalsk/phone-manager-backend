@@ -263,6 +263,51 @@ Admin endpoints require an API key with `is_admin = true`.
 | `/api/v1/admin/devices/:device_id/reactivate` | POST | Admin | Reactivate soft-deleted device |
 | `/api/v1/admin/stats` | GET | Admin | Get system statistics |
 
+### Admin User Management
+
+Admin user management endpoints allow managing users, their locations, geofences, and tracking settings. These endpoints use JWT authentication.
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/admin/v1/users` | GET | JWT | List managed users |
+| `/api/admin/v1/users/{userId}` | DELETE | JWT | Remove user from managed list |
+| `/api/admin/v1/users/{userId}/location` | GET | JWT | Get user's current location |
+| `/api/admin/v1/users/{userId}/geofences` | GET | JWT | List geofences for user |
+| `/api/admin/v1/users/{userId}/geofences` | POST | JWT | Create geofence for user |
+| `/api/admin/v1/users/{userId}/geofences/{id}` | PUT | JWT | Update user geofence |
+| `/api/admin/v1/users/{userId}/geofences/{id}` | DELETE | JWT | Delete user geofence |
+| `/api/admin/v1/users/{userId}/tracking` | PUT | JWT | Enable/disable tracking |
+
+**Authorization Rules:**
+- **Org Admins**: Manage users in their organization(s)
+- **Non-Org Admins**: Manage users not in any organization
+
+**User Geofences:**
+- User-level geofences apply to all of the user's devices
+- Max 50 geofences per user
+- Radius: 20-50,000 meters
+- Event types: `enter`, `exit`, `dwell`
+
+**Update Tracking Request:**
+```json
+{
+  "enabled": true
+}
+```
+
+**Create User Geofence Request:**
+```json
+{
+  "name": "Home",
+  "latitude": 37.7749,
+  "longitude": -122.4194,
+  "radius_meters": 100,
+  "event_types": ["enter", "exit"],
+  "color": "#FF5733",
+  "metadata": { "priority": "high" }
+}
+```
+
 ### Legacy Routes
 
 Legacy routes (without `/v1/`) return `301 Moved Permanently` redirects to v1 endpoints.

@@ -19,11 +19,10 @@ pub mod enrollment_token;
 pub mod geofence;
 pub mod geofence_event;
 pub mod group;
-pub mod managed_user;
-pub mod user_geofence;
 pub mod idempotency_key;
 pub mod invite;
 pub mod location;
+pub mod managed_user;
 pub mod movement_event;
 pub mod org_member_invite;
 pub mod org_user;
@@ -40,6 +39,7 @@ pub mod trip;
 pub mod trip_path_correction;
 pub mod unlock_request;
 pub mod user;
+pub mod user_geofence;
 pub mod webhook;
 pub mod webhook_delivery;
 
@@ -84,11 +84,10 @@ pub use group::{
     GroupEntity, GroupMembershipEntity, GroupRoleDb, GroupWithMembershipEntity,
     MemberWithUserEntity,
 };
-pub use managed_user::{ManagedUserEntity, UserLocationEntity};
-pub use user_geofence::{UserGeofenceEntity, UserGeofenceWithCreatorEntity};
 pub use idempotency_key::IdempotencyKeyEntity;
 pub use invite::{GroupInviteEntity, InviteWithCreatorEntity, InviteWithGroupEntity};
 pub use location::LocationEntity;
+pub use managed_user::{ManagedUserEntity, UserLocationEntity};
 pub use movement_event::MovementEventEntity;
 pub use org_member_invite::OrgMemberInviteEntity;
 pub use org_user::{OrgUserEntity, OrgUserRoleDb, OrgUserWithDetailsEntity};
@@ -115,6 +114,7 @@ pub use unlock_request::{
     UnlockRequestEntity, UnlockRequestStatusDb, UnlockRequestWithDetailsEntity,
 };
 pub use user::{OAuthAccountEntity, UserEntity, UserSessionEntity};
+pub use user_geofence::{UserGeofenceEntity, UserGeofenceWithCreatorEntity};
 pub use webhook::WebhookEntity;
 pub use webhook_delivery::{
     WebhookDeliveryEntity, MAX_RETRY_ATTEMPTS, RETRY_BACKOFF_SECONDS, STATUS_FAILED,

@@ -148,8 +148,6 @@ impl OrganizationSettingsRepository {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     // Integration tests would go here with a test database
     // For now, we just verify the repository compiles correctly
 

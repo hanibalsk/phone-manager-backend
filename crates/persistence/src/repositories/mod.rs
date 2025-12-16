@@ -18,11 +18,10 @@ pub mod enrollment_token;
 pub mod geofence;
 pub mod geofence_event;
 pub mod group;
-pub mod managed_user;
-pub mod user_geofence;
 pub mod idempotency_key;
 pub mod invite;
 pub mod location;
+pub mod managed_user;
 pub mod movement_event;
 pub mod org_member_invite;
 pub mod org_user;
@@ -40,6 +39,7 @@ pub mod trip;
 pub mod trip_path_correction;
 pub mod unlock_request;
 pub mod user;
+pub mod user_geofence;
 pub mod webhook;
 pub mod webhook_delivery;
 
@@ -64,11 +64,10 @@ pub use enrollment_token::EnrollmentTokenRepository;
 pub use geofence::GeofenceRepository;
 pub use geofence_event::GeofenceEventRepository;
 pub use group::GroupRepository;
-pub use managed_user::ManagedUserRepository;
-pub use user_geofence::UserGeofenceRepository;
 pub use idempotency_key::IdempotencyKeyRepository;
 pub use invite::InviteRepository;
 pub use location::{LocationHistoryQuery, LocationInput, LocationRepository};
+pub use managed_user::ManagedUserRepository;
 pub use movement_event::{MovementEventInput, MovementEventQuery, MovementEventRepository};
 pub use org_member_invite::{
     calculate_invite_expiration, default_invite_expiration, generate_org_member_invite_token,
@@ -93,5 +92,6 @@ pub use trip_path_correction::{
 };
 pub use unlock_request::UnlockRequestRepository;
 pub use user::{MfaStatusRow, UserRepository, UserSessionRow};
+pub use user_geofence::UserGeofenceRepository;
 pub use webhook::WebhookRepository;
 pub use webhook_delivery::{DeliveryStats, WebhookDeliveryRepository, WebhookDeliveryStats};
