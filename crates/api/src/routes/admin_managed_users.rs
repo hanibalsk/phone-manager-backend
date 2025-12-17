@@ -66,19 +66,19 @@ async fn verify_can_manage_user(
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_managed_users))
-        .route("/{user_id}", delete(remove_managed_user))
-        .route("/{user_id}/location", get(get_user_location))
-        .route("/{user_id}/geofences", get(list_user_geofences))
-        .route("/{user_id}/geofences", post(create_user_geofence))
+        .route("/:user_id", delete(remove_managed_user))
+        .route("/:user_id/location", get(get_user_location))
+        .route("/:user_id/geofences", get(list_user_geofences))
+        .route("/:user_id/geofences", post(create_user_geofence))
         .route(
-            "/{user_id}/geofences/{geofence_id}",
+            "/:user_id/geofences/:geofence_id",
             put(update_user_geofence),
         )
         .route(
-            "/{user_id}/geofences/{geofence_id}",
+            "/:user_id/geofences/:geofence_id",
             delete(delete_user_geofence),
         )
-        .route("/{user_id}/tracking", put(update_tracking))
+        .route("/:user_id/tracking", put(update_tracking))
 }
 
 /// List managed users.

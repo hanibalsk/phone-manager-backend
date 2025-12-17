@@ -13,9 +13,9 @@ use axum::http::StatusCode;
 use common::{
     add_user_to_organization, cleanup_all_test_data, create_authenticated_user,
     create_test_admin_api_key, create_test_app, create_test_organization, create_test_pool,
-    delete_request_with_jwt, get_request_with_jwt, insert_device_location, parse_response_body,
-    post_request_with_jwt, put_request_with_jwt, register_test_device, run_migrations, test_config,
-    TestDevice, TestOrganization, TestUser,
+    delete_admin_request_with_jwt, get_admin_request_with_jwt, insert_device_location,
+    parse_response_body, post_admin_request_with_jwt, put_admin_request_with_jwt,
+    register_test_device, run_migrations, test_config, TestDevice, TestOrganization, TestUser,
 };
 use serde_json::json;
 use tower::ServiceExt;
@@ -55,12 +55,14 @@ async fn test_list_managed_users_as_org_admin() {
 
     // List managed users
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_jwt("/api/admin/v1/users", &admin_auth.access_token);
+    let request =
+        get_admin_request_with_jwt("/api/admin/v1/users", &admin_api_key, &admin_auth.access_token);
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
+
     assert!(body.get("users").is_some());
     assert!(body.get("pagination").is_some());
 
@@ -101,8 +103,9 @@ async fn test_list_managed_users_with_search() {
 
     // Search for the target user
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_jwt(
+    let request = get_admin_request_with_jwt(
         "/api/admin/v1/users?search=searchable_user",
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -184,8 +187,9 @@ async fn test_get_user_location_success() {
 
     // Get user location
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_jwt(
+    let request = get_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/location", target_auth.user_id),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -234,8 +238,9 @@ async fn test_get_user_location_no_location_data() {
 
     // Get location without any device/location data
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_jwt(
+    let request = get_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/location", target_auth.user_id),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -277,16 +282,17 @@ async fn test_create_user_geofence_success() {
 
     // Create a geofence
     let app = create_test_app(config, pool.clone());
-    let request = post_request_with_jwt(
+    let request = post_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/geofences", target_auth.user_id),
         json!({
             "name": "Test Geofence",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 500,
+            "radius_meters": 500,
             "event_types": ["enter", "exit"],
             "color": "#FF5733"
         }),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -297,7 +303,7 @@ async fn test_create_user_geofence_success() {
     assert!(body.get("geofence").is_some());
     let geofence = &body["geofence"];
     assert_eq!(geofence["name"].as_str().unwrap(), "Test Geofence");
-    assert_eq!(geofence["radius"].as_i64().unwrap(), 500);
+    assert_eq!(geofence["radius_meters"].as_f64().unwrap() as i64, 500);
     assert_eq!(geofence["color"].as_str().unwrap(), "#FF5733");
 
     cleanup_all_test_data(&pool).await;
@@ -331,16 +337,17 @@ async fn test_create_user_geofence_invalid_color() {
 
     // Try to create a geofence with invalid color (non-hex characters)
     let app = create_test_app(config, pool.clone());
-    let request = post_request_with_jwt(
+    let request = post_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/geofences", target_auth.user_id),
         json!({
             "name": "Test Geofence",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 500,
+            "radius_meters": 500,
             "event_types": ["enter"],
             "color": "#GGGGGG"  // Invalid hex color
         }),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -382,15 +389,16 @@ async fn test_list_user_geofences() {
     // Create two geofences
     for i in 1..=2 {
         let app = create_test_app(config.clone(), pool.clone());
-        let request = post_request_with_jwt(
+        let request = post_admin_request_with_jwt(
             &format!("/api/admin/v1/users/{}/geofences", target_auth.user_id),
             json!({
                 "name": format!("Geofence {}", i),
                 "latitude": 37.7749 + (i as f64 * 0.01),
                 "longitude": -122.4194,
-                "radius": 100 * i,
+                "radius_meters": 100 * i,
                 "event_types": ["enter"]
             }),
+            &admin_api_key,
             &admin_auth.access_token,
         );
         let _ = app.oneshot(request).await.unwrap();
@@ -398,8 +406,9 @@ async fn test_list_user_geofences() {
 
     // List geofences
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_jwt(
+    let request = get_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/geofences", target_auth.user_id),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -442,15 +451,16 @@ async fn test_update_user_geofence() {
 
     // Create a geofence
     let app = create_test_app(config.clone(), pool.clone());
-    let request = post_request_with_jwt(
+    let request = post_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/geofences", target_auth.user_id),
         json!({
             "name": "Original Name",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 500,
+            "radius_meters": 500,
             "event_types": ["enter"]
         }),
+        &admin_api_key,
         &admin_auth.access_token,
     );
     let response = app.oneshot(request).await.unwrap();
@@ -459,15 +469,16 @@ async fn test_update_user_geofence() {
 
     // Update the geofence
     let app = create_test_app(config, pool.clone());
-    let request = put_request_with_jwt(
+    let request = put_admin_request_with_jwt(
         &format!(
             "/api/admin/v1/users/{}/geofences/{}",
             target_auth.user_id, geofence_id
         ),
         json!({
             "name": "Updated Name",
-            "radius": 1000
+            "radius_meters": 1000
         }),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -476,7 +487,10 @@ async fn test_update_user_geofence() {
 
     let body = parse_response_body(response).await;
     assert_eq!(body["geofence"]["name"].as_str().unwrap(), "Updated Name");
-    assert_eq!(body["geofence"]["radius"].as_i64().unwrap(), 1000);
+    assert_eq!(
+        body["geofence"]["radius_meters"].as_f64().unwrap() as i64,
+        1000
+    );
 
     cleanup_all_test_data(&pool).await;
 }
@@ -509,15 +523,16 @@ async fn test_delete_user_geofence() {
 
     // Create a geofence
     let app = create_test_app(config.clone(), pool.clone());
-    let request = post_request_with_jwt(
+    let request = post_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/geofences", target_auth.user_id),
         json!({
             "name": "To Be Deleted",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 500,
+            "radius_meters": 500,
             "event_types": ["enter"]
         }),
+        &admin_api_key,
         &admin_auth.access_token,
     );
     let response = app.oneshot(request).await.unwrap();
@@ -526,11 +541,12 @@ async fn test_delete_user_geofence() {
 
     // Delete the geofence
     let app = create_test_app(config.clone(), pool.clone());
-    let request = delete_request_with_jwt(
+    let request = delete_admin_request_with_jwt(
         &format!(
             "/api/admin/v1/users/{}/geofences/{}",
             target_auth.user_id, geofence_id
         ),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -539,8 +555,9 @@ async fn test_delete_user_geofence() {
 
     // Verify it's deleted by trying to list
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_jwt(
+    let request = get_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/geofences", target_auth.user_id),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -584,9 +601,10 @@ async fn test_update_tracking_status() {
 
     // Disable tracking
     let app = create_test_app(config.clone(), pool.clone());
-    let request = put_request_with_jwt(
+    let request = put_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/tracking", target_auth.user_id),
         json!({ "enabled": false }),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -594,13 +612,14 @@ async fn test_update_tracking_status() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert!(!body["enabled"].as_bool().unwrap());
+    assert!(!body["tracking_enabled"].as_bool().unwrap());
 
     // Re-enable tracking
     let app = create_test_app(config, pool.clone());
-    let request = put_request_with_jwt(
+    let request = put_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/tracking", target_auth.user_id),
         json!({ "enabled": true }),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -608,7 +627,7 @@ async fn test_update_tracking_status() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = parse_response_body(response).await;
-    assert!(body["enabled"].as_bool().unwrap());
+    assert!(body["tracking_enabled"].as_bool().unwrap());
 
     cleanup_all_test_data(&pool).await;
 }
@@ -646,8 +665,9 @@ async fn test_org_admin_cannot_access_other_org_users() {
 
     // Try to access the other org's user location
     let app = create_test_app(config.clone(), pool.clone());
-    let request = get_request_with_jwt(
+    let request = get_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/location", other_org_auth.user_id),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -656,15 +676,16 @@ async fn test_org_admin_cannot_access_other_org_users() {
 
     // Try to create a geofence for the other org's user
     let app = create_test_app(config, pool.clone());
-    let request = post_request_with_jwt(
+    let request = post_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/geofences", other_org_auth.user_id),
         json!({
             "name": "Unauthorized Geofence",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 500,
+            "radius_meters": 500,
             "event_types": ["enter"]
         }),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -701,8 +722,9 @@ async fn test_org_member_cannot_manage_users() {
 
     // Try to access user location as non-admin member
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_jwt(
+    let request = get_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/location", target_auth.user_id),
+        &admin_api_key,
         &member_auth.access_token,
     );
 
@@ -741,8 +763,9 @@ async fn test_remove_managed_user() {
 
     // Remove the user from management
     let app = create_test_app(config.clone(), pool.clone());
-    let request = delete_request_with_jwt(
+    let request = delete_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}", target_auth.user_id),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 
@@ -754,7 +777,8 @@ async fn test_remove_managed_user() {
 
     // Verify user is no longer in the list
     let app = create_test_app(config, pool.clone());
-    let request = get_request_with_jwt("/api/admin/v1/users", &admin_auth.access_token);
+    let request =
+        get_admin_request_with_jwt("/api/admin/v1/users", &admin_api_key, &admin_auth.access_token);
 
     let response = app.oneshot(request).await.unwrap();
     let body = parse_response_body(response).await;
@@ -802,15 +826,16 @@ async fn test_geofence_limit_enforced() {
     // Create 50 geofences (the limit)
     for i in 1..=50 {
         let app = create_test_app(config.clone(), pool.clone());
-        let request = post_request_with_jwt(
+        let request = post_admin_request_with_jwt(
             &format!("/api/admin/v1/users/{}/geofences", target_auth.user_id),
             json!({
                 "name": format!("Geofence {}", i),
                 "latitude": 37.7749 + (i as f64 * 0.001),
                 "longitude": -122.4194,
-                "radius": 100,
+                "radius_meters": 100,
                 "event_types": ["enter"]
             }),
+            &admin_api_key,
             &admin_auth.access_token,
         );
         let response = app.oneshot(request).await.unwrap();
@@ -824,15 +849,16 @@ async fn test_geofence_limit_enforced() {
 
     // Try to create one more (should fail)
     let app = create_test_app(config, pool.clone());
-    let request = post_request_with_jwt(
+    let request = post_admin_request_with_jwt(
         &format!("/api/admin/v1/users/{}/geofences", target_auth.user_id),
         json!({
             "name": "One Too Many",
             "latitude": 37.7749,
             "longitude": -122.4194,
-            "radius": 100,
+            "radius_meters": 100,
             "event_types": ["enter"]
         }),
+        &admin_api_key,
         &admin_auth.access_token,
     );
 

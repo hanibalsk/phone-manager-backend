@@ -104,13 +104,19 @@ impl ManagedUserRepository {
                     INNER JOIN locations l ON l.device_id = d.device_id
                     WHERE d.active = true
                     ORDER BY d.owner_user_id, l.captured_at DESC
+                ),
+                device_counts AS (
+                    SELECT owner_user_id, COUNT(*)::bigint as device_count
+                    FROM devices
+                    WHERE active = true
+                    GROUP BY owner_user_id
                 )
                 SELECT DISTINCT ON (u.id)
                     u.id,
                     u.email,
                     u.display_name,
                     u.tracking_enabled,
-                    COUNT(DISTINCT d.device_id) OVER (PARTITION BY u.id)::bigint as device_count,
+                    COALESCE(dc.device_count, 0)::bigint as device_count,
                     o.id as organization_id,
                     o.name as organization_name,
                     u.created_at,
@@ -123,7 +129,7 @@ impl ManagedUserRepository {
                 FROM users u
                 INNER JOIN org_users ou ON ou.user_id = u.id
                 INNER JOIN organizations o ON o.id = ou.organization_id
-                LEFT JOIN devices d ON d.owner_user_id = u.id AND d.active = true
+                LEFT JOIN device_counts dc ON dc.owner_user_id = u.id
                 LEFT JOIN user_locations ul ON ul.owner_user_id = u.id
                 WHERE u.is_active = true
                   AND ou.organization_id = ANY($1)
