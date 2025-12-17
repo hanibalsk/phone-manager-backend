@@ -279,7 +279,10 @@ pub async fn cleanup_all_test_data(pool: &PgPool) {
         // Device settings and unlock
         // Note: setting_definitions is reference data seeded in migrations, don't delete it
         "unlock_requests",
+        "setting_changes",
         "device_settings",
+        // User geofences (Epic 9)
+        "user_geofences",
         // Groups
         "group_invites",
         "group_memberships",
@@ -956,4 +959,118 @@ pub async fn seed_setting_definitions(pool: &PgPool) {
     .execute(pool)
     .await
     .expect("Failed to seed setting definitions");
+}
+
+// =============================================================================
+// Admin Managed Users Test Helpers (Epic 9)
+// =============================================================================
+
+/// Add a user to an organization with a specific role.
+pub async fn add_user_to_organization(pool: &PgPool, user_id: &str, org_id: &str, role: &str) {
+    sqlx::query(
+        r#"
+        INSERT INTO org_users (organization_id, user_id, role, permissions, created_at, updated_at)
+        VALUES ($1::uuid, $2::uuid, $3, '[]'::jsonb, NOW(), NOW())
+        ON CONFLICT (organization_id, user_id) DO UPDATE SET role = $3, updated_at = NOW()
+        "#,
+    )
+    .bind(org_id)
+    .bind(user_id)
+    .bind(role)
+    .execute(pool)
+    .await
+    .expect("Failed to add user to organization");
+}
+
+/// Upload a location for a device directly in the database.
+pub async fn insert_device_location(
+    pool: &PgPool,
+    device_id: &str,
+    latitude: f64,
+    longitude: f64,
+    accuracy: f64,
+) {
+    sqlx::query(
+        r#"
+        INSERT INTO locations (device_id, latitude, longitude, accuracy, captured_at, created_at)
+        VALUES ($1::uuid, $2, $3, $4, NOW(), NOW())
+        "#,
+    )
+    .bind(device_id)
+    .bind(latitude)
+    .bind(longitude)
+    .bind(accuracy)
+    .execute(pool)
+    .await
+    .expect("Failed to insert device location");
+}
+
+/// Build a GET request with JWT authentication only (no API key).
+pub fn get_request_with_jwt(uri: &str, jwt_token: &str) -> axum::http::Request<axum::body::Body> {
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
+
+    Request::builder()
+        .method(Method::GET)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .body(Body::empty())
+        .unwrap()
+}
+
+/// Build a DELETE request with JWT authentication only (no API key).
+pub fn delete_request_with_jwt(uri: &str, jwt_token: &str) -> axum::http::Request<axum::body::Body> {
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
+
+    Request::builder()
+        .method(Method::DELETE)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .body(Body::empty())
+        .unwrap()
+}
+
+/// Build a POST request with JWT authentication only (no API key).
+pub fn post_request_with_jwt(
+    uri: &str,
+    body: serde_json::Value,
+    jwt_token: &str,
+) -> axum::http::Request<axum::body::Body> {
+    use axum::{
+        body::Body,
+        http::{header, Request},
+    };
+
+    Request::builder()
+        .method(axum::http::Method::POST)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .body(Body::from(serde_json::to_string(&body).unwrap()))
+        .unwrap()
+}
+
+/// Build a PUT request with JWT authentication only (no API key).
+pub fn put_request_with_jwt(
+    uri: &str,
+    body: serde_json::Value,
+    jwt_token: &str,
+) -> axum::http::Request<axum::body::Body> {
+    use axum::{
+        body::Body,
+        http::{header, Request},
+    };
+
+    Request::builder()
+        .method(axum::http::Method::PUT)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .body(Body::from(serde_json::to_string(&body).unwrap()))
+        .unwrap()
 }
