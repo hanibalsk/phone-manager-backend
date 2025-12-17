@@ -1,7 +1,7 @@
 openapi: "3.1.0"
 info:
   title: Phone Manager API
-  version: "0.12.0"
+  version: "0.13.0"
   description: |
     REST API for the Phone Manager mobile application.
     Handles device registration, location tracking, group management,
@@ -101,6 +101,8 @@ tags:
     description: Organization settings management
   - name: Compliance
     description: GDPR compliance and data subject requests
+  - name: Admin User Management
+    description: Admin endpoints for managing users, their locations, geofences, and tracking settings (Epic 9)
 
 security:
   - BearerAuth: []
@@ -3416,11 +3418,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ManagedUser"
+        pagination:
+          $ref: "#/components/schemas/ManagedUserPagination"
+
+    ManagedUserPagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number (1-indexed)
+        per_page:
+          type: integer
+          description: Number of items per page
         total:
           type: integer
           format: int64
-        has_more:
-          type: boolean
+          description: Total number of items
+        total_pages:
+          type: integer
+          description: Total number of pages
 
     RemoveManagedUserResponse:
       type: object
@@ -7584,7 +7600,8 @@ paths:
         - Non-org admins see users not in any organization
       operationId: listManagedUsers
       security:
-        - BearerAuth: []
+        - ApiKeyAuth: []
+          BearerAuth: []
       parameters:
         - name: search
           in: query
@@ -7596,18 +7613,22 @@ paths:
           description: Filter by tracking status
           schema:
             type: boolean
-        - name: limit
+        - name: page
           in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+            maximum: 100
+        - name: per_page
+          in: query
+          description: Number of items per page
           schema:
             type: integer
             default: 50
             minimum: 1
             maximum: 100
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            default: 0
       responses:
         "200":
           description: Managed users list
@@ -7627,7 +7648,8 @@ paths:
         For non-org admins: deactivates the user account.
       operationId: removeManagedUser
       security:
-        - BearerAuth: []
+        - ApiKeyAuth: []
+          BearerAuth: []
       parameters:
         - name: user_id
           in: path
@@ -7654,7 +7676,8 @@ paths:
       description: Returns the latest location from any of the user's active devices
       operationId: getUserLocation
       security:
-        - BearerAuth: []
+        - ApiKeyAuth: []
+          BearerAuth: []
       parameters:
         - name: user_id
           in: path
@@ -7681,7 +7704,8 @@ paths:
       description: Returns all geofences assigned to the user (apply to all user's devices)
       operationId: listUserGeofences
       security:
-        - BearerAuth: []
+        - ApiKeyAuth: []
+          BearerAuth: []
       parameters:
         - name: user_id
           in: path
@@ -7706,7 +7730,8 @@ paths:
       description: Creates a user-level geofence that applies to all user's devices
       operationId: createUserGeofence
       security:
-        - BearerAuth: []
+        - ApiKeyAuth: []
+          BearerAuth: []
       parameters:
         - name: user_id
           in: path
@@ -7742,7 +7767,8 @@ paths:
       summary: Update user geofence
       operationId: updateUserGeofence
       security:
-        - BearerAuth: []
+        - ApiKeyAuth: []
+          BearerAuth: []
       parameters:
         - name: user_id
           in: path
@@ -7780,7 +7806,8 @@ paths:
       summary: Delete user geofence
       operationId: deleteUserGeofence
       security:
-        - BearerAuth: []
+        - ApiKeyAuth: []
+          BearerAuth: []
       parameters:
         - name: user_id
           in: path
@@ -7813,7 +7840,8 @@ paths:
       description: Updates the user's tracking_enabled flag
       operationId: updateUserTracking
       security:
-        - BearerAuth: []
+        - ApiKeyAuth: []
+          BearerAuth: []
       parameters:
         - name: user_id
           in: path
