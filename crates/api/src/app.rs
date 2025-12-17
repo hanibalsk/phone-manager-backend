@@ -377,6 +377,9 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     // Core admin routes (always enabled - require admin API key)
+    // Note: admin_managed_users is here (not in b2b_admin_routes) because it needs
+    // to be accessible by both org admins AND non-org admins. Non-org admins
+    // manage users not in any organization, while org admins manage their org's users.
     let core_admin_routes = Router::new()
         .route(
             "/api/v1/admin/devices/inactive",
@@ -386,7 +389,10 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/admin/devices/:device_id/reactivate",
             post(admin::reactivate_device),
         )
-        .route("/api/v1/admin/stats", get(admin::get_admin_stats));
+        .route("/api/v1/admin/stats", get(admin::get_admin_stats))
+        // Admin managed users routes (Epic 9 - user location, geofences, tracking)
+        // Accessible by both org admins and non-org admins
+        .nest("/api/admin/v1/users", admin_managed_users::router());
 
     // B2B/Organization admin routes (feature toggle: b2b_enabled)
     let b2b_admin_routes = Router::new()
@@ -493,8 +499,6 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/admin/v1/organizations/:org_id/admin-users",
             admin_users::router(),
         )
-        // Admin managed users routes (Epic 9 - user location, geofences, tracking)
-        .nest("/api/admin/v1/users", admin_managed_users::router())
         // Admin group management routes (Story 14.4)
         .nest(
             "/api/admin/v1/organizations/:org_id/groups",

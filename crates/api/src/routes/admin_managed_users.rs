@@ -32,7 +32,35 @@ use domain::models::{
 };
 
 /// Maximum number of geofences per user.
+/// TODO: Make configurable via PM__LIMITS__MAX_GEOFENCES_PER_USER
 const MAX_GEOFENCES_PER_USER: i64 = 50;
+
+/// Validate hex color code format.
+/// Returns true if the color is a valid 7-character hex color (e.g., #FF5733).
+fn is_valid_hex_color(color: &str) -> bool {
+    color.len() == 7 && color.starts_with('#') && color[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Verify that the admin can manage the target user.
+/// Returns the list of organization IDs where the admin has admin/owner role.
+async fn verify_can_manage_user(
+    managed_user_repo: &ManagedUserRepository,
+    admin_id: Uuid,
+    target_user_id: Uuid,
+) -> Result<Vec<Uuid>, ApiError> {
+    let org_ids = managed_user_repo.get_admin_org_ids(admin_id).await?;
+
+    if !managed_user_repo
+        .can_manage_user(target_user_id, &org_ids)
+        .await?
+    {
+        return Err(ApiError::Forbidden(
+            "You cannot manage this user".to_string(),
+        ));
+    }
+
+    Ok(org_ids)
+}
 
 /// Create admin managed users routes.
 pub fn router() -> Router<AppState> {
@@ -79,10 +107,11 @@ async fn list_managed_users(
         .count_managed_users(&org_ids, query.search.as_deref(), query.tracking_enabled)
         .await?;
 
+    // Use div_ceil for proper integer ceiling division (avoids floating-point precision issues)
     let total_pages = if total == 0 {
         0
     } else {
-        ((total as f64) / (per_page as f64)).ceil() as u32
+        (total as u32).div_ceil(per_page)
     };
 
     let entities = managed_user_repo
@@ -159,18 +188,8 @@ async fn get_user_location(
 ) -> Result<impl IntoResponse, ApiError> {
     let managed_user_repo = ManagedUserRepository::new(state.pool.clone());
 
-    // Get organizations where admin has admin/owner role
-    let org_ids = managed_user_repo.get_admin_org_ids(user.user_id).await?;
-
     // Verify admin can manage this user
-    if !managed_user_repo
-        .can_manage_user(target_user_id, &org_ids)
-        .await?
-    {
-        return Err(ApiError::Forbidden(
-            "You cannot manage this user".to_string(),
-        ));
-    }
+    verify_can_manage_user(&managed_user_repo, user.user_id, target_user_id).await?;
 
     let location = managed_user_repo.get_user_location(target_user_id).await?;
 
@@ -179,6 +198,7 @@ async fn get_user_location(
             StatusCode::OK,
             Json(UserLastLocation {
                 device_id: loc.device_id,
+                // Use last_device_name for consistency with list_managed_users
                 device_name: loc.device_name,
                 latitude: loc.latitude,
                 longitude: loc.longitude,
@@ -202,18 +222,8 @@ async fn list_user_geofences(
     let managed_user_repo = ManagedUserRepository::new(state.pool.clone());
     let geofence_repo = UserGeofenceRepository::new(state.pool.clone());
 
-    // Get organizations where admin has admin/owner role
-    let org_ids = managed_user_repo.get_admin_org_ids(user.user_id).await?;
-
     // Verify admin can manage this user
-    if !managed_user_repo
-        .can_manage_user(target_user_id, &org_ids)
-        .await?
-    {
-        return Err(ApiError::Forbidden(
-            "You cannot manage this user".to_string(),
-        ));
-    }
+    verify_can_manage_user(&managed_user_repo, user.user_id, target_user_id).await?;
 
     let entities = geofence_repo.list_by_user(target_user_id).await?;
     let total = entities.len() as i64;
@@ -281,11 +291,11 @@ async fn create_user_geofence(
         }
     }
 
-    // Validate color format if provided
+    // Validate color format if provided (must be valid hex like #FF5733)
     if let Some(ref color) = request.color {
-        if !color.starts_with('#') || color.len() != 7 {
+        if !is_valid_hex_color(color) {
             return Err(ApiError::Validation(
-                "Color must be a hex color code like #FF5733".to_string(),
+                "Color must be a valid hex color code like #FF5733".to_string(),
             ));
         }
     }
@@ -293,18 +303,8 @@ async fn create_user_geofence(
     let managed_user_repo = ManagedUserRepository::new(state.pool.clone());
     let geofence_repo = UserGeofenceRepository::new(state.pool.clone());
 
-    // Get organizations where admin has admin/owner role
-    let org_ids = managed_user_repo.get_admin_org_ids(user.user_id).await?;
-
     // Verify admin can manage this user
-    if !managed_user_repo
-        .can_manage_user(target_user_id, &org_ids)
-        .await?
-    {
-        return Err(ApiError::Forbidden(
-            "You cannot manage this user".to_string(),
-        ));
-    }
+    verify_can_manage_user(&managed_user_repo, user.user_id, target_user_id).await?;
 
     // Check geofence limit
     let count = geofence_repo.count_by_user(target_user_id).await?;
@@ -398,11 +398,11 @@ async fn update_user_geofence(
         }
     }
 
-    // Validate color format if provided
+    // Validate color format if provided (must be valid hex like #FF5733)
     if let Some(ref color) = request.color {
-        if !color.starts_with('#') || color.len() != 7 {
+        if !is_valid_hex_color(color) {
             return Err(ApiError::Validation(
-                "Color must be a hex color code like #FF5733".to_string(),
+                "Color must be a valid hex color code like #FF5733".to_string(),
             ));
         }
     }
@@ -410,18 +410,8 @@ async fn update_user_geofence(
     let managed_user_repo = ManagedUserRepository::new(state.pool.clone());
     let geofence_repo = UserGeofenceRepository::new(state.pool.clone());
 
-    // Get organizations where admin has admin/owner role
-    let org_ids = managed_user_repo.get_admin_org_ids(user.user_id).await?;
-
     // Verify admin can manage this user
-    if !managed_user_repo
-        .can_manage_user(target_user_id, &org_ids)
-        .await?
-    {
-        return Err(ApiError::Forbidden(
-            "You cannot manage this user".to_string(),
-        ));
-    }
+    verify_can_manage_user(&managed_user_repo, user.user_id, target_user_id).await?;
 
     // Verify geofence belongs to the user
     let existing = geofence_repo.find_by_id(geofence_id).await?;
@@ -500,18 +490,8 @@ async fn delete_user_geofence(
     let managed_user_repo = ManagedUserRepository::new(state.pool.clone());
     let geofence_repo = UserGeofenceRepository::new(state.pool.clone());
 
-    // Get organizations where admin has admin/owner role
-    let org_ids = managed_user_repo.get_admin_org_ids(user.user_id).await?;
-
     // Verify admin can manage this user
-    if !managed_user_repo
-        .can_manage_user(target_user_id, &org_ids)
-        .await?
-    {
-        return Err(ApiError::Forbidden(
-            "You cannot manage this user".to_string(),
-        ));
-    }
+    verify_can_manage_user(&managed_user_repo, user.user_id, target_user_id).await?;
 
     // Verify geofence belongs to the user
     let existing = geofence_repo.find_by_id(geofence_id).await?;
@@ -525,11 +505,16 @@ async fn delete_user_geofence(
 
     let deleted = geofence_repo.delete(geofence_id).await?;
 
+    // Handle race condition: if another request deleted the geofence between our
+    // ownership check and the delete, return NotFound instead of misleading success
+    if !deleted {
+        return Err(ApiError::NotFound("Geofence not found".to_string()));
+    }
+
     info!(
         admin_id = %user.user_id,
         target_user_id = %target_user_id,
         geofence_id = %geofence_id,
-        deleted = deleted,
         "Deleted user geofence"
     );
 
@@ -554,18 +539,8 @@ async fn update_tracking(
 ) -> Result<impl IntoResponse, ApiError> {
     let managed_user_repo = ManagedUserRepository::new(state.pool.clone());
 
-    // Get organizations where admin has admin/owner role
-    let org_ids = managed_user_repo.get_admin_org_ids(user.user_id).await?;
-
     // Verify admin can manage this user
-    if !managed_user_repo
-        .can_manage_user(target_user_id, &org_ids)
-        .await?
-    {
-        return Err(ApiError::Forbidden(
-            "You cannot manage this user".to_string(),
-        ));
-    }
+    verify_can_manage_user(&managed_user_repo, user.user_id, target_user_id).await?;
 
     managed_user_repo
         .update_tracking(target_user_id, request.enabled)
@@ -602,18 +577,8 @@ async fn remove_managed_user(
 ) -> Result<impl IntoResponse, ApiError> {
     let managed_user_repo = ManagedUserRepository::new(state.pool.clone());
 
-    // Get organizations where admin has admin/owner role
-    let org_ids = managed_user_repo.get_admin_org_ids(user.user_id).await?;
-
-    // Verify admin can manage this user
-    if !managed_user_repo
-        .can_manage_user(target_user_id, &org_ids)
-        .await?
-    {
-        return Err(ApiError::Forbidden(
-            "You cannot manage this user".to_string(),
-        ));
-    }
+    // Verify admin can manage this user and get their org IDs
+    let org_ids = verify_can_manage_user(&managed_user_repo, user.user_id, target_user_id).await?;
 
     // For org admins: remove user from their organizations
     // For non-org admins: deactivate the user account
@@ -653,5 +618,24 @@ mod tests {
     #[test]
     fn test_router_creation() {
         let _router: Router<AppState> = router();
+    }
+
+    #[test]
+    fn test_is_valid_hex_color() {
+        // Valid colors
+        assert!(is_valid_hex_color("#FF5733"));
+        assert!(is_valid_hex_color("#000000"));
+        assert!(is_valid_hex_color("#FFFFFF"));
+        assert!(is_valid_hex_color("#aabbcc"));
+        assert!(is_valid_hex_color("#123ABC"));
+
+        // Invalid colors
+        assert!(!is_valid_hex_color("FF5733")); // Missing #
+        assert!(!is_valid_hex_color("#FF573")); // Too short
+        assert!(!is_valid_hex_color("#FF57333")); // Too long
+        assert!(!is_valid_hex_color("#GGGGGG")); // Invalid hex chars
+        assert!(!is_valid_hex_color("#12345z")); // Invalid hex char
+        assert!(!is_valid_hex_color("")); // Empty
+        assert!(!is_valid_hex_color("#")); // Just hash
     }
 }

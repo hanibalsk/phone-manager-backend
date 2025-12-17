@@ -180,9 +180,9 @@ async fn generate_compliance_report(
         period_start,
         period_end,
         organization: OrganizationReportSummary {
-            total_devices: dashboard_metrics.devices.total as i64,
-            total_users: dashboard_metrics.users.total as i64,
-            total_groups: dashboard_metrics.groups.total as i64,
+            total_devices: dashboard_metrics.devices.total,
+            total_users: dashboard_metrics.users.total,
+            total_groups: dashboard_metrics.groups.total,
         },
         data_subject_requests: DataSubjectRequestReportSummary {
             total_requests: dsr_counts.total,

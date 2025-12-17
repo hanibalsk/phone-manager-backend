@@ -358,6 +358,29 @@ Critical production requirements:
 | DELETE | `/api/v1/admin/devices/inactive` | Delete inactive devices |
 | POST | `/api/v1/admin/devices/:device_id/reactivate` | Reactivate device |
 
+#### Admin Managed Users (Epic 9)
+
+Routes for managing users. Org admins manage users in their organizations; non-org admins manage users not in any organization.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/v1/users` | List managed users (paginated, searchable) |
+| DELETE | `/api/admin/v1/users/:user_id` | Remove/deactivate managed user |
+| GET | `/api/admin/v1/users/:user_id/location` | Get user's last known location |
+| PUT | `/api/admin/v1/users/:user_id/tracking` | Update user tracking status |
+| GET | `/api/admin/v1/users/:user_id/geofences` | List user's geofences |
+| POST | `/api/admin/v1/users/:user_id/geofences` | Create geofence for user |
+| PUT | `/api/admin/v1/users/:user_id/geofences/:geofence_id` | Update user geofence |
+| DELETE | `/api/admin/v1/users/:user_id/geofences/:geofence_id` | Delete user geofence |
+
+**Query Parameters for List Managed Users:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | int | 1 | Page number |
+| `per_page` | int | 20 | Results per page (1-100) |
+| `search` | string | - | Search by email or display name |
+| `tracking_enabled` | bool | - | Filter by tracking status |
+
 ### B2B Organization Admin (requires `require_b2b` middleware)
 
 #### Organizations
