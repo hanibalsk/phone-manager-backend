@@ -82,6 +82,7 @@ PM__SECURITY__RATE_LIMIT_PER_MINUTE=100
 PM__LIMITS__MAX_DEVICES_PER_GROUP=20
 PM__LIMITS__MAX_BATCH_SIZE=50
 PM__LIMITS__MAX_WEBHOOKS_PER_DEVICE=10
+PM__LIMITS__MAX_GEOFENCES_PER_USER=50       # Epic 9: Admin Managed Users geofence limit
 
 # FCM Push Notifications (optional)
 PM__FCM__ENABLED=true
@@ -396,10 +397,12 @@ Routes for managing users. Org admins manage users in their organizations; non-o
 #### Organization Users
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/admin/v1/organizations/:org_id/users` | Add user to organization |
+| POST | `/api/admin/v1/organizations/:org_id/users` | Add user to organization (creates invitation if user doesn't exist) |
 | GET | `/api/admin/v1/organizations/:org_id/users` | List organization users |
 | PUT | `/api/admin/v1/organizations/:org_id/users/:user_id` | Update user role/permissions |
 | DELETE | `/api/admin/v1/organizations/:org_id/users/:user_id` | Remove user from organization |
+
+**Note:** When adding a user via POST, if the user doesn't exist in the system, an invitation will be created automatically. The response will indicate whether a user was added directly or an invitation was created.
 
 #### Organization API Keys
 | Method | Path | Description |
@@ -473,7 +476,7 @@ Routes for managing users. Org admins manage users in their organizations; non-o
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/admin/v1/organizations/:org_id/admin-users` | List users with details |
-| POST | `/api/admin/v1/organizations/:org_id/admin-users` | Create/add user to org |
+| POST | `/api/admin/v1/organizations/:org_id/admin-users` | Add user to org (creates invitation if user doesn't exist) |
 | GET | `/api/admin/v1/organizations/:org_id/admin-users/:user_id` | Get user details |
 | PUT | `/api/admin/v1/organizations/:org_id/admin-users/:user_id` | Update user |
 | DELETE | `/api/admin/v1/organizations/:org_id/admin-users/:user_id` | Remove user |
@@ -486,6 +489,8 @@ Routes for managing users. Org admins manage users in their organizations; non-o
 | GET | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/sessions` | List user sessions |
 | DELETE | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/sessions/:session_id` | Revoke session |
 | DELETE | `/api/admin/v1/organizations/:org_id/admin-users/:user_id/sessions` | Revoke all sessions |
+
+**Note:** The POST endpoint will create an invitation if the specified email doesn't belong to an existing user. The authenticated admin user will be recorded as the inviter.
 
 #### Group Administration
 | Method | Path | Description |

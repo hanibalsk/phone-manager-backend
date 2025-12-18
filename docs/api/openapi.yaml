@@ -1,7 +1,7 @@
 openapi: "3.1.0"
 info:
   title: Phone Manager API
-  version: "0.14.0"
+  version: "0.14.1"
   description: |
     REST API for the Phone Manager mobile application.
     Handles device registration, location tracking, group management,
@@ -2372,6 +2372,88 @@ components:
         token_expires_at:
           type: string
           format: date-time
+
+    InvitationCreatedResponse:
+      type: object
+      description: Response when a user invitation was created instead of adding an existing user
+      properties:
+        type:
+          type: string
+          enum: [invitation_created]
+          description: Indicates an invitation was created
+        invitation_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [owner, admin, member]
+        expires_at:
+          type: string
+          format: date-time
+        message:
+          type: string
+          description: Human-readable message about the invitation
+      required:
+        - type
+        - invitation_id
+        - email
+        - role
+        - expires_at
+        - message
+
+    OrgUserResponse:
+      type: object
+      description: Organization user details
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [owner, admin, member]
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - user_id
+        - organization_id
+        - email
+        - role
+        - created_at
+
+    OrgUserListResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrgUserResponse"
+        pagination:
+          $ref: "#/components/schemas/PaginationInfo"
+      required:
+        - users
+        - pagination
+
+    UpdateOrgUserRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [owner, admin, member]
+      required:
+        - role
 
     # ==========================================
     # Organization Webhook Schemas
@@ -6024,6 +6106,138 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   # ==========================================
+  # Organization Users (API Key Auth)
+  # ==========================================
+  /api/admin/v1/organizations/{org_id}/users:
+    post:
+      tags: [Organizations]
+      summary: Add user to organization
+      description: |
+        Add an existing user to the organization. If the user doesn't exist,
+        an invitation will be created and sent to the provided email address.
+      operationId: addUserToOrganization
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddOrgUserRequest"
+      responses:
+        "201":
+          description: User added or invitation created
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OrgUserResponse"
+                  - $ref: "#/components/schemas/InvitationCreatedResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: User already in organization or invitation already pending
+    get:
+      tags: [Organizations]
+      summary: List organization users
+      operationId: listOrganizationUsers
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Organization users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUserListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/v1/organizations/{org_id}/users/{user_id}:
+    put:
+      tags: [Organizations]
+      summary: Update user role in organization
+      operationId: updateOrganizationUser
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrgUserRequest"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUserResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Organizations]
+      summary: Remove user from organization
+      operationId: removeUserFromOrganization
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: User removed
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ==========================================
   # Organization Webhooks
   # ==========================================
   /api/admin/v1/organizations/{org_id}/webhooks:
@@ -6228,6 +6442,9 @@ paths:
     post:
       tags: [User Administration]
       summary: Add user to organization
+      description: |
+        Add an existing user to the organization. If the user doesn't exist,
+        an invitation will be created and sent to the provided email address.
       operationId: createAdminUser
       security:
         - BearerAuth: []
@@ -6246,15 +6463,17 @@ paths:
               $ref: "#/components/schemas/AddOrgUserRequest"
       responses:
         "201":
-          description: User added
+          description: User added or invitation created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OrgUserResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/OrgUserResponse"
+                  - $ref: "#/components/schemas/InvitationCreatedResponse"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: User already in organization
+          description: User already in organization or invitation already pending
 
   /api/admin/v1/organizations/{org_id}/admin-users/{user_id}:
     get:
