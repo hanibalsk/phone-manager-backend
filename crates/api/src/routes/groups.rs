@@ -379,6 +379,7 @@ pub async fn delete_group(
 /// GET /api/v1/groups/:group_id/members
 ///
 /// Requires JWT authentication. User must be a member of the group.
+/// Enhanced with device count per member (Story UGM-3.6).
 pub async fn list_members(
     State(state): State<AppState>,
     user_auth: UserAuth,
@@ -387,6 +388,7 @@ pub async fn list_members(
 ) -> Result<Json<ListMembersResponse>, ApiError> {
     let repo = GroupRepository::new(state.pool.clone());
     let device_repo = DeviceRepository::new(state.pool.clone());
+    let membership_repo = DeviceGroupMembershipRepository::new(state.pool.clone());
 
     // Check user is a member of the group
     let _membership = repo
@@ -423,11 +425,18 @@ pub async fn list_members(
             .push(device_info);
     }
 
-    // Transform to response DTOs with devices
+    // Get device counts per user in this group (Story UGM-3.6)
+    let device_counts = membership_repo
+        .count_devices_per_user_in_group(group_id)
+        .await?;
+    let device_count_map: HashMap<Uuid, i64> = device_counts.into_iter().collect();
+
+    // Transform to response DTOs with devices and device count
     let member_responses: Vec<MemberResponse> = members
         .into_iter()
         .map(|m| {
             let user_devices = devices_by_user.remove(&m.user_id);
+            let device_count = device_count_map.get(&m.user_id).copied().unwrap_or(0);
             MemberResponse {
                 id: m.id,
                 user: UserPublic {
@@ -439,6 +448,7 @@ pub async fn list_members(
                 joined_at: m.joined_at,
                 invited_by: m.invited_by,
                 devices: user_devices,
+                device_count,
             }
         })
         .collect();
@@ -469,6 +479,7 @@ pub async fn list_members(
 /// GET /api/v1/groups/:group_id/members/:user_id
 ///
 /// Requires JWT authentication. User must be a member of the group.
+/// Enhanced with device count (Story UGM-3.6).
 pub async fn get_member(
     State(state): State<AppState>,
     user_auth: UserAuth,
@@ -476,6 +487,7 @@ pub async fn get_member(
 ) -> Result<Json<MemberResponse>, ApiError> {
     let repo = GroupRepository::new(state.pool.clone());
     let device_repo = DeviceRepository::new(state.pool.clone());
+    let membership_repo = DeviceGroupMembershipRepository::new(state.pool.clone());
 
     // Check user is a member of the group
     let _membership = repo
@@ -496,6 +508,16 @@ pub async fn get_member(
         .into_iter()
         .map(|d| to_member_device_info(d, now))
         .collect();
+
+    // Get device count for this user in this group (Story UGM-3.6)
+    let device_counts = membership_repo
+        .count_devices_per_user_in_group(group_id)
+        .await?;
+    let device_count = device_counts
+        .into_iter()
+        .find(|(user_id, _)| *user_id == target_user_id)
+        .map(|(_, count)| count)
+        .unwrap_or(0);
 
     info!(
         group_id = %group_id,
@@ -519,6 +541,7 @@ pub async fn get_member(
         } else {
             Some(devices)
         },
+        device_count,
     }))
 }
 

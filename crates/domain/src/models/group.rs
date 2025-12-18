@@ -290,6 +290,8 @@ pub struct MemberResponse {
     pub invited_by: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub devices: Option<Vec<MemberDeviceInfo>>,
+    /// Number of devices this member has in the group (Story UGM-3.6)
+    pub device_count: i64,
 }
 
 /// Response for listing members.
