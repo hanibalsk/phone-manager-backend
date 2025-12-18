@@ -1011,7 +1011,7 @@ async fn check_is_admin(
 
     // Check if user is an admin/owner of THIS SPECIFIC device's group
     if !device.group_id.is_empty() {
-        let user_groups = group_repo.find_user_groups(user_id, None).await?;
+        let user_groups = group_repo.find_user_groups(user_id, None, None).await?;
         for group in user_groups {
             // Must match the device's group slug
             if group.slug == device.group_id {
@@ -1054,7 +1054,7 @@ async fn check_settings_authorization(
     // The device.group_id stores the group slug (legacy string field)
     if !device.group_id.is_empty() {
         // Get all groups where user is admin or owner
-        let user_groups = group_repo.find_user_groups(user_id, None).await?;
+        let user_groups = group_repo.find_user_groups(user_id, None, None).await?;
         for group in user_groups {
             let role: domain::models::GroupRole = group.role.into();
             // User must be admin/owner of THIS specific group (matching by slug)

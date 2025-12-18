@@ -111,10 +111,16 @@ impl GroupRepository {
     }
 
     /// Find all groups a user belongs to.
+    ///
+    /// # Arguments
+    /// * `user_id` - The user to find groups for
+    /// * `role_filter` - Optional role filter (e.g., "admin", "member")
+    /// * `device_id` - Optional device ID to check membership for. If None, checks if ANY user device is in each group.
     pub async fn find_user_groups(
         &self,
         user_id: Uuid,
         role_filter: Option<&str>,
+        device_id: Option<Uuid>,
     ) -> Result<Vec<GroupWithMembershipEntity>, sqlx::Error> {
         let timer = QueryTimer::new("find_user_groups");
 
@@ -126,7 +132,15 @@ impl GroupRepository {
                     g.settings, g.created_by, g.created_at, g.updated_at,
                     gm.id as membership_id, gm.role, gm.joined_at,
                     (SELECT COUNT(*) FROM group_memberships WHERE group_id = g.id) as member_count,
-                    (SELECT COUNT(*) FROM devices WHERE group_id = g.slug AND active = true) as device_count
+                    (SELECT COUNT(*) FROM devices WHERE group_id = g.slug AND active = true) as device_count,
+                    EXISTS (
+                        SELECT 1 FROM device_group_memberships dgm
+                        JOIN devices d ON dgm.device_id = d.device_id
+                        WHERE dgm.group_id = g.id
+                        AND d.owner_user_id = $1
+                        AND d.active = true
+                        AND (dgm.device_id = $3 OR $3 IS NULL)
+                    ) as has_current_device
                 FROM groups g
                 JOIN group_memberships gm ON g.id = gm.group_id
                 WHERE gm.user_id = $1 AND g.is_active = true AND gm.role::text = $2
@@ -135,6 +149,7 @@ impl GroupRepository {
             )
             .bind(user_id)
             .bind(role)
+            .bind(device_id)
             .fetch_all(&self.pool)
             .await
         } else {
@@ -145,7 +160,15 @@ impl GroupRepository {
                     g.settings, g.created_by, g.created_at, g.updated_at,
                     gm.id as membership_id, gm.role, gm.joined_at,
                     (SELECT COUNT(*) FROM group_memberships WHERE group_id = g.id) as member_count,
-                    (SELECT COUNT(*) FROM devices WHERE group_id = g.slug AND active = true) as device_count
+                    (SELECT COUNT(*) FROM devices WHERE group_id = g.slug AND active = true) as device_count,
+                    EXISTS (
+                        SELECT 1 FROM device_group_memberships dgm
+                        JOIN devices d ON dgm.device_id = d.device_id
+                        WHERE dgm.group_id = g.id
+                        AND d.owner_user_id = $1
+                        AND d.active = true
+                        AND (dgm.device_id = $2 OR $2 IS NULL)
+                    ) as has_current_device
                 FROM groups g
                 JOIN group_memberships gm ON g.id = gm.group_id
                 WHERE gm.user_id = $1 AND g.is_active = true
@@ -153,6 +176,7 @@ impl GroupRepository {
                 "#,
             )
             .bind(user_id)
+            .bind(device_id)
             .fetch_all(&self.pool)
             .await
         };
@@ -162,10 +186,16 @@ impl GroupRepository {
     }
 
     /// Find group with membership info for a specific user.
+    ///
+    /// # Arguments
+    /// * `group_id` - The group ID to find
+    /// * `user_id` - The user to check membership for
+    /// * `device_id` - Optional device ID to check assignment for. If None, checks if ANY user device is in the group.
     pub async fn find_group_with_membership(
         &self,
         group_id: Uuid,
         user_id: Uuid,
+        device_id: Option<Uuid>,
     ) -> Result<Option<GroupWithMembershipEntity>, sqlx::Error> {
         let timer = QueryTimer::new("find_group_with_membership");
         let result = sqlx::query_as::<_, GroupWithMembershipEntity>(
@@ -175,7 +205,15 @@ impl GroupRepository {
                 g.settings, g.created_by, g.created_at, g.updated_at,
                 gm.id as membership_id, gm.role, gm.joined_at,
                 (SELECT COUNT(*) FROM group_memberships WHERE group_id = g.id) as member_count,
-                (SELECT COUNT(*) FROM devices WHERE group_id = g.slug AND active = true) as device_count
+                (SELECT COUNT(*) FROM devices WHERE group_id = g.slug AND active = true) as device_count,
+                EXISTS (
+                    SELECT 1 FROM device_group_memberships dgm
+                    JOIN devices d ON dgm.device_id = d.device_id
+                    WHERE dgm.group_id = g.id
+                    AND d.owner_user_id = $2
+                    AND d.active = true
+                    AND (dgm.device_id = $3 OR $3 IS NULL)
+                ) as has_current_device
             FROM groups g
             JOIN group_memberships gm ON g.id = gm.group_id
             WHERE g.id = $1 AND gm.user_id = $2 AND g.is_active = true
@@ -183,6 +221,7 @@ impl GroupRepository {
         )
         .bind(group_id)
         .bind(user_id)
+        .bind(device_id)
         .fetch_optional(&self.pool)
         .await;
         timer.record();

@@ -158,6 +158,9 @@ pub struct GroupSummary {
     pub device_count: i64,
     pub your_role: GroupRole,
     pub joined_at: DateTime<Utc>,
+    /// Whether the requesting user's device is assigned to this group.
+    /// True if any of the user's devices (or specific device_id if provided) is in this group.
+    pub has_current_device: bool,
 }
 
 /// Response for group detail.
@@ -213,6 +216,10 @@ pub struct CreateGroupResponse {
 #[serde(rename_all = "snake_case")]
 pub struct ListGroupsQuery {
     pub role: Option<String>,
+    /// Optional device ID to check assignment for.
+    /// If provided, `has_current_device` will be true only for groups containing this specific device.
+    /// If not provided, `has_current_device` will be true for groups containing ANY of the user's devices.
+    pub device_id: Option<Uuid>,
 }
 
 /// Response for listing groups.

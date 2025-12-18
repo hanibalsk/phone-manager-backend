@@ -138,6 +138,12 @@ pub async fn create_group(
 /// GET /api/v1/groups
 ///
 /// Requires JWT authentication.
+///
+/// Query parameters:
+/// - `role`: Optional filter by membership role (e.g., "admin", "member")
+/// - `device_id`: Optional device ID to check assignment for.
+///   If provided, `has_current_device` will be true only for groups containing this specific device.
+///   If not provided, `has_current_device` will be true for groups containing ANY of the user's devices.
 pub async fn list_groups(
     State(state): State<AppState>,
     user_auth: UserAuth,
@@ -145,9 +151,9 @@ pub async fn list_groups(
 ) -> Result<Json<ListGroupsResponse>, ApiError> {
     let repo = GroupRepository::new(state.pool.clone());
 
-    // Fetch groups for the user
+    // Fetch groups for the user with device assignment check
     let groups = repo
-        .find_user_groups(user_auth.user_id, query.role.as_deref())
+        .find_user_groups(user_auth.user_id, query.role.as_deref(), query.device_id)
         .await?;
 
     // Transform to response DTOs
@@ -162,6 +168,7 @@ pub async fn list_groups(
             device_count: g.device_count,
             your_role: g.role.into(),
             joined_at: g.joined_at,
+            has_current_device: g.has_current_device,
         })
         .collect();
 
@@ -171,6 +178,7 @@ pub async fn list_groups(
         user_id = %user_auth.user_id,
         group_count = count,
         role_filter = ?query.role,
+        device_id = ?query.device_id,
         "Listed user groups"
     );
 
@@ -192,9 +200,9 @@ pub async fn get_group(
 ) -> Result<Json<GroupDetail>, ApiError> {
     let repo = GroupRepository::new(state.pool.clone());
 
-    // Fetch group with user's membership
+    // Fetch group with user's membership (no specific device_id for detail view)
     let group = repo
-        .find_group_with_membership(group_id, user_auth.user_id)
+        .find_group_with_membership(group_id, user_auth.user_id, None)
         .await?
         .ok_or_else(|| ApiError::NotFound("Group not found or you are not a member".to_string()))?;
 
@@ -299,7 +307,7 @@ pub async fn update_group(
 
     // Fetch updated group with membership info
     let group = repo
-        .find_group_with_membership(group_id, user_auth.user_id)
+        .find_group_with_membership(group_id, user_auth.user_id, None)
         .await?
         .ok_or_else(|| ApiError::Internal("Failed to fetch updated group".to_string()))?;
 
@@ -1200,7 +1208,7 @@ pub async fn get_group_devices(
 
     // Verify user is a member of the group and get group details
     let group = group_repo
-        .find_group_with_membership(group_id, user_auth.user_id)
+        .find_group_with_membership(group_id, user_auth.user_id, None)
         .await?
         .ok_or_else(|| ApiError::NotFound("Group not found or you are not a member".to_string()))?;
 

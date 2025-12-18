@@ -118,6 +118,8 @@ pub struct GroupWithMembershipEntity {
     // Aggregates
     pub member_count: i64,
     pub device_count: i64,
+    /// Whether the requesting user's device is assigned to this group.
+    pub has_current_device: bool,
 }
 
 /// Member entity with user info for listing members.
