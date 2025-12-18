@@ -774,6 +774,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route(
             "/api/v1/unlock-requests/:request_id",
             put(device_settings::respond_to_unlock_request),
+        )
+        // Device's group memberships (Story UGM-3.5)
+        .route(
+            "/api/v1/devices/:device_id/groups",
+            get(groups::list_device_groups),
         );
 
     // Group management routes (require JWT authentication)

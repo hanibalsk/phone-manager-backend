@@ -1541,6 +1541,82 @@ pub async fn remove_device_from_group(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Group info for a device's membership.
+#[derive(Debug, Clone, Serialize)]
+pub struct DeviceGroupMembershipInfo {
+    pub group_id: Uuid,
+    pub name: String,
+    pub slug: String,
+    pub role: GroupRole,
+    pub added_at: DateTime<Utc>,
+}
+
+/// Response for listing device's group memberships.
+#[derive(Debug, Clone, Serialize)]
+pub struct ListDeviceGroupsResponse {
+    pub groups: Vec<DeviceGroupMembershipInfo>,
+}
+
+/// List all groups a device belongs to.
+///
+/// GET /api/v1/devices/:device_id/groups
+///
+/// Requires JWT authentication.
+/// - User must own the device
+///
+/// Story UGM-3.5: View Device's Group Memberships
+pub async fn list_device_groups(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(device_id): Path<Uuid>,
+) -> Result<Json<ListDeviceGroupsResponse>, ApiError> {
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let membership_repo = DeviceGroupMembershipRepository::new(state.pool.clone());
+
+    // Check the device exists and is owned by the user
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    if device.owner_user_id != Some(user_auth.user_id) {
+        return Err(ApiError::Forbidden(
+            "You can only view groups for devices you own".to_string(),
+        ));
+    }
+
+    // Get all groups the device belongs to
+    let group_infos = membership_repo
+        .list_device_groups(device_id, user_auth.user_id)
+        .await?;
+
+    let groups: Vec<DeviceGroupMembershipInfo> = group_infos
+        .into_iter()
+        .map(|g| DeviceGroupMembershipInfo {
+            group_id: g.group_id,
+            name: g.group_name,
+            slug: g.group_slug,
+            role: match g.user_role.as_str() {
+                "owner" => GroupRole::Owner,
+                "admin" => GroupRole::Admin,
+                "member" => GroupRole::Member,
+                "viewer" => GroupRole::Viewer,
+                _ => GroupRole::Member,
+            },
+            added_at: g.added_at,
+        })
+        .collect();
+
+    info!(
+        device_id = %device_id,
+        user_id = %user_auth.user_id,
+        group_count = groups.len(),
+        "Listed device group memberships"
+    );
+
+    Ok(Json(ListDeviceGroupsResponse { groups }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
