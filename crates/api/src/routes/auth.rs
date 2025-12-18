@@ -6,13 +6,99 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use persistence::repositories::RegistrationInviteRepository;
+use persistence::repositories::{DeviceRepository, RegistrationInviteRepository};
 use serde::{Deserialize, Serialize};
+use tracing::info;
+use uuid::Uuid;
 use validator::Validate;
 
 use crate::app::AppState;
 use crate::error::ApiError;
 use crate::services::auth::{AuthError, AuthService};
+
+/// Attempt to link a device to a user after successful authentication.
+///
+/// Returns `true` if the device was linked, `false` otherwise.
+/// Does NOT link if:
+/// - No device_id provided
+/// - Device doesn't exist
+/// - Device is already linked to a different user
+async fn try_link_device_to_user(
+    pool: &sqlx::PgPool,
+    user_id: Uuid,
+    device_id: Option<&str>,
+    device_name: Option<&str>,
+) -> Result<bool, ApiError> {
+    // If no device_id provided, nothing to link
+    let device_id_str = match device_id {
+        Some(id) if !id.is_empty() => id,
+        _ => return Ok(false),
+    };
+
+    // Parse the device_id as UUID
+    let device_uuid = match Uuid::parse_str(device_id_str) {
+        Ok(uuid) => uuid,
+        Err(_) => {
+            tracing::warn!(device_id = %device_id_str, "Invalid device_id format, skipping linking");
+            return Ok(false);
+        }
+    };
+
+    let repo = DeviceRepository::new(pool.clone());
+
+    // Check if device exists
+    let device = match repo.find_by_device_id(device_uuid).await? {
+        Some(d) => d,
+        None => {
+            tracing::debug!(device_id = %device_uuid, "Device not found, skipping linking");
+            return Ok(false);
+        }
+    };
+
+    // Check ownership
+    match device.owner_user_id {
+        Some(owner_id) if owner_id == user_id => {
+            // Already linked to this user
+            tracing::debug!(
+                device_id = %device_uuid,
+                user_id = %user_id,
+                "Device already linked to this user"
+            );
+            return Ok(false);
+        }
+        Some(other_owner) => {
+            // Linked to another user - don't change ownership
+            tracing::debug!(
+                device_id = %device_uuid,
+                user_id = %user_id,
+                other_owner = %other_owner,
+                "Device linked to another user, not changing ownership"
+            );
+            return Ok(false);
+        }
+        None => {
+            // Not linked - proceed to link
+        }
+    }
+
+    // Check if user already has other devices to determine if this should be primary
+    let existing_devices = repo.find_devices_by_user(user_id, false).await?;
+    let is_primary = existing_devices.is_empty();
+
+    // Link the device
+    let _linked_device = repo
+        .link_device_to_user(device_uuid, user_id, device_name, is_primary)
+        .await?;
+
+    info!(
+        device_id = %device_uuid,
+        user_id = %user_id,
+        is_primary = is_primary,
+        "Device linked to user during authentication"
+    );
+
+    Ok(true)
+}
 
 /// Helper to create AuthService with OAuth config from AppState.
 fn create_auth_service(state: &AppState) -> Result<AuthService, ApiError> {
@@ -258,12 +344,10 @@ pub struct LoginRequest {
     #[validate(length(min = 1, message = "Password is required"))]
     pub password: String,
 
-    /// Optional device ID making the request
-    #[allow(dead_code)] // Used in future story for device linking
+    /// Optional device ID to link to the user after login
     pub device_id: Option<String>,
 
-    /// Optional device name
-    #[allow(dead_code)] // Used in future story for device linking
+    /// Device name (used when linking the device)
     pub device_name: Option<String>,
 }
 
@@ -279,12 +363,10 @@ pub struct OAuthLoginRequest {
     #[validate(length(min = 1, message = "ID token is required"))]
     pub id_token: String,
 
-    /// Optional device ID making the request
-    #[allow(dead_code)] // Used in future story for device linking
+    /// Optional device ID to link to the user after login
     pub device_id: Option<String>,
 
-    /// Optional device name
-    #[allow(dead_code)] // Used in future story for device linking
+    /// Device name (used when linking the device)
     pub device_name: Option<String>,
 }
 
@@ -294,6 +376,8 @@ pub struct OAuthLoginRequest {
 pub struct LoginResponse {
     pub user: UserResponse,
     pub tokens: TokensResponse,
+    /// Whether a device was linked to the user during this authentication
+    pub device_linked: bool,
 }
 
 /// Login with email and password.
@@ -340,6 +424,15 @@ pub async fn login(
             _ => ApiError::Internal(e.to_string()),
         })?;
 
+    // Try to link device if device_id was provided
+    let device_linked = try_link_device_to_user(
+        &state.pool,
+        result.user_id,
+        request.device_id.as_deref(),
+        request.device_name.as_deref(),
+    )
+    .await?;
+
     // Build response
     let response = LoginResponse {
         user: UserResponse {
@@ -358,6 +451,7 @@ pub async fn login(
             token_type: "Bearer".to_string(),
             expires_in: result.access_token_expires_in,
         },
+        device_linked,
     };
 
     // Set cookies if cookie authentication is enabled
@@ -409,6 +503,15 @@ pub async fn oauth_login(
             _ => ApiError::Internal(e.to_string()),
         })?;
 
+    // Try to link device if device_id was provided
+    let device_linked = try_link_device_to_user(
+        &state.pool,
+        result.user_id,
+        request.device_id.as_deref(),
+        request.device_name.as_deref(),
+    )
+    .await?;
+
     // Determine auth provider for response
     let auth_provider = request.provider.to_lowercase();
 
@@ -430,6 +533,7 @@ pub async fn oauth_login(
             token_type: "Bearer".to_string(),
             expires_in: result.access_token_expires_in,
         },
+        device_linked,
     };
 
     // Set cookies if cookie authentication is enabled
