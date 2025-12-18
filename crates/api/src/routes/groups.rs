@@ -21,7 +21,8 @@ use domain::models::invite::{
 };
 use persistence::entities::MemberDeviceEntity;
 use persistence::repositories::{
-    DeviceRepository, GroupRepository, InviteRepository, MigrationAuditRepository,
+    DeviceGroupMembershipRepository, DeviceRepository, GroupRepository, InviteRepository,
+    MigrationAuditRepository,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
@@ -1221,6 +1222,170 @@ pub async fn get_group_devices(
     );
 
     Ok(Json(GroupDevicesResponse { devices: summaries }))
+}
+
+// =============================================================================
+// Device-Group Management (Epic UGM-3)
+// =============================================================================
+
+/// Request to add a device to a group.
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct AddDeviceToGroupRequest {
+    /// The device ID to add to the group.
+    pub device_id: Uuid,
+}
+
+/// Response after adding a device to a group.
+#[derive(Debug, Clone, Serialize)]
+pub struct AddDeviceToGroupResponse {
+    pub group_id: Uuid,
+    pub device_id: Uuid,
+    pub added_at: DateTime<Utc>,
+}
+
+/// Add a device to an authenticated group.
+///
+/// POST /api/v1/groups/:group_id/devices/add
+///
+/// Requires JWT authentication.
+/// - User must be a member of the group
+/// - User must own the device being added
+/// - Device must not already be in the group
+///
+/// Story UGM-3.2: Add Device to Group
+pub async fn add_device_to_group(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(group_id): Path<Uuid>,
+    Json(request): Json<AddDeviceToGroupRequest>,
+) -> Result<(StatusCode, Json<AddDeviceToGroupResponse>), ApiError> {
+    let group_repo = GroupRepository::new(state.pool.clone());
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let membership_repo = DeviceGroupMembershipRepository::new(state.pool.clone());
+
+    // Check user is a member of the group
+    let _membership = group_repo
+        .get_membership(group_id, user_auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("You are not a member of this group".to_string()))?;
+
+    // Check the device exists and is owned by the user
+    let device = device_repo
+        .find_by_device_id(request.device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    if device.owner_user_id != Some(user_auth.user_id) {
+        return Err(ApiError::Forbidden(
+            "You can only add devices you own to a group".to_string(),
+        ));
+    }
+
+    // Check device is not already in the group
+    if membership_repo
+        .is_device_in_group(request.device_id, group_id)
+        .await?
+    {
+        return Err(ApiError::Conflict(
+            "Device is already in this group".to_string(),
+        ));
+    }
+
+    // Add the device to the group
+    let device_membership = membership_repo
+        .add_device_to_group(request.device_id, group_id, user_auth.user_id)
+        .await?;
+
+    info!(
+        group_id = %group_id,
+        device_id = %request.device_id,
+        user_id = %user_auth.user_id,
+        "Device added to group"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(AddDeviceToGroupResponse {
+            group_id,
+            device_id: request.device_id,
+            added_at: device_membership.added_at,
+        }),
+    ))
+}
+
+/// Remove a device from an authenticated group.
+///
+/// DELETE /api/v1/groups/:group_id/devices/:device_id
+///
+/// Requires JWT authentication.
+/// - Device owner can remove their own device
+/// - Group admin/owner can remove any device
+///
+/// Story UGM-3.3: Remove Device from Group
+pub async fn remove_device_from_group(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path((group_id, device_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, ApiError> {
+    let group_repo = GroupRepository::new(state.pool.clone());
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let membership_repo = DeviceGroupMembershipRepository::new(state.pool.clone());
+
+    // Check user is a member of the group and get their role
+    let user_membership = group_repo
+        .get_membership(group_id, user_auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Group not found or you are not a member".to_string()))?;
+
+    let user_role: GroupRole = user_membership.role.into();
+
+    // Check the device exists
+    let device = device_repo
+        .find_by_device_id(device_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Device not found".to_string()))?;
+
+    // Check device is in the group
+    if !membership_repo
+        .is_device_in_group(device_id, group_id)
+        .await?
+    {
+        return Err(ApiError::NotFound(
+            "Device is not in this group".to_string(),
+        ));
+    }
+
+    // Authorization: device owner or group admin/owner
+    let is_device_owner = device.owner_user_id == Some(user_auth.user_id);
+    let is_group_admin = user_role.can_manage_members();
+
+    if !is_device_owner && !is_group_admin {
+        return Err(ApiError::Forbidden(
+            "You can only remove your own devices or must be a group admin".to_string(),
+        ));
+    }
+
+    // Remove the device from the group
+    let rows_affected = membership_repo
+        .remove_device_from_group(device_id, group_id)
+        .await?;
+
+    if rows_affected == 0 {
+        return Err(ApiError::NotFound(
+            "Device is not in this group".to_string(),
+        ));
+    }
+
+    info!(
+        group_id = %group_id,
+        device_id = %device_id,
+        user_id = %user_auth.user_id,
+        is_device_owner = is_device_owner,
+        is_group_admin = is_group_admin,
+        "Device removed from group"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[cfg(test)]

@@ -827,6 +827,15 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/groups/:group_id/devices",
             get(groups::get_group_devices),
         )
+        // Device-group management (Epic UGM-3)
+        .route(
+            "/api/v1/groups/:group_id/devices/add",
+            post(groups::add_device_to_group),
+        )
+        .route(
+            "/api/v1/groups/:group_id/devices/:device_id",
+            delete(groups::remove_device_from_group),
+        )
         // Ownership transfer (Story 11.6)
         .route(
             "/api/v1/groups/:group_id/transfer",
