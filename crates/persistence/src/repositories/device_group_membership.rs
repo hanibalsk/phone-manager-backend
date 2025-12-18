@@ -176,15 +176,15 @@ impl DeviceGroupMembershipRepository {
                 ll.latitude,
                 ll.longitude,
                 ll.accuracy,
-                ll.recorded_at as location_timestamp
+                ll.captured_at as location_timestamp
             FROM device_group_memberships dgm
             JOIN devices d ON d.device_id = dgm.device_id AND d.active = true
             LEFT JOIN users u ON d.owner_user_id = u.id
             LEFT JOIN LATERAL (
-                SELECT latitude, longitude, accuracy, recorded_at
+                SELECT latitude, longitude, accuracy, captured_at
                 FROM locations
                 WHERE device_id = d.device_id
-                ORDER BY recorded_at DESC
+                ORDER BY captured_at DESC
                 LIMIT 1
             ) ll ON true
             WHERE dgm.group_id = $1
@@ -219,11 +219,13 @@ impl DeviceGroupMembershipRepository {
         result
     }
 
-    /// List all groups a device belongs to.
+    /// List all groups a device belongs to with pagination.
     pub async fn list_device_groups(
         &self,
         device_id: Uuid,
         user_id: Uuid,
+        limit: i64,
+        offset: i64,
     ) -> Result<Vec<DeviceGroupInfoEntity>, sqlx::Error> {
         let timer = QueryTimer::new("list_device_groups");
         let result = sqlx::query_as::<_, DeviceGroupInfoEntity>(
@@ -240,10 +242,13 @@ impl DeviceGroupMembershipRepository {
             JOIN group_memberships gm ON gm.group_id = g.id AND gm.user_id = $2
             WHERE dgm.device_id = $1
             ORDER BY dgm.added_at DESC
+            LIMIT $3 OFFSET $4
             "#,
         )
         .bind(device_id)
         .bind(user_id)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&self.pool)
         .await;
         timer.record();

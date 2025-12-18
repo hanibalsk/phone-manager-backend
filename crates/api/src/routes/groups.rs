@@ -1298,7 +1298,7 @@ pub async fn add_device_to_group(
     let _membership = group_repo
         .get_membership(group_id, user_auth.user_id)
         .await?
-        .ok_or_else(|| ApiError::Forbidden("You are not a member of this group".to_string()))?;
+        .ok_or_else(|| ApiError::NotFound("Group not found or you are not a member".to_string()))?;
 
     // Check the device exists and is owned by the user
     let device = device_repo
@@ -1420,7 +1420,7 @@ pub async fn list_group_devices(
     let _membership = group_repo
         .get_membership(group_id, user_auth.user_id)
         .await?
-        .ok_or_else(|| ApiError::Forbidden("You are not a member of this group".to_string()))?;
+        .ok_or_else(|| ApiError::NotFound("Group not found or you are not a member".to_string()))?;
 
     // Pagination
     let page = query.page.max(1);
@@ -1582,10 +1582,23 @@ pub struct DeviceGroupMembershipInfo {
     pub added_at: DateTime<Utc>,
 }
 
+/// Query parameters for listing device groups.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListDeviceGroupsQuery {
+    /// Page number (1-based)
+    #[serde(default = "default_page")]
+    pub page: i64,
+
+    /// Items per page (1-100)
+    #[serde(default = "default_per_page")]
+    pub per_page: i64,
+}
+
 /// Response for listing device's group memberships.
 #[derive(Debug, Clone, Serialize)]
 pub struct ListDeviceGroupsResponse {
     pub groups: Vec<DeviceGroupMembershipInfo>,
+    pub pagination: Pagination,
 }
 
 /// List all groups a device belongs to.
@@ -1594,12 +1607,14 @@ pub struct ListDeviceGroupsResponse {
 ///
 /// Requires JWT authentication.
 /// - User must own the device
+/// - Supports pagination via `page` and `per_page` query parameters
 ///
 /// Story UGM-3.5: View Device's Group Memberships
 pub async fn list_device_groups(
     State(state): State<AppState>,
     user_auth: UserAuth,
     Path(device_id): Path<Uuid>,
+    Query(query): Query<ListDeviceGroupsQuery>,
 ) -> Result<Json<ListDeviceGroupsResponse>, ApiError> {
     let device_repo = DeviceRepository::new(state.pool.clone());
     let membership_repo = DeviceGroupMembershipRepository::new(state.pool.clone());
@@ -1616,9 +1631,17 @@ pub async fn list_device_groups(
         ));
     }
 
-    // Get all groups the device belongs to
+    // Pagination
+    let page = query.page.max(1);
+    let per_page = query.per_page.clamp(1, 100);
+    let offset = (page - 1) * per_page;
+
+    // Get total count
+    let total = membership_repo.count_device_groups(device_id).await?;
+
+    // Get groups with pagination
     let group_infos = membership_repo
-        .list_device_groups(device_id, user_auth.user_id)
+        .list_device_groups(device_id, user_auth.user_id, per_page, offset)
         .await?;
 
     let groups: Vec<DeviceGroupMembershipInfo> = group_infos
@@ -1627,25 +1650,31 @@ pub async fn list_device_groups(
             group_id: g.group_id,
             name: g.group_name,
             slug: g.group_slug,
-            role: match g.user_role.as_str() {
-                "owner" => GroupRole::Owner,
-                "admin" => GroupRole::Admin,
-                "member" => GroupRole::Member,
-                "viewer" => GroupRole::Viewer,
-                _ => GroupRole::Member,
-            },
+            role: g.user_role.parse().unwrap_or(GroupRole::Member),
             added_at: g.added_at,
         })
         .collect();
+
+    let total_pages = (total as f64 / per_page as f64).ceil() as i64;
 
     info!(
         device_id = %device_id,
         user_id = %user_auth.user_id,
         group_count = groups.len(),
+        page = page,
+        total = total,
         "Listed device group memberships"
     );
 
-    Ok(Json(ListDeviceGroupsResponse { groups }))
+    Ok(Json(ListDeviceGroupsResponse {
+        groups,
+        pagination: Pagination {
+            page,
+            per_page,
+            total,
+            total_pages,
+        },
+    }))
 }
 
 #[cfg(test)]

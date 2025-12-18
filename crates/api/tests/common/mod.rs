@@ -283,6 +283,9 @@ pub async fn cleanup_all_test_data(pool: &PgPool) {
         "device_settings",
         // User geofences (Epic 9)
         "user_geofences",
+        // UGM (Multi-Group Device Management)
+        "device_group_memberships",
+        "migration_audit_logs",
         // Groups
         "group_invites",
         "group_memberships",
