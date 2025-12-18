@@ -600,3 +600,41 @@ So that **I don't experience any disruption from the new features**.
 **When** existing authenticated group queries are executed
 **Then** performance is not degraded (< 10% increase in response time)
 
+---
+
+## Epic UGM-5: NFR Compliance
+
+Address non-functional requirements identified in gap analysis that were not covered by initial stories.
+
+**NFRs Covered:** NFR19, NFR20, NFR21, NFR22, NFR23, NFR5, NFR13, NFR17, FR7
+
+**Stories:**
+
+| Story | Title | Priority | Status |
+|-------|-------|----------|--------|
+| UGM-5.1 | Invite Code Expiration Handling | Critical | Ready |
+| UGM-5.2 | API Timeout Handling with Retry-After Header | Critical | Ready |
+| UGM-5.3 | Migration Progress Indication for Long Operations | Critical | Ready |
+| UGM-5.4 | Migration Data Preservation Verification | High | Ready |
+| UGM-5.5 | Migration Concurrency and Atomicity | High | Ready |
+| UGM-5.6 | Enhanced Migration and Device Membership Metrics | Medium | Ready |
+| UGM-5.7 | Invite Flow Regression Tests and Performance Guardrails | Medium | Ready |
+| UGM-5.8 | Multi-Group Membership Edge Cases | Medium | Ready |
+
+---
+
+## Epic UGM-6: Growth Features (Post-MVP)
+
+Post-MVP features from PRD for future implementation.
+
+**PRD Reference:** Growth Features section
+
+**Stories:**
+
+| Story | Title | Priority | Status |
+|-------|-------|----------|--------|
+| UGM-6.1 | Migration Rollback Capability | Low | Backlog |
+| UGM-6.2 | Partial Migration (Selective Device Migration) | Low | Backlog |
+| UGM-6.3 | Migration Analytics Dashboard | Low | Backlog |
+| UGM-6.4 | Bulk Device Management | Low | Backlog |
+

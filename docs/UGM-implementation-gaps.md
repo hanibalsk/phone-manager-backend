@@ -2,125 +2,92 @@
 
 **Date:** 2025-12-18
 **Version:** 0.14.0
-**Status:** Review Complete
+**Status:** Stories Created ✅
 
 ## Summary
 
-Review of UGM (Unified Group Management) epics identified several gaps between PRD requirements and implemented stories. This document tracks these gaps for future remediation.
+Review of UGM (Unified Group Management) epics identified several gaps between PRD requirements and implemented stories. All gaps have been addressed with new stories in Epic UGM-5 (NFR Compliance) and Epic UGM-6 (Growth Features).
 
 ---
 
-## Critical Gaps
+## Critical Gaps → Epic UGM-5 (Stories Created)
 
 ### GAP-1: NFR Coverage Missing (NFR19-23)
 
 **Severity:** Critical
-**Risk:** High delivery risk - requirements listed but never decomposed into stories/tests
+**Resolution:** Stories UGM-5.1, UGM-5.2, UGM-5.3 created
 
-| NFR | Description | Status |
-|-----|-------------|--------|
-| NFR19 | Invite codes expire after 48 hours by default | ❌ No story/AC |
-| NFR20 | Expired invite codes return appropriate error with expiry info | ❌ No story/AC |
-| NFR21 | All endpoints return within 30s or 504 timeout | ❌ No story/AC |
-| NFR22 | Timeout errors include `retry_after` header | ❌ No story/AC |
-| NFR23 | Long-running migrations provide progress indication if >2s | ❌ No story/AC |
-
-**Recommendation:** Create new stories in Epic UGM-5 (NFR Compliance) to address these requirements.
+| NFR | Description | Story |
+|-----|-------------|-------|
+| NFR19 | Invite codes expire after 48 hours by default | ✅ UGM-5.1 |
+| NFR20 | Expired invite codes return appropriate error with expiry info | ✅ UGM-5.1 |
+| NFR21 | All endpoints return within 30s or 504 timeout | ✅ UGM-5.2 |
+| NFR22 | Timeout errors include `retry_after` header | ✅ UGM-5.2 |
+| NFR23 | Long-running migrations provide progress indication if >2s | ✅ UGM-5.3 |
 
 ---
 
-## High Priority Gaps
+## High Priority Gaps → Epic UGM-5 (Stories Created)
 
 ### GAP-2: Data Preservation Not Verified (FR7)
 
 **Severity:** High
-**Affected Story:** UGM-2.2
+**Resolution:** Story UGM-5.4 created
 
-UGM-2.2 acceptance criteria cover creation, naming, idempotency, and conflicts but never assert:
-- Device data is preserved after migration
-- Location history remains queryable after migration
-- No data loss during migration
-
-**Recommendation:** Add acceptance criteria to UGM-2.2 or create supplementary story:
-```
-AC: Given a registration group with devices having location history,
-    When migration completes,
-    Then all location history is queryable via the new authenticated group
-```
+- ✅ UGM-5.4: Migration Data Preservation Verification
+- Covers location history, device metadata, geofences, webhooks
 
 ### GAP-3: Concurrency & Atomicity Not Validated (NFR5, NFR13, NFR17)
 
 **Severity:** High
-**Affected:** Migration endpoint
+**Resolution:** Story UGM-5.5 created
 
-No story/AC ensures:
-- Concurrent migrations of same registration group are serialized/blocked
-- SERIALIZABLE transaction isolation is tested
-- p95 latency targets met under concurrent load
-
-**Recommendation:** Create performance/stress test story:
-```
-AC: Given 10 concurrent migration requests for the same registration group,
-    When all requests complete,
-    Then exactly one migration succeeds and others return 409 Conflict
-```
+- ✅ UGM-5.5: Migration Concurrency and Atomicity
+- Covers advisory locks, SERIALIZABLE transactions, concurrent load testing
 
 ---
 
-## Medium Priority Gaps
+## Medium Priority Gaps → Epic UGM-5 (Stories Created)
 
 ### GAP-4: Observability Gaps (Metrics)
 
 **Severity:** Medium
-**Affected Story:** UGM-2.3
+**Resolution:** Story UGM-5.6 created
 
-Current metrics story doesn't include:
-- Histogram buckets/labels for latency
-- Device-count dimensions
-- `device_group_memberships_total` gauge (specified in PRD)
-
-**Recommendation:** Extend UGM-2.3 with specific metric definitions.
+- ✅ UGM-5.6: Enhanced Migration and Device Membership Metrics
+- Covers histogram buckets, device_group_memberships_total gauge
 
 ### GAP-5: Backwards Compatibility Coverage Shallow
 
 **Severity:** Medium
-**Affected Epic:** UGM-4
+**Resolution:** Story UGM-5.7 created
 
-UGM-4 omits:
-- Invite expiry/error messaging regression tests (NFR19/20)
-- Performance guardrail (<10% slowdown) with concrete ACs/tests
-- Authenticated invite flow regression coverage
-
-**Recommendation:** Add regression test stories to UGM-4.
+- ✅ UGM-5.7: Invite Flow Regression Tests and Performance Guardrails
+- Covers invite expiry regression, <10% performance guardrails
 
 ### GAP-6: Multi-Group Membership Edge Cases
 
 **Severity:** Medium
-**Affected Epic:** UGM-3
+**Resolution:** Story UGM-5.8 created
 
-Missing ACs for:
-- Pagination correctness when device belongs to multiple groups
-- Group deletion cascading membership cleanup
-- Prevention of orphaned memberships
-
-**Recommendation:** Add edge case stories to UGM-3.
+- ✅ UGM-5.8: Multi-Group Membership Edge Cases
+- Covers pagination, cascade delete, orphan prevention
 
 ---
 
-## Low Priority Gaps
+## Low Priority Gaps → Epic UGM-6 (Stories Created)
 
 ### GAP-7: Post-MVP Features Not Tracked
 
 **Severity:** Low
-**Impact:** Traceability only
+**Resolution:** Stories UGM-6.1 through UGM-6.4 created
 
-PRD Growth Features not captured in backlog:
-- Migration rollback capability
-- Partial migration (select specific devices)
-- Migration analytics dashboard
-- Bulk device management
-
-**Recommendation:** Create backlog epics for post-MVP features.
+| Feature | Story |
+|---------|-------|
+| Migration rollback | ✅ UGM-6.1 |
+| Partial migration | ✅ UGM-6.2 |
+| Migration analytics dashboard | ✅ UGM-6.3 |
+| Bulk device management | ✅ UGM-6.4 |
 
 ---
 
@@ -137,17 +104,29 @@ PRD Growth Features not captured in backlog:
 
 ---
 
-## Action Items
+## Stories Created Summary
 
-| Priority | Action | Owner | Target |
-|----------|--------|-------|--------|
-| Critical | Create UGM-5 epic for NFR19-23 | TBD | Next sprint |
-| High | Add data preservation ACs to UGM-2.2 | TBD | Next sprint |
-| High | Create concurrency test story | TBD | Next sprint |
-| Medium | Extend metrics in UGM-2.3 | TBD | Backlog |
-| Medium | Add invite regression tests to UGM-4 | TBD | Backlog |
-| Medium | Add multi-group edge cases to UGM-3 | TBD | Backlog |
-| Low | Create post-MVP backlog epics | TBD | Backlog |
+### Epic UGM-5: NFR Compliance (8 stories)
+
+| Story | Title | Priority | Status |
+|-------|-------|----------|--------|
+| UGM-5.1 | Invite Code Expiration Handling | Critical | Ready |
+| UGM-5.2 | API Timeout Handling with Retry-After Header | Critical | Ready |
+| UGM-5.3 | Migration Progress Indication for Long Operations | Critical | Ready |
+| UGM-5.4 | Migration Data Preservation Verification | High | Ready |
+| UGM-5.5 | Migration Concurrency and Atomicity | High | Ready |
+| UGM-5.6 | Enhanced Migration and Device Membership Metrics | Medium | Ready |
+| UGM-5.7 | Invite Flow Regression Tests and Performance Guardrails | Medium | Ready |
+| UGM-5.8 | Multi-Group Membership Edge Cases | Medium | Ready |
+
+### Epic UGM-6: Growth Features (4 stories)
+
+| Story | Title | Priority | Status |
+|-------|-------|----------|--------|
+| UGM-6.1 | Migration Rollback Capability | Low | Backlog |
+| UGM-6.2 | Partial Migration (Selective Device Migration) | Low | Backlog |
+| UGM-6.3 | Migration Analytics Dashboard | Low | Backlog |
+| UGM-6.4 | Bulk Device Management | Low | Backlog |
 
 ---
 
@@ -156,3 +135,4 @@ PRD Growth Features not captured in backlog:
 | Date | Change | Author |
 |------|--------|--------|
 | 2025-12-18 | Initial gap analysis | Code Review Agent |
+| 2025-12-18 | All gap stories created (UGM-5.1-5.8, UGM-6.1-6.4) | Dev Agent |
