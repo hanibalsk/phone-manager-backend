@@ -22,7 +22,7 @@ use crate::middleware::{
     ExportRateLimiterState, RateLimiterState,
 };
 use crate::routes::{
-    admin, admin_geofences, admin_groups, admin_locations, admin_managed_users,
+    admin, admin_geofences, admin_groups, admin_locations, admin_managed_users, admin_migrations,
     admin_unlock_requests, admin_users, analytics, api_keys, app_usage, audit_logs, auth,
     bulk_import, compliance, dashboard, data_subject_requests, device_policies, device_settings,
     devices, enrollment, enrollment_tokens, fleet, frontend, geofence_events, geofences, groups,
@@ -392,7 +392,12 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         .route("/api/v1/admin/stats", get(admin::get_admin_stats))
         // Admin managed users routes (Epic 9 - user location, geofences, tracking)
         // Accessible by both org admins and non-org admins
-        .nest("/api/admin/v1/users", admin_managed_users::router());
+        .nest("/api/admin/v1/users", admin_managed_users::router())
+        // Migration history query (Story UGM-2.4)
+        .route(
+            "/api/admin/v1/migrations",
+            get(admin_migrations::list_migrations),
+        );
 
     // B2B/Organization admin routes (feature toggle: b2b_enabled)
     let b2b_admin_routes = Router::new()
