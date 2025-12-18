@@ -22,6 +22,7 @@ pub mod idempotency_key;
 pub mod invite;
 pub mod location;
 pub mod managed_user;
+pub mod migration_audit;
 pub mod movement_event;
 pub mod org_member_invite;
 pub mod org_user;
@@ -68,6 +69,9 @@ pub use idempotency_key::IdempotencyKeyRepository;
 pub use invite::InviteRepository;
 pub use location::{LocationHistoryQuery, LocationInput, LocationRepository};
 pub use managed_user::ManagedUserRepository;
+pub use migration_audit::{
+    CreateMigrationAuditInput, ListMigrationAuditQuery, MigrationAuditRepository,
+};
 pub use movement_event::{MovementEventInput, MovementEventQuery, MovementEventRepository};
 pub use org_member_invite::{
     calculate_invite_expiration, default_invite_expiration, generate_org_member_invite_token,

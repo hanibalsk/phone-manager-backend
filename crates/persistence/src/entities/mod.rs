@@ -23,6 +23,7 @@ pub mod idempotency_key;
 pub mod invite;
 pub mod location;
 pub mod managed_user;
+pub mod migration_audit;
 pub mod movement_event;
 pub mod org_member_invite;
 pub mod org_user;
@@ -88,6 +89,9 @@ pub use idempotency_key::IdempotencyKeyEntity;
 pub use invite::{GroupInviteEntity, InviteWithCreatorEntity, InviteWithGroupEntity};
 pub use location::LocationEntity;
 pub use managed_user::{ManagedUserEntity, UserLocationEntity};
+pub use migration_audit::{
+    MigrationAuditLogEntity, MigrationAuditLogWithUserEntity, MigrationStatusDb,
+};
 pub use movement_event::MovementEventEntity;
 pub use org_member_invite::OrgMemberInviteEntity;
 pub use org_user::{OrgUserEntity, OrgUserRoleDb, OrgUserWithDetailsEntity};
