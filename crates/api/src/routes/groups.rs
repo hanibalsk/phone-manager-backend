@@ -1313,6 +1313,159 @@ pub async fn add_device_to_group(
     ))
 }
 
+/// Query parameters for listing group devices.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListGroupDevicesQuery {
+    /// Include last location for each device
+    #[serde(default)]
+    pub include_location: bool,
+
+    /// Page number (1-based)
+    #[serde(default = "default_page")]
+    pub page: i64,
+
+    /// Items per page (1-100)
+    #[serde(default = "default_per_page")]
+    pub per_page: i64,
+}
+
+fn default_page() -> i64 {
+    1
+}
+
+fn default_per_page() -> i64 {
+    20
+}
+
+/// A device in a group with its details.
+#[derive(Debug, Clone, Serialize)]
+pub struct GroupDeviceInfo {
+    pub device_id: Uuid,
+    pub display_name: String,
+    pub owner_user_id: Option<Uuid>,
+    pub owner_display_name: Option<String>,
+    pub added_at: DateTime<Utc>,
+    pub last_seen_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_location: Option<DeviceLocationInfo>,
+}
+
+/// Last location information for a device.
+#[derive(Debug, Clone, Serialize)]
+pub struct DeviceLocationInfo {
+    pub latitude: f64,
+    pub longitude: f64,
+    pub accuracy: f32,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Response for listing group devices with pagination.
+#[derive(Debug, Clone, Serialize)]
+pub struct ListGroupDevicesResponse {
+    pub data: Vec<GroupDeviceInfo>,
+    pub pagination: Pagination,
+}
+
+/// List devices in an authenticated group.
+///
+/// GET /api/v1/groups/:group_id/devices/members
+///
+/// Requires JWT authentication.
+/// - User must be a member of the group
+/// - Optionally include last location with `include_location=true`
+/// - Supports pagination
+///
+/// Story UGM-3.4: List Group Devices
+pub async fn list_group_devices(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Path(group_id): Path<Uuid>,
+    Query(query): Query<ListGroupDevicesQuery>,
+) -> Result<Json<ListGroupDevicesResponse>, ApiError> {
+    let group_repo = GroupRepository::new(state.pool.clone());
+    let membership_repo = DeviceGroupMembershipRepository::new(state.pool.clone());
+
+    // Check user is a member of the group
+    let _membership = group_repo
+        .get_membership(group_id, user_auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::Forbidden("You are not a member of this group".to_string()))?;
+
+    // Pagination
+    let page = query.page.max(1);
+    let per_page = query.per_page.clamp(1, 100);
+    let offset = (page - 1) * per_page;
+
+    // Get total count
+    let total = membership_repo.count_devices_in_group(group_id).await?;
+
+    // Get devices with or without location
+    let devices: Vec<GroupDeviceInfo> = if query.include_location {
+        let device_entities = membership_repo
+            .list_devices_in_group_with_location(group_id, per_page, offset)
+            .await?;
+
+        device_entities
+            .into_iter()
+            .map(|d| GroupDeviceInfo {
+                device_id: d.device_id,
+                display_name: d.display_name,
+                owner_user_id: d.owner_user_id,
+                owner_display_name: d.owner_display_name,
+                added_at: d.added_at,
+                last_seen_at: d.last_seen_at,
+                last_location: match (d.latitude, d.longitude, d.accuracy, d.location_timestamp) {
+                    (Some(lat), Some(lon), Some(acc), Some(ts)) => Some(DeviceLocationInfo {
+                        latitude: lat,
+                        longitude: lon,
+                        accuracy: acc,
+                        timestamp: ts,
+                    }),
+                    _ => None,
+                },
+            })
+            .collect()
+    } else {
+        let device_entities = membership_repo
+            .list_devices_in_group(group_id, per_page, offset)
+            .await?;
+
+        device_entities
+            .into_iter()
+            .map(|d| GroupDeviceInfo {
+                device_id: d.device_id,
+                display_name: d.display_name,
+                owner_user_id: d.owner_user_id,
+                owner_display_name: d.owner_display_name,
+                added_at: d.added_at,
+                last_seen_at: d.last_seen_at,
+                last_location: None,
+            })
+            .collect()
+    };
+
+    let total_pages = (total as f64 / per_page as f64).ceil() as i64;
+
+    info!(
+        group_id = %group_id,
+        user_id = %user_auth.user_id,
+        device_count = devices.len(),
+        page = page,
+        include_location = query.include_location,
+        "Listed group devices"
+    );
+
+    Ok(Json(ListGroupDevicesResponse {
+        data: devices,
+        pagination: Pagination {
+            page,
+            per_page,
+            total,
+            total_pages,
+        },
+    }))
+}
+
 /// Remove a device from an authenticated group.
 ///
 /// DELETE /api/v1/groups/:group_id/devices/:device_id

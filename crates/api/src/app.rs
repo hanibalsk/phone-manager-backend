@@ -833,6 +833,10 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             post(groups::add_device_to_group),
         )
         .route(
+            "/api/v1/groups/:group_id/devices/members",
+            get(groups::list_group_devices),
+        )
+        .route(
             "/api/v1/groups/:group_id/devices/:device_id",
             delete(groups::remove_device_from_group),
         )
