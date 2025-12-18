@@ -82,6 +82,39 @@ pub fn record_device_registered() {
     counter!("devices_registered_total").increment(1);
 }
 
+// =============================================================================
+// Migration Metrics (Story UGM-2.3)
+// =============================================================================
+
+/// Record a successful migration.
+///
+/// Increments the migration counter with status="success" and records duration.
+pub fn record_migration_success(duration_secs: f64, devices_migrated: i32) {
+    counter!(
+        "migration_total",
+        "status" => "success"
+    )
+    .increment(1);
+
+    histogram!("migration_duration_seconds").record(duration_secs);
+
+    counter!("migration_devices_total").increment(devices_migrated as u64);
+}
+
+/// Record a failed migration.
+///
+/// Increments the migration counter with status="failure" and records duration.
+pub fn record_migration_failure(duration_secs: f64, reason: &str) {
+    counter!(
+        "migration_total",
+        "status" => "failure",
+        "reason" => reason.to_string()
+    )
+    .increment(1);
+
+    histogram!("migration_duration_seconds").record(duration_secs);
+}
+
 /// Handler for /metrics endpoint that returns Prometheus text format.
 pub async fn metrics_handler() -> impl IntoResponse {
     // Get the handle from the global recorder

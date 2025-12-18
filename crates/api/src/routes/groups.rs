@@ -927,6 +927,11 @@ pub async fn migrate_registration_group(
     user_auth: UserAuth,
     Json(request): Json<MigrateGroupRequest>,
 ) -> Result<(StatusCode, Json<MigrateGroupResponse>), ApiError> {
+    use crate::middleware::metrics::{record_migration_failure, record_migration_success};
+    use std::time::Instant;
+
+    let start_time = Instant::now();
+
     // Validate request
     request.validate().map_err(|e| {
         let errors: Vec<String> = e
@@ -938,6 +943,7 @@ pub async fn migrate_registration_group(
                 })
             })
             .collect();
+        record_migration_failure(start_time.elapsed().as_secs_f64(), "validation_error");
         ApiError::Validation(errors.join(", "))
     })?;
 
@@ -961,11 +967,13 @@ pub async fn migrate_registration_group(
                 user_id = %user_auth.user_id,
                 "Attempt to migrate already-migrated group"
             );
+            record_migration_failure(start_time.elapsed().as_secs_f64(), "already_migrated");
             return Err(ApiError::Conflict(format!(
                 "Registration group '{}' has already been migrated to authenticated group {}",
                 request.registration_group_id, existing.authenticated_group_id
             )));
         }
+        record_migration_failure(start_time.elapsed().as_secs_f64(), "already_migrated");
         return Err(ApiError::Conflict(format!(
             "Registration group '{}' has already been migrated",
             request.registration_group_id
@@ -978,6 +986,7 @@ pub async fn migrate_registration_group(
         .await?;
 
     if devices.is_empty() {
+        record_migration_failure(start_time.elapsed().as_secs_f64(), "no_devices");
         return Err(ApiError::Validation(format!(
             "Registration group '{}' has no devices to migrate",
             request.registration_group_id
@@ -989,6 +998,7 @@ pub async fn migrate_registration_group(
         .iter()
         .any(|d| d.owner_user_id == Some(user_auth.user_id));
     if !user_owns_device {
+        record_migration_failure(start_time.elapsed().as_secs_f64(), "not_device_owner");
         return Err(ApiError::Forbidden(
             "You must own at least one device in the registration group to migrate it".to_string(),
         ));
@@ -1006,6 +1016,7 @@ pub async fn migrate_registration_group(
         .await?
         .is_some()
     {
+        record_migration_failure(start_time.elapsed().as_secs_f64(), "group_name_exists");
         return Err(ApiError::Conflict(format!(
             "A group with name '{}' already exists",
             group_name
@@ -1023,6 +1034,10 @@ pub async fn migrate_registration_group(
     // Start transaction for atomic migration
     let mut tx = state.pool.begin().await.map_err(|e| {
         error!(error = %e, "Failed to start transaction for migration");
+        record_migration_failure(
+            start_time.elapsed().as_secs_f64(),
+            "transaction_start_error",
+        );
         ApiError::Internal("Failed to start migration transaction".to_string())
     })?;
 
@@ -1042,6 +1057,7 @@ pub async fn migrate_registration_group(
     .await
     .map_err(|e| {
         error!(error = %e, "Failed to create group during migration");
+        record_migration_failure(start_time.elapsed().as_secs_f64(), "create_group_error");
         ApiError::Internal("Failed to create authenticated group".to_string())
     })?;
 
@@ -1058,6 +1074,10 @@ pub async fn migrate_registration_group(
     .await
     .map_err(|e| {
         error!(error = %e, "Failed to add owner membership during migration");
+        record_migration_failure(
+            start_time.elapsed().as_secs_f64(),
+            "create_membership_error",
+        );
         ApiError::Internal("Failed to create group membership".to_string())
     })?;
 
@@ -1076,6 +1096,7 @@ pub async fn migrate_registration_group(
     .await
     .map_err(|e| {
         error!(error = %e, "Failed to update devices during migration");
+        record_migration_failure(start_time.elapsed().as_secs_f64(), "update_devices_error");
         ApiError::Internal("Failed to migrate devices".to_string())
     })?;
 
@@ -1104,14 +1125,19 @@ pub async fn migrate_registration_group(
     .await
     .map_err(|e| {
         error!(error = %e, "Failed to create migration audit log");
+        record_migration_failure(start_time.elapsed().as_secs_f64(), "audit_log_error");
         ApiError::Internal("Failed to create migration audit log".to_string())
     })?;
 
     // Commit the transaction
     tx.commit().await.map_err(|e| {
         error!(error = %e, "Failed to commit migration transaction");
+        record_migration_failure(start_time.elapsed().as_secs_f64(), "commit_error");
         ApiError::Internal("Failed to complete migration".to_string())
     })?;
+
+    // Record successful migration metrics
+    record_migration_success(start_time.elapsed().as_secs_f64(), devices_count);
 
     info!(
         migration_id = %audit_log.id,
