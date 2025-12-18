@@ -812,6 +812,11 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
         )
         // Join group with invite code (Story 11.5)
         .route("/api/v1/groups/join", post(groups::join_group))
+        // Migrate registration group to authenticated group (Story UGM-2.2)
+        .route(
+            "/api/v1/groups/migrate",
+            post(groups::migrate_registration_group),
+        )
         // Group devices (Story 12.7) - JWT-authenticated endpoint for member devices
         .route(
             "/api/v1/groups/:group_id/devices",

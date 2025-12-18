@@ -20,8 +20,11 @@ use domain::models::invite::{
     JoinGroupInfo, JoinGroupRequest, JoinGroupResponse, JoinMembershipInfo,
 };
 use persistence::entities::MemberDeviceEntity;
-use persistence::repositories::{DeviceRepository, GroupRepository, InviteRepository};
-use tracing::info;
+use persistence::repositories::{
+    DeviceRepository, GroupRepository, InviteRepository, MigrationAuditRepository,
+};
+use serde::{Deserialize, Serialize};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -870,6 +873,265 @@ pub async fn transfer_ownership(
 #[derive(Debug, serde::Serialize)]
 pub struct GroupDevicesResponse {
     pub devices: Vec<DeviceSummary>,
+}
+
+// =============================================================================
+// Group Migration (Story UGM-2.2)
+// =============================================================================
+
+/// Request to migrate a registration group to an authenticated group.
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct MigrateGroupRequest {
+    /// The registration group ID (string) to migrate from.
+    #[validate(length(
+        min = 1,
+        max = 255,
+        message = "Registration group ID must be 1-255 characters"
+    ))]
+    pub registration_group_id: String,
+
+    /// Optional custom name for the new authenticated group.
+    /// If not provided, the registration_group_id will be used as the name.
+    #[validate(length(min = 1, max = 100, message = "Group name must be 1-100 characters"))]
+    pub group_name: Option<String>,
+}
+
+/// Response from a successful group migration.
+#[derive(Debug, Clone, Serialize)]
+pub struct MigrateGroupResponse {
+    /// The migration audit log ID for tracking.
+    pub migration_id: Uuid,
+
+    /// The new authenticated group ID.
+    pub authenticated_group_id: Uuid,
+
+    /// The name of the new authenticated group.
+    pub name: String,
+
+    /// Number of devices migrated.
+    pub devices_migrated: i32,
+
+    /// IDs of the devices that were migrated.
+    pub device_ids: Vec<Uuid>,
+}
+
+/// Migrate a registration group to an authenticated group.
+///
+/// POST /api/v1/groups/migrate
+///
+/// Requires JWT authentication. The user must own at least one device in the
+/// registration group. Creates a new authenticated group and migrates all
+/// devices from the registration group. The operation is atomic.
+pub async fn migrate_registration_group(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+    Json(request): Json<MigrateGroupRequest>,
+) -> Result<(StatusCode, Json<MigrateGroupResponse>), ApiError> {
+    // Validate request
+    request.validate().map_err(|e| {
+        let errors: Vec<String> = e
+            .field_errors()
+            .iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |err| {
+                    format!("{}: {}", field, err.message.as_ref().unwrap_or(&"".into()))
+                })
+            })
+            .collect();
+        ApiError::Validation(errors.join(", "))
+    })?;
+
+    let group_repo = GroupRepository::new(state.pool.clone());
+    let device_repo = DeviceRepository::new(state.pool.clone());
+    let migration_repo = MigrationAuditRepository::new(state.pool.clone());
+
+    // Check if already migrated
+    if migration_repo
+        .is_already_migrated(&request.registration_group_id)
+        .await?
+    {
+        // Get the existing migration to provide details
+        if let Some(existing) = migration_repo
+            .get_migration_for_registration_group(&request.registration_group_id)
+            .await?
+        {
+            warn!(
+                registration_group_id = %request.registration_group_id,
+                authenticated_group_id = %existing.authenticated_group_id,
+                user_id = %user_auth.user_id,
+                "Attempt to migrate already-migrated group"
+            );
+            return Err(ApiError::Conflict(format!(
+                "Registration group '{}' has already been migrated to authenticated group {}",
+                request.registration_group_id, existing.authenticated_group_id
+            )));
+        }
+        return Err(ApiError::Conflict(format!(
+            "Registration group '{}' has already been migrated",
+            request.registration_group_id
+        )));
+    }
+
+    // Get devices in the registration group
+    let devices = device_repo
+        .find_devices_by_registration_group(&request.registration_group_id)
+        .await?;
+
+    if devices.is_empty() {
+        return Err(ApiError::Validation(format!(
+            "Registration group '{}' has no devices to migrate",
+            request.registration_group_id
+        )));
+    }
+
+    // Verify the user owns at least one device in the registration group
+    let user_owns_device = devices
+        .iter()
+        .any(|d| d.owner_user_id == Some(user_auth.user_id));
+    if !user_owns_device {
+        return Err(ApiError::Forbidden(
+            "You must own at least one device in the registration group to migrate it".to_string(),
+        ));
+    }
+
+    // Determine the group name
+    let group_name = request
+        .group_name
+        .clone()
+        .unwrap_or_else(|| request.registration_group_id.clone());
+
+    // Check if group name already exists
+    if group_repo
+        .find_by_slug(&generate_slug(&group_name))
+        .await?
+        .is_some()
+    {
+        return Err(ApiError::Conflict(format!(
+            "A group with name '{}' already exists",
+            group_name
+        )));
+    }
+
+    // Generate a unique slug
+    let base_slug = generate_slug(&group_name);
+    let slug = group_repo.generate_unique_slug(&base_slug).await?;
+
+    // Collect device IDs for the migration
+    let device_ids: Vec<Uuid> = devices.iter().map(|d| d.device_id).collect();
+    let devices_count = device_ids.len() as i32;
+
+    // Start transaction for atomic migration
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        error!(error = %e, "Failed to start transaction for migration");
+        ApiError::Internal("Failed to start migration transaction".to_string())
+    })?;
+
+    // Create the new authenticated group (user becomes owner)
+    let new_group = sqlx::query_as::<_, persistence::entities::GroupEntity>(
+        r#"
+        INSERT INTO groups (name, slug, max_devices, created_by, is_active)
+        VALUES ($1, $2, $3, $4, true)
+        RETURNING id, name, slug, description, icon_emoji, max_devices, is_active, settings, created_by, created_at, updated_at
+        "#,
+    )
+    .bind(&group_name)
+    .bind(&slug)
+    .bind(20) // Default max devices
+    .bind(user_auth.user_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        error!(error = %e, "Failed to create group during migration");
+        ApiError::Internal("Failed to create authenticated group".to_string())
+    })?;
+
+    // Add the user as owner of the group
+    sqlx::query(
+        r#"
+        INSERT INTO group_memberships (user_id, group_id, role, invited_by, joined_at)
+        VALUES ($1, $2, 'owner', NULL, NOW())
+        "#,
+    )
+    .bind(user_auth.user_id)
+    .bind(new_group.id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        error!(error = %e, "Failed to add owner membership during migration");
+        ApiError::Internal("Failed to create group membership".to_string())
+    })?;
+
+    // Update all devices to point to the new authenticated group (using slug)
+    // Note: devices.group_id is a VARCHAR containing the registration group ID or slug
+    sqlx::query(
+        r#"
+        UPDATE devices
+        SET group_id = $1, updated_at = NOW()
+        WHERE group_id = $2 AND is_active = true
+        "#,
+    )
+    .bind(&slug)
+    .bind(&request.registration_group_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        error!(error = %e, "Failed to update devices during migration");
+        ApiError::Internal("Failed to migrate devices".to_string())
+    })?;
+
+    // Create migration audit log
+    let audit_log = sqlx::query_as::<_, persistence::entities::MigrationAuditLogEntity>(
+        r#"
+        INSERT INTO migration_audit_logs (
+            user_id,
+            registration_group_id,
+            authenticated_group_id,
+            devices_migrated,
+            device_ids,
+            status,
+            error_message
+        )
+        VALUES ($1, $2, $3, $4, $5, 'success', NULL)
+        RETURNING id, user_id, registration_group_id, authenticated_group_id, devices_migrated, device_ids, status, error_message, created_at
+        "#,
+    )
+    .bind(user_auth.user_id)
+    .bind(&request.registration_group_id)
+    .bind(new_group.id)
+    .bind(devices_count)
+    .bind(&device_ids)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        error!(error = %e, "Failed to create migration audit log");
+        ApiError::Internal("Failed to create migration audit log".to_string())
+    })?;
+
+    // Commit the transaction
+    tx.commit().await.map_err(|e| {
+        error!(error = %e, "Failed to commit migration transaction");
+        ApiError::Internal("Failed to complete migration".to_string())
+    })?;
+
+    info!(
+        migration_id = %audit_log.id,
+        user_id = %user_auth.user_id,
+        registration_group_id = %request.registration_group_id,
+        authenticated_group_id = %new_group.id,
+        devices_migrated = devices_count,
+        "Registration group migrated successfully"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(MigrateGroupResponse {
+            migration_id: audit_log.id,
+            authenticated_group_id: new_group.id,
+            name: new_group.name,
+            devices_migrated: devices_count,
+            device_ids,
+        }),
+    ))
 }
 
 /// Get devices in a group.

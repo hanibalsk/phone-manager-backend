@@ -57,7 +57,7 @@ pub use data_subject_request::{
     CreateDataSubjectRequestInput, DataSubjectRequestCounts, DataSubjectRequestRepository,
     ListDataSubjectRequestsQuery, ProcessDataSubjectRequestInput, DEFAULT_DUE_DAYS,
 };
-pub use device::{AdminStats, DeviceRepository, FleetSummaryCounts};
+pub use device::{AdminStats, DeviceRepository, FleetSummaryCounts, RegistrationGroupDevice};
 pub use device_command::DeviceCommandRepository;
 pub use device_policy::DevicePolicyRepository;
 pub use device_token::DeviceTokenRepository;

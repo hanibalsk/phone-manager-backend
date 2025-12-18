@@ -1252,6 +1252,30 @@ impl DeviceRepository {
         timer.record();
         result
     }
+
+    /// Find all active devices in a registration group (by group_id string).
+    ///
+    /// Used for migration from registration groups to authenticated groups.
+    /// Returns minimal device info needed for migration.
+    pub async fn find_devices_by_registration_group(
+        &self,
+        registration_group_id: &str,
+    ) -> Result<Vec<RegistrationGroupDevice>, sqlx::Error> {
+        let timer = QueryTimer::new("find_devices_by_registration_group");
+        let result = sqlx::query_as::<_, RegistrationGroupDevice>(
+            r#"
+            SELECT device_id, owner_user_id
+            FROM devices
+            WHERE group_id = $1 AND active = true
+            ORDER BY display_name ASC
+            "#,
+        )
+        .bind(registration_group_id)
+        .fetch_all(&self.pool)
+        .await;
+        timer.record();
+        result
+    }
 }
 
 /// Admin statistics about the system.
@@ -1275,6 +1299,13 @@ pub struct FleetSummaryCounts {
     pub retired: i64,
     pub assigned: i64,
     pub unassigned: i64,
+}
+
+/// Minimal device info for registration group migration.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct RegistrationGroupDevice {
+    pub device_id: Uuid,
+    pub owner_user_id: Option<Uuid>,
 }
 
 #[cfg(test)]
