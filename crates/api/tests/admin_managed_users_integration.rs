@@ -55,8 +55,11 @@ async fn test_list_managed_users_as_org_admin() {
 
     // List managed users
     let app = create_test_app(config, pool.clone());
-    let request =
-        get_admin_request_with_jwt("/api/admin/v1/users", &admin_api_key, &admin_auth.access_token);
+    let request = get_admin_request_with_jwt(
+        "/api/admin/v1/users",
+        &admin_api_key,
+        &admin_auth.access_token,
+    );
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -777,8 +780,11 @@ async fn test_remove_managed_user() {
 
     // Verify user is no longer in the list
     let app = create_test_app(config, pool.clone());
-    let request =
-        get_admin_request_with_jwt("/api/admin/v1/users", &admin_api_key, &admin_auth.access_token);
+    let request = get_admin_request_with_jwt(
+        "/api/admin/v1/users",
+        &admin_api_key,
+        &admin_auth.access_token,
+    );
 
     let response = app.oneshot(request).await.unwrap();
     let body = parse_response_body(response).await;

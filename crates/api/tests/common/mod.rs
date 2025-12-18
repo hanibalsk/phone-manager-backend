@@ -1021,7 +1021,10 @@ pub fn get_request_with_jwt(uri: &str, jwt_token: &str) -> axum::http::Request<a
 }
 
 /// Build a DELETE request with JWT authentication only (no API key).
-pub fn delete_request_with_jwt(uri: &str, jwt_token: &str) -> axum::http::Request<axum::body::Body> {
+pub fn delete_request_with_jwt(
+    uri: &str,
+    jwt_token: &str,
+) -> axum::http::Request<axum::body::Body> {
     use axum::{
         body::Body,
         http::{header, Method, Request},
