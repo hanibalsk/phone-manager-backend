@@ -12,6 +12,7 @@ pub mod dashboard;
 pub mod data_subject_request;
 pub mod device;
 pub mod device_command;
+pub mod device_group_membership;
 pub mod device_policy;
 pub mod device_token;
 pub mod enrollment_token;
@@ -59,6 +60,7 @@ pub use data_subject_request::{
 };
 pub use device::{AdminStats, DeviceRepository, FleetSummaryCounts, RegistrationGroupDevice};
 pub use device_command::DeviceCommandRepository;
+pub use device_group_membership::DeviceGroupMembershipRepository;
 pub use device_policy::DevicePolicyRepository;
 pub use device_token::DeviceTokenRepository;
 pub use enrollment_token::EnrollmentTokenRepository;

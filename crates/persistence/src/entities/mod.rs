@@ -13,6 +13,7 @@ pub mod audit_log;
 pub mod data_subject_request;
 pub mod device;
 pub mod device_command;
+pub mod device_group_membership;
 pub mod device_policy;
 pub mod device_token;
 pub mod enrollment_token;
@@ -76,6 +77,10 @@ pub use device::{
     DeviceEntity, DeviceWithLastLocationEntity, FleetDeviceEntity, MemberDeviceEntity,
 };
 pub use device_command::DeviceCommandEntity;
+pub use device_group_membership::{
+    DeviceGroupInfoEntity, DeviceGroupMembershipEntity, DeviceInGroupEntity,
+    DeviceInGroupWithLocationEntity,
+};
 pub use device_policy::DevicePolicyEntity;
 pub use device_token::DeviceTokenEntity;
 pub use enrollment_token::EnrollmentTokenEntity;
