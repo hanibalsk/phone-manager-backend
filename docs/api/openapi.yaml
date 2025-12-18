@@ -1,7 +1,7 @@
 openapi: "3.1.0"
 info:
   title: Phone Manager API
-  version: "0.13.0"
+  version: "0.14.0"
   description: |
     REST API for the Phone Manager mobile application.
     Handles device registration, location tracking, group management,
