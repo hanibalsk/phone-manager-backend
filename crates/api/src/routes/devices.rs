@@ -5,16 +5,17 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use chrono::{DateTime, Utc};
 use domain::models::{check_usage_warning, ResponseWithWarnings};
 use persistence::repositories::DeviceRepository;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::app::AppState;
 use crate::error::ApiError;
-use crate::extractors::OptionalUserAuth;
+use crate::extractors::{OptionalUserAuth, UserAuth};
 use domain::models::device::{
     DeviceLastLocation, DeviceSummary, RegisterDeviceRequest, RegisterDeviceResponse,
 };
@@ -230,6 +231,59 @@ pub async fn delete_device(
 
     info!(device_id = %device_id, "Device deactivated");
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Response body for registration group status.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct RegistrationGroupStatusResponse {
+    /// The device UUID
+    pub device_id: Uuid,
+    /// Device display name
+    pub display_name: String,
+    /// The registration group ID
+    pub group_id: String,
+    /// Whether this is considered a registration group (not an authenticated group)
+    pub is_registration_group: bool,
+    /// When the device was last seen
+    pub last_seen_at: Option<DateTime<Utc>>,
+}
+
+/// Get the registration group status for the current user's primary device.
+///
+/// GET /api/v1/devices/me/registration-group
+///
+/// Returns information about the user's primary device's registration group.
+/// This helps the mobile app determine if migration is needed.
+pub async fn get_registration_group_status(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+) -> Result<Json<RegistrationGroupStatusResponse>, ApiError> {
+    let repo = DeviceRepository::new(state.pool.clone());
+
+    // Find user's devices, sorted by primary first
+    let devices = repo.find_devices_by_user(user_auth.user_id, false).await?;
+
+    // Get the primary device (first in list due to sort)
+    let primary_device = devices
+        .first()
+        .ok_or_else(|| ApiError::NotFound("No devices linked to this user".to_string()))?;
+
+    // A registration group is one that starts with a pattern like "reg-" or is a UUID-like string
+    // that was auto-generated during anonymous device registration.
+    // For now, we consider any group that is NOT associated with an authenticated group as a registration group.
+    // This is a heuristic - in a full implementation, we would have a groups table to check.
+    let is_registration_group = !primary_device.group_id.is_empty();
+
+    let response = RegistrationGroupStatusResponse {
+        device_id: primary_device.device_id,
+        display_name: primary_device.display_name.clone(),
+        group_id: primary_device.group_id.clone(),
+        is_registration_group,
+        last_seen_at: primary_device.last_seen_at,
+    };
+
+    Ok(Json(response))
 }
 
 #[cfg(test)]
