@@ -10,7 +10,10 @@ use axum::{
     Json, Router,
 };
 use chrono::Utc;
-use persistence::repositories::{AdminUserRepository, OrgUserRepository, UserRepository};
+use persistence::repositories::{
+    default_invite_expiration, generate_org_member_invite_token, AdminUserRepository,
+    OrgMemberInviteRepository, OrgUserRepository, UserRepository,
+};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -22,11 +25,12 @@ use crate::services::auth::{AuthError, AuthService};
 use domain::models::{
     validate_permissions, AddOrgUserRequest, AdminUserDetailResponse, AdminUserListResponse,
     AdminUserPagination, AdminUserQuery, ForceMfaResponse, ListUserSessionsResponse, MfaMethod,
-    MfaStatusResponse, OrgUserResponse, OrgUserRole, ReactivateOrgUserResponse, RemoveUserResponse,
+    MfaStatusResponse, OrgUserRole, ReactivateOrgUserResponse, RemoveUserResponse,
     ResetMfaResponse, RevokeAllSessionsResponse, RevokeSessionResponse, SuspendOrgUserRequest,
     SuspendOrgUserResponse, TriggerPasswordResetResponse, UpdateAdminUserRequest,
     UpdateAdminUserResponse, UserSessionInfo,
 };
+use serde::Serialize;
 
 /// Create admin user management routes.
 pub fn router() -> Router<AppState> {
@@ -44,6 +48,16 @@ pub fn router() -> Router<AppState> {
         .route("/{user_id}/sessions", get(list_user_sessions))
         .route("/{user_id}/sessions/{session_id}", delete(revoke_session))
         .route("/{user_id}/sessions", delete(revoke_all_sessions))
+}
+
+/// Response when an invitation is created for a non-existing user.
+#[derive(Debug, Serialize)]
+pub struct InvitationCreatedResponse {
+    pub message: String,
+    pub invitation_id: Uuid,
+    pub email: String,
+    pub role: String,
+    pub expires_at: chrono::DateTime<Utc>,
 }
 
 /// Helper to create AuthService with OAuth config from AppState.
@@ -112,10 +126,56 @@ async fn create_user(
     let target_user = match target_user {
         Some(u) => u,
         None => {
-            return Err(ApiError::NotFound(format!(
-                "User with email '{}' not found. Invite flow not implemented yet.",
-                request.email
-            )));
+            // User doesn't exist - create an invitation instead
+            let invite_repo = OrgMemberInviteRepository::new(state.pool.clone());
+
+            // Check if pending invite already exists for this email
+            if invite_repo
+                .has_pending_invite(org_id, &request.email)
+                .await?
+            {
+                return Err(ApiError::Conflict(
+                    "A pending invitation already exists for this email".to_string(),
+                ));
+            }
+
+            // Generate token and expiration
+            let token = generate_org_member_invite_token();
+            let expires_at = default_invite_expiration();
+            let role = request.role.to_string();
+
+            // Create the invitation
+            let invite = invite_repo
+                .create(
+                    org_id,
+                    &token,
+                    &request.email,
+                    &role,
+                    Some(user.user_id),
+                    expires_at,
+                    None, // note
+                )
+                .await?;
+
+            tracing::info!(
+                caller_user_id = %user.user_id,
+                organization_id = %org_id,
+                email = %request.email,
+                role = %role,
+                invitation_id = %invite.id,
+                "Created invitation for non-existing user"
+            );
+
+            return Ok((
+                StatusCode::CREATED,
+                Json(serde_json::json!({
+                    "message": format!("User with email '{}' not found. An invitation has been created.", request.email),
+                    "invitation_id": invite.id,
+                    "email": request.email,
+                    "role": role,
+                    "expires_at": invite.expires_at,
+                })),
+            ));
         }
     };
 
@@ -144,7 +204,12 @@ async fn create_user(
         "Added user to organization via JWT auth"
     );
 
-    Ok((StatusCode::CREATED, Json(OrgUserResponse { org_user })))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "org_user": org_user,
+        })),
+    ))
 }
 
 /// List users in organization.

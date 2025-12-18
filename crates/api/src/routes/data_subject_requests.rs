@@ -16,6 +16,7 @@ use validator::Validate;
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::extractors::UserAuth;
 use domain::models::{
     CreateDataSubjectRequestRequest, DataSubjectRequestAction, DataSubjectRequestPagination,
     DataSubjectRequestResponse, DataSubjectRequestStatus, DataSubjectRequestType,
@@ -176,6 +177,7 @@ async fn get_data_subject_request(
 async fn process_data_subject_request(
     State(state): State<AppState>,
     Path((org_id, request_id)): Path<(Uuid, Uuid)>,
+    user: UserAuth,
     Json(request): Json<ProcessDataSubjectRequestRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Validate request
@@ -200,9 +202,8 @@ async fn process_data_subject_request(
     // Validate state transition
     let new_status = validate_state_transition(status_from_db(current.status), request.action)?;
 
-    // For now, we'll use a placeholder user ID
-    // In a real implementation, this would come from the authenticated admin user
-    let processed_by = Uuid::nil(); // Placeholder - should come from auth context
+    // Get the authenticated admin user who is processing this request
+    let processed_by = user.user_id;
 
     let input = ProcessDataSubjectRequestInput {
         status: status_to_db(new_status),

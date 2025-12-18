@@ -22,7 +22,10 @@ use validator::Validate;
 use crate::app::AppState;
 use crate::error::ApiError;
 use crate::extractors::api_key::ApiKeyAuth;
-use persistence::repositories::{OrgUserRepository, OrganizationRepository, UserRepository};
+use persistence::repositories::{
+    default_invite_expiration, generate_org_member_invite_token, OrgMemberInviteRepository,
+    OrgUserRepository, OrganizationRepository, UserRepository,
+};
 
 /// POST /api/admin/v1/organizations
 ///
@@ -370,10 +373,48 @@ pub async fn add_org_user(
     let user = match user {
         Some(u) => u,
         None => {
-            return Err(ApiError::NotFound(format!(
-                "User with email '{}' not found. Invite flow not implemented yet.",
-                request.email
-            )));
+            // User doesn't exist - create an invitation instead
+            let invite_repo = OrgMemberInviteRepository::new(state.pool.clone());
+
+            // Check if pending invite already exists for this email
+            if invite_repo
+                .has_pending_invite(org_id, &request.email)
+                .await?
+            {
+                return Err(ApiError::Conflict(
+                    "A pending invitation already exists for this email".to_string(),
+                ));
+            }
+
+            // Generate token and expiration
+            let token = generate_org_member_invite_token();
+            let expires_at = default_invite_expiration();
+            let role = request.role.to_string();
+
+            // Create the invitation (no user_id for API key authenticated requests)
+            let invite = invite_repo
+                .create(org_id, &token, &request.email, &role, None, expires_at, None)
+                .await?;
+
+            info!(
+                admin_key_id = auth.api_key_id,
+                organization_id = %org_id,
+                email = %request.email,
+                role = %role,
+                invitation_id = %invite.id,
+                "Created invitation for non-existing user"
+            );
+
+            return Ok((
+                StatusCode::CREATED,
+                Json(serde_json::json!({
+                    "message": format!("User with email '{}' not found. An invitation has been created.", request.email),
+                    "invitation_id": invite.id,
+                    "email": request.email,
+                    "role": role,
+                    "expires_at": invite.expires_at,
+                })),
+            ));
         }
     };
 
@@ -402,7 +443,12 @@ pub async fn add_org_user(
         "Added user to organization"
     );
 
-    Ok((StatusCode::CREATED, Json(OrgUserResponse { org_user })))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "org_user": org_user,
+        })),
+    ))
 }
 
 /// GET /api/admin/v1/organizations/:org_id/users

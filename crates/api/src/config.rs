@@ -137,6 +137,10 @@ pub struct LimitsConfig {
     /// When resource usage reaches this percentage of the limit, include a warning in responses
     #[serde(default = "default_warning_threshold_percent")]
     pub warning_threshold_percent: u32,
+
+    /// Maximum geofences per user (Epic 9: Admin Managed Users)
+    #[serde(default = "default_max_geofences_per_user")]
+    pub max_geofences_per_user: i64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -235,6 +239,9 @@ fn default_max_group_id_length() -> usize {
 }
 fn default_warning_threshold_percent() -> u32 {
     80 // Warn when usage reaches 80% of limit
+}
+fn default_max_geofences_per_user() -> i64 {
+    50 // Default maximum geofences per user
 }
 fn default_map_matching_provider() -> String {
     "osrm".to_string()

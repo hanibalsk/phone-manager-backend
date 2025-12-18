@@ -373,39 +373,8 @@ async fn generate_user_report(
         .create_report_job(org_id, "user_analytics", parameters, user.user_id)
         .await?;
 
-    // TODO(FR-10.5-10.9): Report Generation Background Worker
-    // ============================================================
-    // This is a stub implementation. A background worker is needed to:
-    //
-    // 1. Process report jobs asynchronously (FR-10.5)
-    //    - Monitor `report_jobs` table for pending jobs
-    //    - Update job status: pending -> processing -> completed/failed
-    //    - Set started_at when processing begins
-    //    - Set completed_at when processing finishes
-    //
-    // 2. Generate actual report content (FR-10.5)
-    //    - Query user analytics data from AnalyticsRepository
-    //    - Aggregate metrics: active users, sessions, activity patterns
-    //    - Apply date range filters from job parameters
-    //
-    // 3. Export to requested format (FR-10.6, FR-10.7)
-    //    - Support CSV format with proper headers and escaping
-    //    - Support JSON format with structured data
-    //    - Support PDF format for printable reports
-    //    - Store generated files in configurable storage (local/S3)
-    //
-    // 4. Handle report lifecycle (FR-10.8, FR-10.9)
-    //    - Set file_size_bytes after generation
-    //    - Set expires_at (e.g., 7 days from completion)
-    //    - Implement cleanup job to delete expired reports
-    //    - Store download URL or file path for retrieval
-    //
-    // Implementation approach:
-    // - Create a ReportGenerationWorker similar to WebhookRetryWorker
-    // - Run on a configurable interval (e.g., every 30 seconds)
-    // - Use tokio::spawn for async processing
-    // - Implement proper error handling and retry logic
-    // ============================================================
+    // Report job created - will be processed by ReportGenerationJob background worker
+    // (runs every 30 seconds, see jobs/report_generation.rs)
 
     let response = ReportJobResponse {
         id: job.id,
@@ -449,13 +418,8 @@ async fn generate_device_report(
         .create_report_job(org_id, "device_analytics", parameters, user.user_id)
         .await?;
 
-    // TODO(FR-10.5-10.9): Report Generation Background Worker
-    // See detailed implementation notes in generate_user_report above.
-    // This handler creates a device analytics report job that includes:
-    // - Device enrollment statistics
-    // - Device activity and status distribution
-    // - Policy compliance metrics
-    // - Device health and connectivity patterns
+    // Report job created - will be processed by ReportGenerationJob background worker
+    // (runs every 30 seconds, see jobs/report_generation.rs)
 
     let response = ReportJobResponse {
         id: job.id,

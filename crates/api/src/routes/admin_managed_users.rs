@@ -31,10 +31,6 @@ use domain::models::{
     UserLastLocation,
 };
 
-/// Maximum number of geofences per user.
-/// TODO: Make configurable via PM__LIMITS__MAX_GEOFENCES_PER_USER
-const MAX_GEOFENCES_PER_USER: i64 = 50;
-
 /// Validate hex color code format.
 /// Returns true if the color is a valid 7-character hex color (e.g., #FF5733).
 fn is_valid_hex_color(color: &str) -> bool {
@@ -306,12 +302,13 @@ async fn create_user_geofence(
     // Verify admin can manage this user
     verify_can_manage_user(&managed_user_repo, user.user_id, target_user_id).await?;
 
-    // Check geofence limit
+    // Check geofence limit (use config or default)
+    let max_geofences = state.config.limits.max_geofences_per_user;
     let count = geofence_repo.count_by_user(target_user_id).await?;
-    if count >= MAX_GEOFENCES_PER_USER {
+    if count >= max_geofences {
         return Err(ApiError::Conflict(format!(
             "Maximum of {} geofences per user",
-            MAX_GEOFENCES_PER_USER
+            max_geofences
         )));
     }
 
