@@ -714,6 +714,8 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/devices/me/registration-group",
             get(devices::get_registration_group_status),
         )
+        // User's linked devices endpoint (UGM-1.3)
+        .route("/api/v1/devices/me", get(devices::get_my_devices))
         // Device binding endpoints
         .route(
             "/api/v1/users/:user_id/devices/:device_id/link",

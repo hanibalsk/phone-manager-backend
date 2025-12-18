@@ -286,6 +286,71 @@ pub async fn get_registration_group_status(
     Ok(Json(response))
 }
 
+/// A user's linked device information.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct UserDeviceInfo {
+    /// The device UUID
+    pub device_id: Uuid,
+    /// Device display name
+    pub display_name: String,
+    /// The group ID the device belongs to
+    pub group_id: String,
+    /// Device platform (android/ios)
+    pub platform: String,
+    /// Whether this is the user's primary device
+    pub is_primary: bool,
+    /// When the device was linked to this user
+    pub linked_at: Option<DateTime<Utc>>,
+    /// When the device was last seen
+    pub last_seen_at: Option<DateTime<Utc>>,
+}
+
+/// Response body for user's linked devices.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct UserDevicesResponse {
+    /// List of user's linked devices
+    pub devices: Vec<UserDeviceInfo>,
+    /// Total count of devices
+    pub count: usize,
+}
+
+/// Get all devices linked to the current user.
+///
+/// GET /api/v1/devices/me
+///
+/// Returns a list of all devices linked to the authenticated user.
+pub async fn get_my_devices(
+    State(state): State<AppState>,
+    user_auth: UserAuth,
+) -> Result<Json<UserDevicesResponse>, ApiError> {
+    let repo = DeviceRepository::new(state.pool.clone());
+
+    // Find all user's devices (sorted: primary first, then by linked_at)
+    let devices = repo.find_devices_by_user(user_auth.user_id, false).await?;
+
+    let device_infos: Vec<UserDeviceInfo> = devices
+        .into_iter()
+        .map(|d| UserDeviceInfo {
+            device_id: d.device_id,
+            display_name: d.display_name,
+            group_id: d.group_id,
+            platform: d.platform,
+            is_primary: d.is_primary,
+            linked_at: d.linked_at,
+            last_seen_at: d.last_seen_at,
+        })
+        .collect();
+
+    let count = device_infos.len();
+
+    Ok(Json(UserDevicesResponse {
+        devices: device_infos,
+        count,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
