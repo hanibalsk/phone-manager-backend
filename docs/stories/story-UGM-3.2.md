@@ -13,7 +13,7 @@
 
 ## Acceptance Criteria
 
-1. [x] Given an authenticated user who is a member of a group, when the user calls `POST /api/v1/groups/:groupId/devices/add` with their device_id, then the device is added to the group
+1. [x] Given an authenticated user who is a member of a group, when the user calls `POST /api/v1/groups/:groupId/devices` with their device_id, then the device is added to the group
 2. [x] The response includes `group_id`, `device_id`, `added_at`
 3. [x] The operation completes in < 100ms
 4. [x] Given a user who is NOT a member of the group, when attempting to add a device, then the response is 403 Forbidden
@@ -23,7 +23,7 @@
 
 ## Technical Notes
 
-- Endpoint: `POST /api/v1/groups/:groupId/devices/add`
+- Endpoint: `POST /api/v1/groups/:groupId/devices`
 - Requires JWT authentication (UserAuth extractor)
 - Uses `device_group_memberships` table for multi-group support
 - Authorization checks: user must be group member AND device owner

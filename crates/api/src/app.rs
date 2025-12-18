@@ -827,15 +827,12 @@ pub fn create_app(config: Config, pool: PgPool) -> Router {
             "/api/v1/groups/migrate",
             post(groups::migrate_registration_group),
         )
-        // Group devices (Story 12.7) - JWT-authenticated endpoint for member devices
+        // Group devices (Story 12.7 + Epic UGM-3)
+        // GET: List devices in group (JWT-authenticated)
+        // POST: Add device to group (PRD: POST /api/v1/groups/:groupId/devices)
         .route(
             "/api/v1/groups/:group_id/devices",
-            get(groups::get_group_devices),
-        )
-        // Device-group management (Epic UGM-3)
-        .route(
-            "/api/v1/groups/:group_id/devices/add",
-            post(groups::add_device_to_group),
+            get(groups::get_group_devices).post(groups::add_device_to_group),
         )
         .route(
             "/api/v1/groups/:group_id/devices/members",
